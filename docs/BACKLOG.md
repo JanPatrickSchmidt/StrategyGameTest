@@ -34,6 +34,10 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
   - Läutern wählt Karten aus Deck oder Ablagestapel (R-14.8): neue Zielart in Validator und `data/README.md`, `purify` in `cards.json` anpassen (z. B. `{ "kind": "ownCards", "max": 2, "from": ["deck", "discard"] }`), Sicht des eigenen Deckinhalts ohne Reihenfolge (R-18.2a).
   - Ausspielen direkt in die Reserve bleibt erlaubt (R-3.5, R-7.1), Test dafür sicherstellen.
   - Abnahme: Tests zu allen genannten Regeln, bestehende Tests angepasst (nicht abgeschwächt).
+- [ ] **P1 Neuer Rundenablauf nach Jans Vorgabe** (direkt nach P0)
+  - Spec R-5 bis R-7b, R-11, R-12 wurden umgestellt: ein Planungsblock mit den Abschnitten `play` → `buy` → `position` (ein Wartepunkt pro Runde), Käufe werden beim Aufdecken gleichzeitig verteilt, Anführer-Aufstieg zu Rundenbeginn, Nachziehen am Rundenende mit Mischen, wenn das Deck weniger Karten hat als zu ziehen sind, Starthand beim Aufbau (R-4.6), übriges Gold am Rundenende in die Schatzkammer.
+  - Rundenmaschine, Eingabeformat (`submitPlanning` mit drei Abschnitten; `submitPurchases` entfällt), Wirtschaft und Ziehen anpassen.
+  - Abnahme: Tests zu allen geänderten Regeln; bestehende Tests auf den neuen Ablauf umgestellt (nicht abgeschwächt).
 - [ ] **E8 Kampf: Frontarena**
   - Tick-Simulation (R-9.0 bis R-9.7) für Frontkämpfe, Zielwahl inkl. Krieger und Schurken, Bewegung, Angriff, Panzer, Schild, Tod, Ende.
   - Abnahme: Tests zu allen genannten Regeln; ein Determinismus-Test.

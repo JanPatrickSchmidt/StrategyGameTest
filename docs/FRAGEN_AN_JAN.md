@@ -4,4 +4,4 @@ Offene Design-Fragen. Jede Frage nennt die **Standardlösung**, mit der bis zu J
 
 | Nr. | Frage | Standard bis zur Antwort | Seit |
 | --- | --- | --- | --- |
-| F16 | Jan schlägt vor, Aufstellung der Einheiten (und später Geländeänderungen) als eigene Phase **nach der Kaufphase** zu machen, um die Oberfläche zu entzerren. Offen: Aufstellung vor dem Ziehen der neuen Hand (Formation steht, bevor man die Karten kennt) oder als zweiter Schritt der Planung? | Bis zur Entscheidung unverändert: Aufstellen ist Teil der Planung (R-7.2). Der Client soll die Planung aber in zwei Schritte gliedern (erst Karten, dann Aufstellung). | 2026-10-28 |
+| F17 | Neuer Rundenablauf: (a) In welchem Schritt wird die Anführer-Fähigkeit gewählt? (b) Werden Münzen von Hand ausgespielt oder automatisch? | (a) Im Schritt „Aufstellen“, weil ihr Ziel meist von der Aufstellung abhängt. (b) Automatisch, wie bisher (F5); die Oberfläche zeigt sie trotzdem als gespielt an. | 2026-10-28 |

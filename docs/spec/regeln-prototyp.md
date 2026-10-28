@@ -51,48 +51,58 @@ Alle Arenen sind Hexfelder in **versetzten Koordinaten** (Spalte `col`, Zeile `r
 - **R-4.2 Startdeck:** 6× Münze, 2× Rekrut, 2× der Klassen-Starter der Anführer-Klasse. Gemischt mit dem Partie-Zufall.
 - **R-4.3** Leben 30, Machtpunkte 0, Schatzkammer 0, Anführer-XP 0, Anführer-Stufe 1.
 - **R-4.4 Anführer-Startposition:** Zone `left`, Feld (2, 1).
+- **R-4.6 Starthand:** Nach dem Mischen zieht jeder Spieler 5 Karten.
 - **R-4.5 Königreich:** alle Basisstapel und alle 16 Königreich-Karten mit Stapelgrößen laut Daten. Jeder Spieler hat zusätzlich Zugriff auf die 3 Karten seines Klassen-Pools (eigene Stapel je Spieler).
 
 ## R-5 Rundenablauf
 
-Jede Runde durchläuft genau diese Phasen:
+Struktur nach Jans Vorgabe (2026-10-28). Die Schritte 1–4 bilden den **Planungsblock**: Alle Spieler planen gleichzeitig und verdeckt, es gibt pro Runde **nur einen Wartepunkt**. In der Oberfläche sind es getrennte Schritte; bis zum Bestätigen darf der Spieler zwischen ihnen hin- und herwechseln, die Engine verarbeitet nur die endgültige Eingabe.
 
-1. **Rundenbeginn (R-6)**
-2. **Planung (R-7)** – wartet auf die Eingaben aller aktiven Spieler
-3. **Aufdecken (R-8.1)**
-4. **Anführer-Fähigkeiten (R-8.2)**
-5. **Vorkampf-Zauber (R-8.3)**
-6. **Kampf (R-9)** – alle Frontkämpfe und der Mittelkampf, unabhängig voneinander
-7. **Kampfauswertung (R-10)** – Schaden, Mitte, XP, Beute
-8. **Nachkampf-Zauber (R-8.4)**
-9. **Kaufphase (R-11)** – wartet auf die Eingaben aller aktiven Spieler
-10. **Aufräumen (R-12)**
-11. **Siegprüfung (R-13)**
+1. **Rundenbeginn und Anführer-Aufstieg (R-6)**
+2. **Ausspielen (R-7)** – Karten von der Hand: Einheiten aufs Feld, Zauber in die Slots
+3. **Kaufen (R-11)** – gekaufte Karten kommen auf den Ablagestapel
+4. **Aufstellen (R-7b)** – Einheiten positionieren, Anführer-Fähigkeit wählen
+5. **Aufdecken (R-8.1)**, dabei gleichzeitige Auswertung der Käufe (R-11.3)
+6. **Anführer-Fähigkeiten (R-8.2)**
+7. **Vorkampf-Zauber (R-8.3)**
+8. **Kampf (R-9)** – alle Frontkämpfe und der Mittelkampf, unabhängig voneinander
+9. **Kampfauswertung (R-10)** – Schaden, Mitte, XP, Beute
+10. **Nachkampf-Zauber (R-8.4)**
+11. **Rundenende (R-12)** – Ablegen, Gold in die Schatzkammer, Mischen und Nachziehen auf 5
+12. **Siegprüfung (R-13)**
 
-## R-6 Rundenbeginn
+Ein Spieler reicht pro Runde genau **eine** Planung ein, mit drei Abschnitten (`play`, `buy`, `position`) sowie Astwahl und Anführer-Fähigkeit.
 
-- **R-6.1 Zinsen:** Spieler erhalten `min(2, floor(Schatzkammer / 5))` Gold [TUNING] in die Schatzkammer. Die Schatzkammer selbst hat keine Obergrenze (R-11.5).
-- **R-6.2 Rundengold:** Jeder Spieler hat einen Gold-Vorrat für die Runde, der bei 0 beginnt. Gold verfällt nie: Was am Ende einer Runde übrig ist, liegt in der Schatzkammer (R-11.5).
-- **R-6.3 Ziehen:** Jeder Spieler zieht 5 Karten [TUNING] (+1, falls die Mitte-Belohnung „Karte“ fällig ist). Ist das Deck leer, wird der Ablagestapel gemischt und wird zum Deck. Sind beide leer, wird nicht weiter gezogen.
-- **R-6.4 Ressourcen:** Alle Ressourcenkarten auf der Hand werden automatisch ausgespielt; ihr Gold geht in den Rundenvorrat. Sie gehen beim Aufräumen auf den Ablagestapel.
+## R-6 Rundenbeginn und Anführer-Aufstieg
+
+- **R-6.1 Zinsen:** Spieler erhalten `min(2, floor(Schatzkammer / 5))` Gold [TUNING] in die Schatzkammer. Die Schatzkammer selbst hat keine Obergrenze (R-11.5). Vorher werden Resonanz-Gold (R-17.4) und Effekte „pro Runde“ (R-17a.1) abgehandelt.
+- **R-6.2 Rundengold:** Jeder Spieler hat einen Gold-Vorrat für die Runde, der bei 0 beginnt. Gold verfällt nie: Was am Ende einer Runde übrig ist, geht in die Schatzkammer (R-12.5).
+- **R-6.3 Hand:** Die Hand wurde am Ende der Vorrunde gezogen (R-12.6); in Runde 1 beim Partie-Aufbau (R-4.6).
+- **R-6.4 Ressourcen:** Alle Ressourcenkarten auf der Hand werden zu Beginn des Ausspielens automatisch ausgespielt; ihr Gold geht in den Rundenvorrat. Sie gehen beim Rundenende auf den Ablagestapel.
 - **R-6.5 Genesung durch Reserve:** Verwundete Einheiten, die die gesamte Vorrunde in der Reserve verbracht haben, sind nicht mehr verwundet.
+- **R-6.6 Anführer-Aufstieg:** Hat der Anführer in der Vorrunde genug XP für eine neue Stufe gesammelt (R-16.1), steigt er jetzt auf. Erreicht er Stufe 2, wählt der Spieler in dieser Planung seinen Ast (R-7.7).
 
-## R-7 Planung
+## R-7 Ausspielen
 
-Jeder aktive Spieler reicht genau eine Planung ein: eine **geordnete Liste von Aktionen**. Die Engine führt sie der Reihe nach aus; eine ungültige Aktion wird übersprungen und als Ereignis `action_rejected` mit Grund gemeldet. Gold, das im Laufe der Liste fehlt, macht die betreffende Aktion ungültig.
+Der Abschnitt `play` ist eine **geordnete Liste von Aktionen**. Die Engine führt sie der Reihe nach aus; eine ungültige Aktion wird übersprungen und als Ereignis `action_rejected` mit Grund gemeldet. Gold, das im Laufe der Liste fehlt, macht die betreffende Aktion ungültig.
 
-Verfügbare Gold-Quellen in der Planung: der Rundenvorrat und die Schatzkammer (Entnahme jederzeit, R-7.6).
+Verfügbare Gold-Quellen: der Rundenvorrat und die Schatzkammer (Entnahme jederzeit, R-7.6).
 
-- **R-7.1 Einheit ausspielen** `playUnit(cardInstanceId, zone, position)`: Karte muss auf der Hand sein, Kosten werden bezahlt (alternative Kosten R-14.6 möglich), Zielfeld frei, Kapazität (R-3.6) eingehalten. Die Karte verlässt die Hand und wird zur Einheit.
-- **R-7.2 Einheit bewegen** `moveUnit(unitId, zone, position)`: kostenlos, Zielfeld frei, Kapazität eingehalten. Auch zwischen Zonen und von/in die Reserve. Gilt auch für den Anführer.
+- **R-7.1 Einheit ausspielen** `playUnit(cardInstanceId, zone, position)`: Karte muss auf der Hand sein, Kosten werden bezahlt (alternative Kosten R-14.6 möglich), Zielfeld frei, Kapazität (R-3.6) eingehalten. Die Karte verlässt die Hand und wird zur Einheit. Die Reserve ist ein gültiges Ziel.
 - **R-7.3 Zauber legen** `setSpell(cardInstanceId, slot, target)`: `slot` ist `pre` oder `post`, je höchstens ein Zauber [TUNING: Slot-Anzahl]. Kosten werden sofort bezahlt. Das Ziel wird jetzt festgelegt (R-14.2).
-- **R-7.4 Anführer-Fähigkeit wählen** `setLeaderAbility(target | none)`: höchstens einmal, kostenlos.
 - **R-7.5 Genesen** `heal(unitId)`: Kosten 1 Gold pro Stern, Einheit ist nicht mehr verwundet.
-- **R-7.6 Entnahme** `withdraw(amount)`: verschiebt Gold aus der Schatzkammer in den Rundenvorrat.
+- **R-7.6 Entnahme** `withdraw(amount)`: verschiebt Gold aus der Schatzkammer in den Rundenvorrat. In jedem Abschnitt erlaubt.
 - **R-7.7 Astwahl** `chooseBranch(branchId)`: nur wenn der Anführer Stufe 2 erreicht hat und noch keinen Ast gewählt hat. Ohne Wahl wird beim Aufdecken der erste Ast genommen.
-- **R-7.8 Verschmelzen** findet nach jeder Aktion automatisch statt (R-15.1).
-- **R-7.9** Wer keine Planung einreicht (Timeout), plant eine leere Liste.
-- **R-7.10** Nicht ausgespielte Karten bleiben bis zum Aufräumen auf der Hand.
+- **R-7.8 Verschmelzen** findet nach jeder Aktion automatisch statt (R-15.1), also schon beim Ausspielen.
+- **R-7.9** Wer keine Planung einreicht (Timeout), plant leere Abschnitte.
+- **R-7.10** Nicht ausgespielte Karten bleiben bis zum Rundenende auf der Hand.
+
+## R-7b Aufstellen
+
+Der Abschnitt `position` wird **nach** den Abschnitten `play` und `buy` ausgeführt.
+
+- **R-7.2 Einheit bewegen** `moveUnit(unitId, zone, position)`: kostenlos, Zielfeld frei, Kapazität eingehalten. Auch zwischen Zonen und von/in die Reserve. Gilt auch für den Anführer. (Später auch Geländeänderungen.)
+- **R-7.4 Anführer-Fähigkeit wählen** `setLeaderAbility(target | none)`: höchstens einmal, kostenlos.
 
 ## R-8 Aufdecken, Anführer, Zauber
 
@@ -157,26 +167,28 @@ Ein Kampf läuft höchstens **300 Ticks** [TUNING]. In jedem Tick werden die leb
 - **R-10.1 Durchbruch:** Der Verlierer eines Frontkampfs verliert Leben = Summe `breakthrough` aller überlebenden Einheiten des Siegers (Tokens zählen) + **Grundschaden**.
 - **R-10.2 Leere Front:** Gewinnt eine Seite, weil die Gegenseite keine Einheiten hatte, gilt R-10.1 mit allen Einheiten des Siegers, und der Sieger erhält zusätzlich **2 Gold Beute** [TUNING].
 - **R-10.3 Gold sofort in die Schatzkammer:** Beute, Mitte-Gold, Schwung/Trotz-Gold und alle Gold-Gewinne aus Effekten nach der Planung gehen **sofort in die Schatzkammer** (zählen also schon für die Zinsen der nächsten Runde). Gold-Gewinne während der Planung (z. B. Hehler, R-17a.1) gehen in den Rundenvorrat dieser Runde.
-- **R-10.4 Mitte:** Der Halter erhöht seine Halteserie um 1, alle anderen setzen ihre auf 0. Belohnung nach Länge der Serie: 1 → +2 Gold (R-10.3); 2 → +2 Gold und +1 Karte beim Ziehen der nächsten Runde; ≥ 3 → +2 Gold, +1 Karte und sofort +1 Machtpunkt [TUNING].
+- **R-10.4 Mitte:** Der Halter erhöht seine Halteserie um 1, alle anderen setzen ihre auf 0. Belohnung nach Länge der Serie: 1 → +2 Gold (R-10.3); 2 → +2 Gold und +1 Karte beim Nachziehen am Rundenende (R-12.6); ≥ 3 → +2 Gold, +1 Karte und sofort +1 Machtpunkt [TUNING].
 - **R-10.5 Grundschaden** = `1 + max(0, Runde − 10)` [TUNING].
 - **R-10.6 Schwung und Trotz:** Eine Runde gilt für einen Spieler als **gewonnen**, wenn er mehr Frontkämpfe gewonnen als verloren hat, als **verloren** bei umgekehrt, sonst neutral (die Serie bleibt unverändert). Serien zählen gewonnene bzw. verlorene Runden in Folge. Bonusgold (R-10.3): Serie 2 → +1, 3–4 → +2, ≥ 5 → +3 [TUNING], für Sieges- und Niederlagenserien gleich.
 - **R-10.7 Einheiten-XP:** Jede Karten-Einheit, die einen Kampf überlebt hat, erhält +1 XP.
 - **R-10.8 Anführer-XP:** +1, wenn der Anführer an einem Kampf teilgenommen und überlebt hat.
 
-## R-11 Kaufphase
+## R-11 Kaufen
 
-- **R-11.1** Jeder aktive Spieler reicht eine Liste von Käufen und eine Einzahlung ein.
-- **R-11.2 Kaufen** `buy(cardId)`: aus dem Königreich, den Basisstapeln oder dem eigenen Klassen-Pool. Kosten aus Rundenvorrat und Schatzkammer. Die gekaufte Karte kommt auf den Ablagestapel. Kein Kauflimit.
-- **R-11.3 Gleichzeitige Käufe:** Alle Käufe werden gleichzeitig ausgewertet. Ein einzelner Spieler kann von einem Stapel höchstens so viele Kopien kaufen, wie der Stapel zu Beginn der Kaufphase enthält. Wollen **mehrere** Spieler zusammen mehr Kopien, als der Stapel enthält, bekommen alle ihre (so begrenzten) Kopien; fehlende Kopien werden erzeugt und der Stapel geht auf 0.
+- **R-11.1** Der Abschnitt `buy` ist eine Liste von Käufen. Er wird nach `play` ausgeführt; das Gold wird sofort abgezogen (zuerst Rundenvorrat, dann Schatzkammer), die Karten werden aber erst beim Aufdecken verteilt (R-11.3).
+- **R-11.2 Kaufen** `buy(cardId)`: aus dem Königreich, den Basisstapeln oder dem eigenen Klassen-Pool. Die gekaufte Karte kommt auf den Ablagestapel. Kein Kauflimit.
+- **R-11.3 Gleichzeitige Käufe:** Alle Käufe werden beim Aufdecken gleichzeitig ausgewertet. Ein einzelner Spieler kann von einem Stapel höchstens so viele Kopien kaufen, wie der Stapel zu Beginn der Runde enthält. Wollen **mehrere** Spieler zusammen mehr Kopien, als der Stapel enthält, bekommen alle ihre (so begrenzten) Kopien; fehlende Kopien werden erzeugt und der Stapel geht auf 0.
 - **R-11.4 Leerer Stapel:** Aus einem Stapel mit 0 Kopien kann nicht gekauft werden.
-- **R-11.5 Schatzkammer:** Bezahlt wird zuerst aus dem Rundenvorrat, dann aus der Schatzkammer. Nach den Käufen geht das gesamte übrige Gold des Rundenvorrats automatisch in die Schatzkammer (keine eigene Entscheidung). **Gold verfällt nie.** Die Schatzkammer hat keine Obergrenze; begrenzt sind nur die Zinsen (R-6.1).
+- **R-11.5 Schatzkammer:** Die Schatzkammer hat keine Obergrenze; begrenzt sind nur die Zinsen (R-6.1). **Gold verfällt nie** (R-12.5).
 
-## R-12 Aufräumen
+## R-12 Rundenende
 
-- **R-12.1** Alle Karten auf der Hand (inklusive ausgespielter Ressourcen) gehen auf den Ablagestapel.
+- **R-12.1** Alle Karten auf der Hand und alle in dieser Runde ausgespielten Ressourcen gehen auf den Ablagestapel.
 - **R-12.2** Tokens werden entfernt (falls noch vorhanden).
-- **R-12.3** Anführer: +2 XP. Stufenaufstieg nach R-16.1.
+- **R-12.3** Anführer: +2 XP (der Aufstieg folgt zu Beginn der nächsten Runde, R-6.6).
 - **R-12.4** Schilde und Kampf-Buffs verfallen.
+- **R-12.5** Übriges Gold des Rundenvorrats geht automatisch in die Schatzkammer.
+- **R-12.6 Nachziehen:** Jeder Spieler zieht 5 Karten [TUNING] (+1, falls die Mitte-Belohnung „Karte“ fällig ist). Enthält das Deck **weniger Karten, als zu ziehen sind**, werden vorher Deck und Ablagestapel zusammen gemischt und bilden das neue Deck. Reicht auch das nicht, werden alle vorhandenen Karten gezogen.
 
 ## R-13 Ausscheiden und Sieg
 
@@ -195,7 +207,7 @@ Ein Kampf läuft höchstens **300 Ticks** [TUNING]. In jedem Tick werden die leb
 - **R-14.5 Vernichten:** Die Einheit verlässt das Brett; ihre Karteninstanzen gehen auf den Ablagestapel. Ein vernichteter Anführer ist erst in der übernächsten Planung wieder verfügbar (Startfeld R-4.4 oder ein beliebiges freies Feld).
 - **R-14.6 Alternative Kosten:** Karten mit `altCost` können stattdessen so bezahlt werden. `bloodToll(n)`: n Leben. `sacrifice(n)`: n eigene Karten-Einheiten (nicht Anführer, nicht Tokens) vom Brett auf den Ablagestapel.
 - **R-14.7 Flüche:** Effekte mit `giveCurse` legen eine Fluch-Karte aus dem Fluch-Stapel auf den Ablagestapel des Ziels. Ist der Stapel leer, passiert nichts.
-- **R-14.8 Läutern:** entfernt Karten dauerhaft aus dem Spiel. Gewählt werden bis zu `max` eigene Karteninstanzen aus **Deck oder Ablagestapel** (nicht von der Hand, nicht aus den in dieser Runde ausgespielten Karten). Die Wahl erfolgt in der Planung beim Legen des Zaubers; das Entfernen ändert die Reihenfolge der übrigen Deckkarten nicht. Das Deck wird nur gemischt, wenn es leer ist (R-6.3).
+- **R-14.8 Läutern:** entfernt Karten dauerhaft aus dem Spiel. Gewählt werden bis zu `max` eigene Karteninstanzen aus **Deck oder Ablagestapel** (nicht von der Hand, nicht aus den in dieser Runde ausgespielten Karten). Die Wahl erfolgt in der Planung beim Legen des Zaubers; das Entfernen ändert die Reihenfolge der übrigen Deckkarten nicht. Gemischt wird nur beim Nachziehen (R-12.6).
 
 ## R-15 Verschmelzen und Sterne
 
