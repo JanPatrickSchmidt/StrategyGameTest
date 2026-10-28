@@ -33,9 +33,9 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
   - Free-for-all-Zielwahl, Halter-Bestimmung.
   - Abnahme: Tests zu R-9.1, R-9.7 für die Mitte.
 - [ ] **D1 Kampf-Sandbox zum Ausprobieren**
-  - Eine einzelne, eigenständige HTML-Datei `apps/sandbox/dist/sandbox.html` (Engine gebündelt, keine Server-Abhängigkeit): Frontarena anzeigen (2D von oben reicht), Einheiten aus dem Mini-Set für beide Seiten auf Felder setzen, Kampf starten, Ablauf schrittweise oder animiert abspielen, Ergebnis und Durchbruch-Schaden anzeigen.
+  - Eine einzelne, eigenständige HTML-Datei, veröffentlicht unter `docs/play/sandbox.html` (Engine gebündelt, keine Server-Abhängigkeit; Quellcode in `apps/sandbox`). GitHub Pages ist aktiv (Branch `main`, Ordner `/docs`), die Datei ist damit unter https://janpatrickschmidt.github.io/StrategyGameTest/play/sandbox.html erreichbar und muss auch am Handy bedienbar sein: Frontarena anzeigen (2D von oben reicht), Einheiten aus dem Mini-Set für beide Seiten auf Felder setzen, Kampf starten, Ablauf schrittweise oder animiert abspielen, Ergebnis und Durchbruch-Schaden anzeigen.
   - Zweck: Jan kann das Kampfsystem früh selbst ausprobieren und Feedback geben, bevor der 3D-Client existiert.
-  - Abnahme: Datei öffnet sich lokal im Browser ohne Fehler; in `docs/STATUS.md` unter „Zum Ausprobieren“ eingetragen, mit kurzer Anleitung.
+  - Abnahme: Datei öffnet sich im Browser ohne Fehler, auch auf schmalen Bildschirmen; in `docs/STATUS.md` unter „Zum Ausprobieren“ mit Link und kurzer Anleitung eingetragen.
 - [ ] **E10 Effekt-System**
   - Auslöser und Bausteine laut `data/README.md`, alle Karten und Rassen des Mini-Sets wirken wie beschrieben.
   - Abnahme: Mindestens ein Test pro Karte mit Fähigkeit und pro Resonanzstufe.
@@ -64,12 +64,12 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
 Ziel: Jan spielt im Browser gegen 3 Bots, mit schlichter 3D-Darstellung.
 
 - [ ] **C1 Client-Grundgerüst** – `apps/client` mit Vite und Babylon.js; Engine läuft lokal im Browser, Bots als Gegner. Abnahme: Seite startet eine Partie und zeigt den Zustand als Text.
-- [ ] **C2 3D-Brett** – Arenen, Hexfelder, Einheiten als einfache Formen mit Farbe pro Spieler, Kamera schräg von oben, Lebens- und Sternanzeige. Abnahme: Alle Arenen der Partie sichtbar und lesbar.
+- [ ] **C2 3D-Brett** – Visuelle Richtung laut `docs/stil/visuelle-richtung.md`. Arenen, Hexfelder, Einheiten als einfache Formen mit Farbe pro Spieler, Kamera schräg von oben, Lebens- und Sternanzeige. Abnahme: Alle Arenen der Partie sichtbar und lesbar.
 - [ ] **C3 Planungsoberfläche** – Hand, Gold, Schatzkammer, Einheiten platzieren und bewegen (Klicken oder Ziehen), Zauber mit Ziel legen, Anführer-Fähigkeit mit Ziel wählen, Astwahl. Abnahme: Alle Planungsaktionen sind bedienbar.
 - [ ] **C4 Kampfwiedergabe** – Ereignisprotokoll als Animation abspielen: Bewegung, Angriff, Treffer, Tod, Fähigkeiten, Zauber, Schadenszahlen; Geschwindigkeit wählbar, überspringbar. Abnahme: Ein Kampf ist ohne Text nachvollziehbar.
 - [ ] **C5 Kaufphase** – Königreich, Klassen-Pool, Stapelgrößen, Kaufen, Einzahlen. Abnahme: Käufe landen im Deck.
 - [ ] **C6 Übersicht** – Leben, Machtpunkte, Serien, Gegner-Infos, Rundenzahl, Spielende mit Platzierung. Abnahme: Partie lässt sich bis zum Ende spielen.
-- [ ] **C7 Veröffentlichung** – Build als einzelne statische Seite, Bereitstellung über GitHub Pages (Workflow im Repository; Jan muss Pages einmal aktivieren). Abnahme: Link in `docs/STATUS.md`, Seite spielbar.
+- [ ] **C7 Veröffentlichung** – Build als statische Seite nach `docs/play/` (GitHub Pages ist aktiv, Branch `main`, Ordner `/docs`; Adresse https://janpatrickschmidt.github.io/StrategyGameTest/play/). Abnahme: Link in `docs/STATUS.md`, Seite spielbar.
 
 ## Meilenstein M4: Balancing
 
