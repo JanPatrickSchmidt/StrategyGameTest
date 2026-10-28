@@ -1,15 +1,14 @@
 /**
  * Wirtschaft (E6): Zinsen, Rundenvorrat, Ressourcen, Entnahme, Bezahlen, Gold-Gewinne,
- * gleichzeitige Käufe und Einzahlung (R-6.1, R-6.2, R-6.4, R-7.6, R-10.3, R-11).
+ * gleichzeitige Käufe und Einzahlung (R-6.1, R-6.4, R-7.6, R-10.3, R-11).
  */
 import type { PurchaseList, RejectionReason } from "./actions";
 import type { ConfigData, GameData } from "./data";
 import { emit, type GameState, getCard, getPlayer, type PlayerIndex, type PlayerState } from "./state";
 
-/** R-6.1: Zinsen = min(interestMax, floor(Schatzkammer / interestPer)), ohne das Maximum (R-11.5) zu überschreiten. */
+/** R-6.1: Zinsen = min(interestMax, floor(Schatzkammer / interestPer)); die Schatzkammer hat keine Obergrenze (R-11.5). */
 export function interestFor(treasury: number, config: ConfigData): number {
-  const raw = Math.min(config.interestMax, Math.floor(treasury / config.interestPer));
-  return Math.max(0, Math.min(raw, config.treasuryMax - treasury));
+  return Math.max(0, Math.min(config.interestMax, Math.floor(treasury / config.interestPer)));
 }
 
 /** R-6.1: zahlt allen aktiven Spielern Zinsen in die Schatzkammer. */
@@ -19,16 +18,6 @@ export function payInterest(state: GameState, config: ConfigData): void {
     if (amount <= 0) continue;
     p.treasury += amount;
     emit(state, { type: "interest_paid", player: p.index, amount, treasury: p.treasury });
-  }
-}
-
-/** R-6.2: Rundenvorrat startet mit dem Überlauf der Vorrunde (R-10.3). */
-export function startRoundGold(state: GameState): void {
-  for (const p of activePlayers(state)) {
-    const amount = p.nextRound.gold;
-    p.nextRound.gold = 0;
-    p.roundGold = amount;
-    if (amount > 0) emit(state, { type: "round_gold_started", player: p.index, amount });
   }
 }
 
@@ -71,7 +60,7 @@ export interface Payment {
 
 /**
  * Bezahlt `amount` Gold, zuerst aus dem Rundenvorrat, dann aus der Schatzkammer (R-7, R-11.2;
- * Reihenfolge nach R-1.9 zugunsten des Spielers, weil der Rundenvorrat sonst verfallen kann).
+ * Reihenfolge laut R-11.5).
  * Gibt `null` zurück und ändert nichts, wenn das Gold nicht reicht.
  */
 export function payGold(player: PlayerState, amount: number): Payment | null {
@@ -95,19 +84,13 @@ export function withdraw(state: GameState, player: PlayerIndex, amount: unknown)
   return null;
 }
 
-/**
- * R-10.3: Gold-Gewinn nach der Planung geht sofort in die Schatzkammer; was über das Maximum
- * (R-11.5) hinausgeht, geht in den Rundenvorrat der nächsten Runde.
- */
-export function gainGoldAfterPlanning(state: GameState, config: ConfigData, player: PlayerIndex, amount: number): void {
+/** R-10.3: Gold-Gewinn nach der Planung geht sofort und vollständig in die Schatzkammer (keine Obergrenze, R-11.5). */
+export function gainGoldAfterPlanning(state: GameState, player: PlayerIndex, amount: number): void {
   if (!Number.isInteger(amount) || amount < 0) throw new RangeError(`gainGold: ungültiger Betrag ${amount}`);
   if (amount === 0) return;
   const p = getPlayer(state, player);
-  const toTreasury = Math.max(0, Math.min(amount, config.treasuryMax - p.treasury));
-  const toNextRound = amount - toTreasury;
-  p.treasury += toTreasury;
-  p.nextRound.gold += toNextRound;
-  emit(state, { type: "gold_gained", player, amount, toTreasury, toNextRound, treasury: p.treasury });
+  p.treasury += amount;
+  emit(state, { type: "gold_gained", player, amount, treasury: p.treasury });
 }
 
 /** R-10.3, letzter Satz: Gold-Gewinne während der Planung gehen in den Rundenvorrat dieser Runde. */
@@ -130,9 +113,12 @@ export interface PurchaseRejection {
  *
  * Jeder Spieler kauft in der Reihenfolge seiner Liste; fehlt das Gold für einen Kauf, wird nur dieser
  * übersprungen. Ob ein Stapel leer ist (R-11.4), entscheidet der Stand **zu Beginn der Kaufphase**:
- * Käufe anderer Spieler in derselben Phase nehmen niemandem eine Kopie weg (R-11.3). Wollen alle
- * zusammen mehr Kopien als vorhanden, bekommen alle ihre Kopien, der Stapel geht auf 0 und die
- * fehlenden Kopien werden erzeugt. Die Kartenaustellung läuft in Prioritätsreihenfolge (R-1.7).
+ * Käufe anderer Spieler in derselben Phase nehmen niemandem eine Kopie weg (R-11.3). Ein einzelner
+ * Spieler kauft von einem Stapel höchstens so viele Kopien, wie dieser Stand angibt; weitere Käufe
+ * werden mit `pileLimitReached` abgelehnt. Wollen mehrere Spieler zusammen mehr Kopien als vorhanden,
+ * bekommen alle ihre Kopien, der Stapel geht auf 0 und die fehlenden Kopien werden erzeugt.
+ * Klassen-Pools gehören einem Spieler allein; dort entstehen deshalb nie zusätzliche Kopien.
+ * Die Kartenausgabe läuft in Prioritätsreihenfolge (R-1.7).
  */
 export function resolvePurchases(
   state: GameState,
@@ -148,6 +134,7 @@ export function resolvePurchases(
     const p = getPlayer(state, playerIndex);
     const classPoolAtStart = { ...p.classPool };
     const classDemand: Record<string, number> = {};
+    const ownSupplyDemand: Record<string, number> = {};
     const buys = purchases[playerIndex]?.buys ?? [];
 
     buys.forEach((cardId, index) => {
@@ -166,8 +153,10 @@ export function resolvePurchases(
         reason = "notBuyable";
       }
       if (!reason && source) {
-        const atStart = source === "supply" ? supplyAtStart[cardId] : classPoolAtStart[cardId];
-        if ((atStart ?? 0) <= 0) reason = "pileEmpty";
+        const atStart = (source === "supply" ? supplyAtStart[cardId] : classPoolAtStart[cardId]) ?? 0;
+        const alreadyBought = (source === "supply" ? ownSupplyDemand : classDemand)[cardId] ?? 0;
+        if (atStart <= 0) reason = "pileEmpty";
+        else if (alreadyBought >= atStart) reason = "pileLimitReached";
       }
       let payment: Payment | null = null;
       if (!reason && card) {
@@ -181,8 +170,12 @@ export function resolvePurchases(
       const id = state.nextCardInstanceId++;
       state.cards[id] = { id, cardId, owner: playerIndex };
       p.discard.push(id);
-      const demand = source === "supply" ? supplyDemand : classDemand;
-      demand[cardId] = (demand[cardId] ?? 0) + 1;
+      if (source === "supply") {
+        supplyDemand[cardId] = (supplyDemand[cardId] ?? 0) + 1;
+        ownSupplyDemand[cardId] = (ownSupplyDemand[cardId] ?? 0) + 1;
+      } else {
+        classDemand[cardId] = (classDemand[cardId] ?? 0) + 1;
+      }
       emit(state, {
         type: "card_bought",
         player: playerIndex,
@@ -221,15 +214,17 @@ export function resolvePurchases(
   return rejections;
 }
 
-/** R-11.5: nach den Käufen wird aus dem Rundenvorrat eingezahlt, bis die Schatzkammer voll ist; der Rest verfällt. */
-export function depositRoundGold(state: GameState, config: ConfigData): void {
+/**
+ * R-11.5: nach den Käufen geht das gesamte übrige Gold des Rundenvorrats automatisch in die
+ * Schatzkammer. Gold verfällt nie; der Rundenvorrat der nächsten Runde beginnt bei 0 (R-6.2).
+ */
+export function depositRoundGold(state: GameState): void {
   for (const p of activePlayers(state)) {
-    const amount = Math.max(0, Math.min(p.roundGold, config.treasuryMax - p.treasury));
-    const forfeited = p.roundGold - amount;
+    const amount = p.roundGold;
+    if (amount <= 0) continue;
     p.treasury += amount;
     p.roundGold = 0;
-    if (amount > 0) emit(state, { type: "gold_deposited", player: p.index, amount, treasury: p.treasury });
-    if (forfeited > 0) emit(state, { type: "gold_forfeited", player: p.index, amount: forfeited });
+    emit(state, { type: "gold_deposited", player: p.index, amount, treasury: p.treasury });
   }
 }
 

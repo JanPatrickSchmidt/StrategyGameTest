@@ -8,7 +8,6 @@
   "capacityBonusAtLeaderLevel": { "2": 1, "4": 1 },
   "reserveSlots": 3,
   "spellSlots": { "pre": 1, "post": 1 },
-  "treasuryMax": 10,
   "interestPer": 5,
   "interestMax": 2,
   "emptyFrontLoot": 2,

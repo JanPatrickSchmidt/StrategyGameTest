@@ -73,7 +73,7 @@ export interface LeaderState {
 
 /** Boni, die in der nächsten Runde fällig werden (R-6.2, R-6.3, R-10.3/4/6). */
 export interface NextRoundBonus {
-  gold: number;
+  /** R-10.4: Bonuskarten beim Ziehen der nächsten Runde. */
   cards: number;
 }
 
@@ -141,16 +141,14 @@ export type GameEventPayload =
   | { type: "draw_stopped"; player: PlayerIndex; missing: number }
   /** R-6.1: Zinsen in die Schatzkammer. */
   | { type: "interest_paid"; player: PlayerIndex; amount: number; treasury: number }
-  /** R-6.2: Rundenvorrat startet mit dem Überlauf der Vorrunde (R-10.3). */
-  | { type: "round_gold_started"; player: PlayerIndex; amount: number }
   /** R-6.4 privat: welche Ressourcen ausgespielt wurden und wie viel Gold sie bringen. */
   | { type: "resources_played"; player: PlayerIndex; cardInstanceIds: CardInstanceId[]; gold: number }
   /** R-6.4 öffentlich: wie viele Karten die Hand dadurch verlassen (R-18.1 Handgröße). */
   | { type: "resources_played_count"; player: PlayerIndex; count: number }
   /** R-7.6: Entnahme aus der Schatzkammer in den Rundenvorrat. */
   | { type: "gold_withdrawn"; player: PlayerIndex; amount: number; treasury: number }
-  /** R-10.3: Gold-Gewinn nach der Planung; Überlauf geht in den Rundenvorrat der nächsten Runde. */
-  | { type: "gold_gained"; player: PlayerIndex; amount: number; toTreasury: number; toNextRound: number; treasury: number }
+  /** R-10.3: Gold-Gewinn nach der Planung, vollständig in die Schatzkammer. */
+  | { type: "gold_gained"; player: PlayerIndex; amount: number; treasury: number }
   /** Gold-Gewinn während der Planung in den Rundenvorrat (R-10.3, letzter Satz). */
   | { type: "round_gold_gained"; player: PlayerIndex; amount: number }
   /** R-11.2: Kauf; die neue Karteninstanz liegt auf dem Ablagestapel. */
@@ -167,8 +165,6 @@ export type GameEventPayload =
   | { type: "pile_changed"; pile: string; owner: PlayerIndex | null; remaining: number; created: number }
   /** R-11.5: Einzahlung aus dem Rundenvorrat in die Schatzkammer. */
   | { type: "gold_deposited"; player: PlayerIndex; amount: number; treasury: number }
-  /** R-11.5: Rest des Rundenvorrats verfällt. */
-  | { type: "gold_forfeited"; player: PlayerIndex; amount: number }
   /** R-7.1: Karte verlässt die Hand und wird zur Einheit. */
   | {
       type: "unit_played";

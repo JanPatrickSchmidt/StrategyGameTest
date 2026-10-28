@@ -13,7 +13,7 @@ import { isPlanningActionType, type PlanningAction, type PurchaseList, type Reje
 import type { GameData } from "./data";
 import { healUnit, moveUnit, playUnit } from "./board";
 import { drawForRound } from "./deck";
-import { depositRoundGold, payInterest, playResources, resolvePurchases, startRoundGold, withdraw } from "./economy";
+import { depositRoundGold, payInterest, playResources, resolvePurchases, withdraw } from "./economy";
 import {
   emit,
   type GameState,
@@ -217,11 +217,13 @@ function isGameOver(state: GameState): boolean {
   return state.players.filter((p) => !p.eliminated).length <= 1;
 }
 
-/** R-6: Rundenbeginn in der Reihenfolge R-6.1 Zinsen, R-6.2 Rundenvorrat, R-6.3 Ziehen, R-6.4 Ressourcen. */
+/**
+ * R-6: Rundenbeginn in der Reihenfolge R-6.1 Zinsen, R-6.3 Ziehen, R-6.4 Ressourcen.
+ * R-6.2: Der Rundenvorrat beginnt bei 0; das stellt die Einzahlung am Ende der Kaufphase sicher (R-11.5).
+ */
 function runRoundStart(state: GameState, data: GameData): void {
   payInterest(state, data.config);
   // R-17a.1 („pro Runde“-Effekte) folgt in E10.
-  startRoundGold(state);
   drawForRound(state, data.config);
   playResources(state, data);
 }
@@ -275,7 +277,7 @@ function runBuy(state: GameState, data: GameData): void {
   for (const r of rejections) {
     emit(state, { type: "action_rejected", player: r.player, kind: "purchases", index: r.index, action: r.cardId, reason: r.reason });
   }
-  depositRoundGold(state, data.config);
+  depositRoundGold(state);
   state.pendingPurchases = PLAYER_INDICES.map(() => null);
 }
 

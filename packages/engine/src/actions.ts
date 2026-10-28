@@ -88,6 +88,8 @@ export const REJECTION_REASONS = [
   "notBuyable",
   /** R-11.4: Stapel ist leer. */
   "pileEmpty",
+  /** R-11.3: Spieler kauft schon so viele Kopien, wie der Stapel zu Beginn der Kaufphase enthielt. */
+  "pileLimitReached",
   /** Vorübergehend: Ausführung folgt in E7b/E7c. */
   "notImplemented",
 ] as const;

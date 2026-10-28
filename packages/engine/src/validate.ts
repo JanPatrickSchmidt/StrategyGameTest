@@ -454,7 +454,6 @@ const config: Check = obj({
   capacityBonusAtLeaderLevel: req(recordOf(positiveIntKey, int(0))),
   reserveSlots: req(int(0)),
   spellSlots: req(obj({ pre: req(int(0)), post: req(int(0)) })),
-  treasuryMax: req(int(0)),
   interestPer: req(int(1)),
   interestMax: req(int(0)),
   emptyFrontLoot: req(int(0)),

@@ -57,71 +57,68 @@ function setGold(state: GameState, player: PlayerIndex, roundGold: number, treas
 }
 
 describe("R-6.1: Zinsen", () => {
-  it("R-6.1: min(2, floor(Schatzkammer / 5)), ohne das Maximum zu überschreiten", () => {
+  it("R-6.1: min(2, floor(Schatzkammer / 5))", () => {
     expect(interestFor(0, config)).toBe(0);
     expect(interestFor(4, config)).toBe(0);
     expect(interestFor(5, config)).toBe(1);
     expect(interestFor(9, config)).toBe(1);
-    // Maximum 10: eine volle Schatzkammer bekommt keine Zinsen.
-    expect(interestFor(10, config)).toBe(0);
+    expect(interestFor(10, config)).toBe(2);
   });
 
-  it("R-6.1: Obergrenze 2 und Deckelung am Maximum, Werte aus der Konfiguration", () => {
-    const big: ConfigData = { ...config, treasuryMax: 20 };
-    expect(interestFor(10, big)).toBe(2);
-    expect(interestFor(17, big)).toBe(2);
-    expect(interestFor(19, big)).toBe(1);
-    expect(interestFor(20, big)).toBe(0);
-    const other: ConfigData = { ...config, interestPer: 3, interestMax: 3, treasuryMax: 30 };
+  it("R-6.1: Zinsen sind auf 2 gedeckelt, die Schatzkammer nicht; Werte aus der Konfiguration", () => {
+    expect(interestFor(17, config)).toBe(2);
+    expect(interestFor(100, config)).toBe(2);
+    const other: ConfigData = { ...config, interestPer: 3, interestMax: 3 };
     expect(interestFor(9, other)).toBe(3);
+    expect(interestFor(40, other)).toBe(3);
+  });
+
+  it("R-6.1/R-11.5: config.json kennt keine Obergrenze der Schatzkammer mehr", () => {
+    expect("treasuryMax" in config).toBe(false);
   });
 
   it("R-6.1: zu Rundenbeginn gehen die Zinsen in die Schatzkammer, mit Ereignis", () => {
     const state = newGame();
     getPlayer(state, 0).treasury = 6;
-    getPlayer(state, 1).treasury = 10;
+    getPlayer(state, 1).treasury = 23;
     getPlayer(state, 2).treasury = 3;
     getPlayer(state, 3).treasury = 5;
     getPlayer(state, 3).eliminated = true;
     advance(state, data);
     expect(getPlayer(state, 0).treasury).toBe(7);
-    expect(getPlayer(state, 1).treasury).toBe(10);
+    expect(getPlayer(state, 1).treasury).toBe(25);
     expect(getPlayer(state, 2).treasury).toBe(3);
     expect(getPlayer(state, 3).treasury).toBe(5);
     expect(eventsOf(state, "interest_paid")).toEqual([
       expect.objectContaining({ player: 0, amount: 1, treasury: 7, phase: "roundStart" }),
+      expect.objectContaining({ player: 1, amount: 2, treasury: 25, phase: "roundStart" }),
     ]);
   });
 });
 
 describe("R-6.2: Rundenvorrat", () => {
-  it("R-6.2: der Rundenvorrat startet mit dem Überlauf der Vorrunde", () => {
+  it("R-6.2: der Rundenvorrat beginnt bei 0, nur Ressourcen füllen ihn", () => {
     const state = newGame();
-    const p = getPlayer(state, 0);
-    p.nextRound.gold = 3;
-    p.deck = [];
-    p.discard = [];
+    stackDeck(state, 0, ["recruit", "recruit", "recruit", "recruit", "recruit"]);
     advance(state, data);
-    expect(p.roundGold).toBe(3);
-    expect(p.nextRound.gold).toBe(0);
-    expect(eventsOf(state, "round_gold_started")).toEqual([expect.objectContaining({ player: 0, amount: 3 })]);
+    expect(getPlayer(state, 0).roundGold).toBe(0);
   });
 
-  it("R-6.2/R-10.3: Überlauf aus einem Gold-Gewinn landet im Rundenvorrat der nächsten Runde", () => {
+  it("R-6.2/R-11.5: übriges Gold liegt in der Schatzkammer, die nächste Runde beginnt wieder bei 0", () => {
     const state = newGame();
+    // Runde 1: drei Münzen; Runde 2: nur Rekruten.
+    stackDeck(state, 1, ["coin", "coin", "coin", "recruit", "recruit", "recruit", "recruit", "recruit", "recruit", "recruit"]);
     toBuyPhase(state);
     const p = getPlayer(state, 1);
-    p.treasury = 8;
-    gainGoldAfterPlanning(state, config, 1, 5);
-    expect(p.treasury).toBe(10);
-    expect(p.nextRound.gold).toBe(3);
+    expect(p.roundGold).toBe(3);
+    p.treasury = 12;
+    gainGoldAfterPlanning(state, 1, 5);
+    expect(p.treasury).toBe(17);
     finishBuy(state, {});
-    // Runde 2: Zinsen 0 (volle Schatzkammer), Rundenvorrat = 3 + Ressourcen.
-    const resourceGold = eventsOf(state, "resources_played")
-      .filter((e) => e.round === 2 && e.player === 1)
-      .reduce((sum, e) => sum + e.gold, 0);
-    expect(p.roundGold).toBe(3 + resourceGold);
-    expect(p.nextRound.gold).toBe(0);
+    // Einzahlung: 17 + 3 = 20; Runde 2: Zinsen +2, Rundenvorrat 0 (nur Rekruten auf der Hand).
+    expect(p.roundGold).toBe(0);
+    expect(p.treasury).toBe(22);
+    expect(state.round).toBe(2);
   });
 });
 
@@ -219,19 +216,20 @@ describe("R-7/R-11.2: Bezahlen", () => {
 });
 
 describe("R-10.3: Gold-Gewinne", () => {
-  it("R-10.3: nach der Planung sofort in die Schatzkammer, Überlauf in die nächste Runde", () => {
+  it("R-10.3: nach der Planung sofort und vollständig in die Schatzkammer, ohne Obergrenze", () => {
     const state = newGame();
     const p = getPlayer(state, 2);
     p.treasury = 6;
-    gainGoldAfterPlanning(state, config, 2, 2);
-    expect([p.treasury, p.nextRound.gold]).toEqual([8, 0]);
-    gainGoldAfterPlanning(state, config, 2, 4);
-    expect([p.treasury, p.nextRound.gold]).toEqual([10, 2]);
-    gainGoldAfterPlanning(state, config, 2, 0);
+    gainGoldAfterPlanning(state, 2, 2);
+    expect([p.treasury, p.roundGold]).toEqual([8, 0]);
+    gainGoldAfterPlanning(state, 2, 4);
+    expect([p.treasury, p.roundGold]).toEqual([12, 0]);
+    gainGoldAfterPlanning(state, 2, 0);
     expect(eventsOf(state, "gold_gained")).toEqual([
-      expect.objectContaining({ player: 2, amount: 2, toTreasury: 2, toNextRound: 0, treasury: 8 }),
-      expect.objectContaining({ player: 2, amount: 4, toTreasury: 2, toNextRound: 2, treasury: 10 }),
+      expect.objectContaining({ player: 2, amount: 2, treasury: 8 }),
+      expect.objectContaining({ player: 2, amount: 4, treasury: 12 }),
     ]);
+    expect(() => gainGoldAfterPlanning(state, 2, -1)).toThrow(RangeError);
   });
 
   it("R-10.3: Gold-Gewinne während der Planung gehen in den Rundenvorrat dieser Runde", () => {
@@ -297,7 +295,7 @@ describe("R-11: Kaufphase", () => {
     expect(getPlayer(state, 0).discard).toEqual([]);
   });
 
-  it("R-11.2: fehlt Gold, wird nur dieser Kauf übersprungen; kein Kauflimit", () => {
+  it("R-11.2: fehlt Gold, wird nur dieser Kauf übersprungen; kein allgemeines Kauflimit", () => {
     const state = newGame();
     setGold(state, 2, 5, 0);
     const rejected = resolvePurchases(state, data, [0, 1, 2, 3], purchases({ 2: ["gold_bar", "purify", "purify", "purify"] }));
@@ -314,13 +312,14 @@ describe("R-11: Kaufphase", () => {
     state.supply.blade_dancer = 1;
     for (const p of PLAYER_INDICES) setGold(state, p, 10, 0);
     const rejected = resolvePurchases(state, data, [1, 2, 3, 0], purchases({ 0: ["blade_dancer"], 1: ["blade_dancer"], 3: ["blade_dancer", "blade_dancer"] }));
-    expect(rejected).toEqual([]);
+    // Spieler 3 darf nur 1 Kopie kaufen (Stapelstand zu Beginn der Kaufphase).
+    expect(rejected).toEqual([{ player: 3, index: 1, cardId: "blade_dancer", reason: "pileLimitReached" }]);
     expect(state.supply.blade_dancer).toBe(0);
     const bought = eventsOf(state, "card_bought");
     // Ausgabe in Prioritätsreihenfolge.
-    expect(bought.map((e) => e.player)).toEqual([1, 3, 3, 0]);
+    expect(bought.map((e) => e.player)).toEqual([1, 3, 0]);
     expect(eventsOf(state, "pile_changed")).toEqual([
-      expect.objectContaining({ pile: "blade_dancer", owner: null, remaining: 0, created: 3 }),
+      expect.objectContaining({ pile: "blade_dancer", owner: null, remaining: 0, created: 2 }),
     ]);
     for (const p of [0, 1, 3] as const) {
       expect(getPlayer(state, p).discard.every((id) => getCard(state, id).cardId === "blade_dancer")).toBe(true);
@@ -336,6 +335,32 @@ describe("R-11: Kaufphase", () => {
     expect(state.supply.ranger).toBe(0);
   });
 
+  it("R-11.3: ein einzelner Spieler kauft höchstens den Stapelstand; allein entstehen keine Extra-Kopien", () => {
+    const state = newGame();
+    state.supply.silver = 2;
+    setGold(state, 0, 12, 0);
+    const rejected = resolvePurchases(state, data, [0, 1, 2, 3], purchases({ 0: ["silver", "silver", "silver", "purify"] }));
+    expect(rejected).toEqual([{ player: 0, index: 2, cardId: "silver", reason: "pileLimitReached" }]);
+    // Abgelehnter Kauf kostet nichts: 2 × 3 + 2 = 8.
+    expect(getPlayer(state, 0).roundGold).toBe(4);
+    expect(state.supply.silver).toBe(0);
+    expect(eventsOf(state, "pile_changed")).toEqual(
+      expect.arrayContaining([expect.objectContaining({ pile: "silver", remaining: 0, created: 0 })]),
+    );
+  });
+
+  it("R-11.3: auch im eigenen Klassen-Pool höchstens der Stapelstand, nie zusätzliche Kopien", () => {
+    const state = newGame();
+    setGold(state, 1, 50, 0);
+    const p = getPlayer(state, 1);
+    const cardId = Object.keys(p.classPool)[0] as string;
+    p.classPool[cardId] = 1;
+    const rejected = resolvePurchases(state, data, [0, 1, 2, 3], purchases({ 1: [cardId, cardId] }));
+    expect(rejected).toEqual([{ player: 1, index: 1, cardId, reason: "pileLimitReached" }]);
+    expect(p.classPool[cardId]).toBe(0);
+    expect(eventsOf(state, "pile_changed")).toEqual([expect.objectContaining({ pile: cardId, owner: 1, remaining: 0, created: 0 })]);
+  });
+
   it("R-11.4: aus einem leeren Stapel kann nicht gekauft werden", () => {
     const state = newGame();
     state.supply.silver = 0;
@@ -346,26 +371,23 @@ describe("R-11: Kaufphase", () => {
     expect(state.supply.silver).toBe(0);
   });
 
-  it("R-11.5: nach den Käufen wird eingezahlt bis zum Maximum, der Rest verfällt", () => {
+  it("R-11.5: nach den Käufen geht das gesamte übrige Gold in die Schatzkammer, nichts verfällt", () => {
     const state = newGame();
     setGold(state, 0, 9, 4);
     setGold(state, 1, 3, 10);
-    setGold(state, 2, 2, 1);
+    setGold(state, 2, 0, 1);
     setGold(state, 3, 5, 0);
     getPlayer(state, 3).eliminated = true;
-    depositRoundGold(state, config);
-    expect([getPlayer(state, 0).treasury, getPlayer(state, 0).roundGold]).toEqual([10, 0]);
-    expect([getPlayer(state, 1).treasury, getPlayer(state, 1).roundGold]).toEqual([10, 0]);
-    expect([getPlayer(state, 2).treasury, getPlayer(state, 2).roundGold]).toEqual([3, 0]);
+    depositRoundGold(state);
+    expect([getPlayer(state, 0).treasury, getPlayer(state, 0).roundGold]).toEqual([13, 0]);
+    expect([getPlayer(state, 1).treasury, getPlayer(state, 1).roundGold]).toEqual([13, 0]);
+    expect([getPlayer(state, 2).treasury, getPlayer(state, 2).roundGold]).toEqual([1, 0]);
     expect(getPlayer(state, 3).roundGold).toBe(5);
     expect(eventsOf(state, "gold_deposited")).toEqual([
-      expect.objectContaining({ player: 0, amount: 6, treasury: 10 }),
-      expect.objectContaining({ player: 2, amount: 2, treasury: 3 }),
+      expect.objectContaining({ player: 0, amount: 9, treasury: 13 }),
+      expect.objectContaining({ player: 1, amount: 3, treasury: 13 }),
     ]);
-    expect(eventsOf(state, "gold_forfeited")).toEqual([
-      expect.objectContaining({ player: 0, amount: 3 }),
-      expect.objectContaining({ player: 1, amount: 3 }),
-    ]);
+    expect(state.log.some((e) => (e.type as string) === "gold_forfeited")).toBe(false);
   });
 
   it("R-11: Kaufen in der Rundenmaschine mit Gold aus Ressourcen, danach Einzahlung (R-11.5)", () => {

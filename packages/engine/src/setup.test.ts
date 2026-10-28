@@ -111,7 +111,7 @@ describe("R-4.3: Startwerte", () => {
       expect(p.leader.level).toBe(1);
       expect(p.leader.branchId).toBeNull();
       expect(p.eliminated).toBe(false);
-      expect(p.nextRound).toEqual({ gold: 0, cards: 0 });
+      expect(p.nextRound).toEqual({ cards: 0 });
       expect([p.winStreak, p.lossStreak, p.centerStreak]).toEqual([0, 0, 0]);
     }
     expect(state.round).toBe(1);

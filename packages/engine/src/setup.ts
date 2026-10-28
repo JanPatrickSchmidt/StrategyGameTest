@@ -141,7 +141,7 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
       winStreak: 0,
       lossStreak: 0,
       centerStreak: 0,
-      nextRound: { gold: 0, cards: 0 },
+      nextRound: { cards: 0 },
       eliminated: false,
       placement: null,
     };
