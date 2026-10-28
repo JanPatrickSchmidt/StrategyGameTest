@@ -106,6 +106,15 @@ Erst beginnen, wenn M4 abgenommen ist. Regeln: `docs/spec/erweiterungen.md`. Jed
 - [ ] **W3 Weltereignisse: Darstellung** – Ereignisanzeige im Client, Vorschau für Seher.
 - [ ] **F1 Fusion** – F-1 bis F-3, Engine und Darstellung.
 
+## Meilenstein M6: Online-Vorbereitung (nur falls vorher alles fertig ist)
+
+Erst beginnen, wenn M5 abgenommen ist. Alles läuft **nur lokal und in Tests**: nichts wird gehostet, keine Konten bei Anbietern angelegt, keine Zugangsdaten oder Geheimnisse ins Repository. Architektur laut Technik-Dokument: autoritativer Spielserver, Client spielt nur das Ereignisprotokoll ab.
+
+- [ ] **O1 Spielserver lokal** – `apps/server` mit Node.js und Colyseus: ein Raum pro Partie für 4 Spieler, Engine läuft nur auf dem Server, jeder Spieler erhält seine gefilterte Sicht (R-18), Planungs-Timer, Wiederverbinden während einer laufenden Partie. Abnahme: Test, in dem 4 Bot-Clients eine komplette Partie über einen lokal gestarteten Server spielen; kein Client sieht fremde verdeckte Informationen.
+- [ ] **O2 Client-Anbindung** – Der Client kann wahlweise lokal gegen Bots oder gegen einen Server spielen (Einstellung im Startbildschirm). Abnahme: Partie mit einem Menschen und 3 Bots über den lokalen Server spielbar.
+- [ ] **O3 Meta-Dienst Grundgerüst** – `apps/meta`: einfache Accounts ohne echte Anmeldung (nur lokal), Anführer-Vorlagen speichern, Rating mit OpenSkill nach jeder Partie; Datenbank lokal (SQLite), mit austauschbarer Schicht für PostgreSQL. Abnahme: Tests für Vorlagen und Rating-Aktualisierung.
+- [ ] **O4 Anleitung für den Betrieb** – `docs/betrieb/hosting.md`: was Jan tun muss, um Server und Meta-Dienst zu hosten (Anbieterauswahl, geschätzte monatliche Kosten, Schritte), dazu Container-Dateien (Dockerfile) zum Starten. Abnahme: Anleitung vollständig, Container lassen sich lokal bauen und starten.
+
 ## Später (nicht ohne Jan)
 
-Online-Multiplayer, Grafik-Ausbau, Pakte, Angebotsfenster, Gelände, fliegende Einheiten (siehe Ideen in `docs/spec/erweiterungen.md`).
+Online-Betrieb (Hosting, echte Anmeldung, Matchmaking im Netz), Grafik-Ausbau, Pakte, Angebotsfenster, Gelände, fliegende Einheiten (siehe Ideen in `docs/spec/erweiterungen.md`).
