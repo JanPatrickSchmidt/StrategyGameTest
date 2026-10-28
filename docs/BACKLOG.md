@@ -75,10 +75,25 @@ Ziel: Jan spielt im Browser gegen 3 Bots, mit schlichter 3D-Darstellung.
 
 ## Meilenstein M4: Balancing
 
+Grundsätze: `docs/spec/balancing.md`.
+
+- [ ] **B0 Kampf-Kalibrierung** – Werkzeug in `tools/sim`, das Armeen gleichen Goldwerts aus dem Mini-Set zufällig zusammenstellt und in der Frontarena gegeneinander kämpfen lässt (viele Aufstellungen, Seeds). Ausgabe: Siegquote je Karte und je Sternstufe, Vergleich ★2 gegen ★1 mit dreifachen Kosten. Danach Kartenwerte nach B-1/B-3 anpassen. Abnahme: Bericht unter `docs/berichte/`, alle Karten im Zielbereich oder begründete Ausnahme.
 - [ ] **B1 Simulationsreihen** – je 2.000 Partien GreedyBot mit allen Anführer-Kombinationen; Kennzahlen: Siegquote je Anführer, Siegart (Leben, Macht, Rundenlimit), Rundenzahl, meistgekaufte Karten, Kaufquote je Karte.
 - [ ] **B2 Tuning** – [TUNING]-Werte anpassen, bis kein Anführer über 35 % Siegquote liegt (fair wären 25 %) und Partien im Mittel 15–20 Runden dauern. Jede Änderung in `docs/ENTSCHEIDUNGEN.md`.
 - [ ] **B3 Bericht für Jan** – `docs/berichte/balancing-<datum>.md` mit Ergebnissen, Diagrammen als Bilddateien und CSVs zum Selbstauswerten.
 
+## Meilenstein M5: Erweiterungen hinter Schaltern
+
+Erst beginnen, wenn M4 abgenommen ist. Regeln: `docs/spec/erweiterungen.md`. Jedes System hinter einem Schalter in `config.json`, Standard aus; bei ausgeschaltetem Schalter bleiben alle bisherigen Tests unverändert grün.
+
+- [ ] **V1 Evolution: Engine** – E-1 bis E-6, Datenformat, Astwahl, Verschmelzen. Abnahme: Tests zu allen E-Regeln, Schalter aus = keine Änderung.
+- [ ] **V2 Evolution: Inhalte** – Äste für alle Einheiten des Mini-Sets nach E-7, als Entwurf markiert, Werte per Kalibrierung (B0-Werkzeug) geprüft. Abnahme: jede Einheit hat zwei Äste, Kalibrierung im Zielbereich, kurze Übersicht der Äste unter `docs/berichte/evolutionen.md` für Jan.
+- [ ] **V3 Evolution: Darstellung** – E-8 im 3D-Client. Abnahme: Evolution in einer Partie sichtbar, Astwahl bedienbar.
+- [ ] **W1 Weltereignisse: Engine und Inhalte** – W-1 bis W-4, 10–12 Ereignisse. Abnahme: Tests, Ereignisse in Simulationen ohne Dominanz einzelner Ereignisse.
+- [ ] **W2 Seher-Karten** – W-5. Abnahme: Tests, Sichtbarkeit nur für den Besitzer.
+- [ ] **W3 Weltereignisse: Darstellung** – Ereignisanzeige im Client, Vorschau für Seher.
+- [ ] **F1 Fusion** – F-1 bis F-3, Engine und Darstellung.
+
 ## Später (nicht ohne Jan)
 
-Online-Multiplayer (M5), Grafik-Ausbau, weitere Systeme aus dem Design-Dokument (Pakte, Weltereignisse, Angebotsfenster, Evolution, Fusion, Gelände).
+Online-Multiplayer, Grafik-Ausbau, Pakte, Angebotsfenster, Gelände, fliegende Einheiten (siehe Ideen in `docs/spec/erweiterungen.md`).

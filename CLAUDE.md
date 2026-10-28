@@ -10,7 +10,7 @@ Dieses Repository enthält den Prototyp eines Strategiespiels: Deckbuilding (wie
 2. `docs/STATUS.md` – aktueller Stand, letzte Einträge, Blockaden
 3. `docs/BACKLOG.md` – Meilensteine, Aufgaben, Abnahmekriterien
 4. `docs/FRAGEN_AN_JAN.md` – offene Fragen und die bis dahin gewählten Standards
-5. Die für die Aufgabe relevanten Abschnitte von `docs/spec/regeln-prototyp.md` und `packages/engine/data/README.md`
+5. Die für die Aufgabe relevanten Abschnitte von `docs/spec/regeln-prototyp.md`, `docs/spec/balancing.md`, `docs/spec/erweiterungen.md` und `packages/engine/data/README.md`
 
 ## Arbeitsablauf pro Sitzung
 
