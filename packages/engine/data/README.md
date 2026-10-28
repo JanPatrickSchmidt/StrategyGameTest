@@ -68,7 +68,7 @@ Pflichtfelder: `id`, `name`, `type` (`resource` | `unit` | `spell` | `curse`), `
 
 Erlaubte Werte weiterer Parameter:
 - `summon.where`: `adjacentFree`, `zoneFree`, `targetHexThenAdjacentFree`; `summon.token` muss eine Karte mit `pool: "token"` sein.
-- `trash.from`: `chosenHandCards`
+- `trash.from`: `chosenOwnCards` (die bei `ownCards` gewählten Karten, R-14.8)
 - `costModifier.appliesTo`: `raceCards`
 - `returnOnDeath.limit`: `firstRaceUnitPerCombat`, `oncePerUnitPerCombat`
 - `giveCurse.to`, `stealGold.from`: Spieler-Ziele (siehe unten)
@@ -83,7 +83,7 @@ Als Objekt: `{ "kind": "nearestEnemies", "count": n }`, `{ "kind": "alliesInRang
 Spieler: `frontOpponent`, `frontOpponentTreasury`, `targetPlayer`.
 
 ### Ziel-Angaben bei Zaubern und Anführer-Fähigkeiten
-`{ "kind": "hex" | "zone" | "player" | "handCards" | "moveUnits" | "none", … }`. Parameter: `hex`: `arenas`, optional `mustBeFree`; `zone`: `arenas`; `player`: `allowed` (`neighbors`); `handCards`: `max`; `moveUnits`: `count`, `destination` (`ownFreeHex` \| `participatingFreeHex`, R-16.6). `arenas`: `participating` (eigene Fronten und Mitte, R-14.2) oder `own` (nur eigene Zonen).
+`{ "kind": "hex" | "zone" | "player" | "ownCards" | "moveUnits" | "none", … }`. Parameter: `hex`: `arenas`, optional `mustBeFree`; `zone`: `arenas`; `player`: `allowed` (`neighbors`); `ownCards`: `max`, `from` (Liste aus `deck` \| `discard`, mindestens ein Eintrag; R-14.8: nie Hand oder ausgespielte Karten); `moveUnits`: `count`, `destination` (`ownFreeHex` \| `participatingFreeHex`, R-16.6). `arenas`: `participating` (eigene Fronten und Mitte, R-14.2) oder `own` (nur eigene Zonen).
 
 ### Schlüsselwörter
 `firstStrike` (R-9.3), `unwoundable`, `woundOnKill`.

@@ -1,7 +1,9 @@
 /**
- * Deck, Mischen und Ziehen (R-4.2, R-6.3).
+ * Deck, Mischen, Ziehen und Läutern (R-4.2, R-6.3, R-14.8, R-18.2a).
  */
+import type { RejectionReason } from "./actions";
 import type { ConfigData } from "./data";
+import type { OwnCardZone } from "./dataTypes";
 import { shuffleInPlace } from "./rng";
 import { type CardInstanceId, emit, type GameState, getPlayer, type PlayerIndex } from "./state";
 
@@ -61,4 +63,67 @@ export function drawForRound(state: GameState, config: ConfigData): void {
     p.nextRound.cards = 0;
     drawCards(state, p.index, roundDrawCount(config, bonus));
   }
+}
+
+export interface OwnCardEntry {
+  cardInstanceId: CardInstanceId;
+  cardId: string;
+}
+
+/**
+ * R-18.2a: Inhalt des eigenen Decks ohne Reihenfolge (für die Wahl beim Läutern, R-14.8).
+ * Sortiert nach Karten-ID und dann nach Instanz-ID; Instanz-IDs entstehen beim Erzeugen der Karte
+ * und verraten nichts über die Position im Deck.
+ */
+export function ownDeckContents(state: GameState, player: PlayerIndex): OwnCardEntry[] {
+  return getPlayer(state, player)
+    .deck.map((id) => ({ cardInstanceId: id, cardId: state.cards[id]?.cardId ?? "" }))
+    .sort((a, b) => (a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : a.cardInstanceId - b.cardInstanceId));
+}
+
+/**
+ * R-14.8: prüft die Kartenwahl beim Legen eines Läutern-Zaubers: höchstens `max` verschiedene
+ * eigene Karteninstanzen, jede in einem der erlaubten Bereiche (`from`). Hand und ausgespielte
+ * Karten sind nie erlaubt. Gibt bei Ablehnung den Grund zurück.
+ */
+export function checkOwnCardsChoice(
+  state: GameState,
+  player: PlayerIndex,
+  spec: { max: number; from: readonly OwnCardZone[] },
+  cardInstanceIds: unknown,
+): RejectionReason | null {
+  if (!Array.isArray(cardInstanceIds)) return "malformed";
+  if (cardInstanceIds.length > spec.max) return "tooManyCards";
+  const p = getPlayer(state, player);
+  const seen = new Set<number>();
+  for (const id of cardInstanceIds) {
+    if (typeof id !== "number" || !Number.isInteger(id) || seen.has(id)) return "invalidCardChoice";
+    seen.add(id);
+    if (state.cards[id]?.owner !== player) return "invalidCardChoice";
+    const inAllowedZone = spec.from.some((zone) => p[zone].includes(id));
+    if (!inAllowedZone) return "invalidCardChoice";
+  }
+  return null;
+}
+
+/**
+ * R-14.8: entfernt die Karten dauerhaft aus Deck oder Ablagestapel des Spielers. Die Reihenfolge
+ * der übrigen Deckkarten bleibt unverändert, es wird nicht gemischt. Karten, die inzwischen nicht
+ * mehr in Deck oder Ablagestapel liegen (z. B. gezogen), werden übersprungen. Gibt die entfernten
+ * Karteninstanzen zurück.
+ */
+export function trashCards(state: GameState, player: PlayerIndex, cardInstanceIds: readonly CardInstanceId[]): CardInstanceId[] {
+  const p = getPlayer(state, player);
+  const trashed: { cardInstanceId: CardInstanceId; cardId: string; from: OwnCardZone }[] = [];
+  for (const id of cardInstanceIds) {
+    for (const zone of ["deck", "discard"] as const) {
+      const pos = p[zone].indexOf(id);
+      if (pos < 0) continue;
+      p[zone].splice(pos, 1);
+      trashed.push({ cardInstanceId: id, cardId: state.cards[id]?.cardId ?? "", from: zone });
+      break;
+    }
+  }
+  if (trashed.length > 0) emit(state, { type: "cards_trashed", player, cards: trashed });
+  return trashed.map((t) => t.cardInstanceId);
 }

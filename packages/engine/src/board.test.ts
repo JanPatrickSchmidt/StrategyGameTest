@@ -175,6 +175,27 @@ describe("R-7.1: Einheit ausspielen", () => {
   });
 });
 
+describe("R-3.5: Reserve", () => {
+  it("R-3.5/R-7.1: Einheiten dürfen direkt in die Reserve ausgespielt werden, auch bei vollem Brett", () => {
+    const state = inPlanning();
+    const p = getPlayer(state, 0);
+    p.roundGold = 10;
+    for (let i = 0; i < config.boardCapacity; i++) placeUnit(state, 0, center(i));
+    const [a, b, c, d] = addToHand(state, 0, ["mercenary", "recruit", "recruit", "recruit"]);
+    expect(playUnit(state, data, 0, a, reserve(0), undefined)).toBeNull();
+    expect(p.hand).not.toContain(a);
+    const unit = Object.values(state.units).find((u) => u.cardInstanceIds.includes(a as number));
+    expect(unit?.location).toEqual(reserve(0));
+    expect(eventsOf(state, "unit_played")).toEqual([expect.objectContaining({ player: 0, location: reserve(0) })]);
+    expect(playUnit(state, data, 0, b, reserve(1), undefined)).toBeNull();
+    expect(playUnit(state, data, 0, c, reserve(2), undefined)).toBeNull();
+    // Reserve hat 3 Plätze: belegter Platz und Platz außerhalb werden abgelehnt.
+    expect(playUnit(state, data, 0, d, reserve(0), undefined)).toBe("cellOccupied");
+    expect(playUnit(state, data, 0, d, reserve(config.reserveSlots), undefined)).toBe("invalidLocation");
+    expect(p.hand).toContain(d);
+  });
+});
+
 describe("R-3.6: Kapazität", () => {
   it("R-3.6: 5 Plätze, +1 ab Anführer-Stufe 2 und nochmals +1 ab Stufe 4", () => {
     expect(capacityFor(config, 1)).toBe(5);

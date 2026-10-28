@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { loadGameData } from "./data";
-import { drawCards, drawForRound, roundDrawCount } from "./deck";
+import { checkOwnCardsChoice, drawCards, drawForRound, ownDeckContents, roundDrawCount, trashCards } from "./deck";
 import { createGame, defaultLeaders } from "./setup";
-import { getPlayer } from "./state";
+import { type GameEvent, type GameState, getPlayer } from "./state";
 
 const data = loadGameData();
 const config = data.config;
@@ -121,5 +121,103 @@ describe("R-6.3: Ziehen", () => {
       return JSON.stringify(s.log);
     };
     expect(run()).toBe(run());
+  });
+});
+
+function eventsOf<T extends GameEvent["type"]>(state: GameState, type: T): Extract<GameEvent, { type: T }>[] {
+  return state.log.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
+}
+
+describe("R-14.8: Läutern", () => {
+  const purifyTarget = () => {
+    const card = data.cards.get("purify");
+    if (card?.type !== "spell" || card.target.kind !== "ownCards") throw new Error("purify muss ownCards wählen");
+    return card.target;
+  };
+
+  it("R-14.8: Läutern wählt bis zu 2 eigene Karten aus Deck oder Ablagestapel (Daten)", () => {
+    expect(purifyTarget()).toEqual({ kind: "ownCards", max: 2, from: ["deck", "discard"] });
+    const card = data.cards.get("purify");
+    expect(card?.type === "spell" ? card.effects : []).toEqual([{ op: "trash", from: "chosenOwnCards" }]);
+  });
+
+  it("R-14.8: Wahl aus Deck und Ablagestapel gültig, Hand, ausgespielte und fremde Karten nicht", () => {
+    const state = newGame();
+    drawCards(state, 0, 5);
+    const p = getPlayer(state, 0);
+    const [d1, d2] = p.deck as [number, number];
+    const handCard = p.hand[0] as number;
+    p.discard.push(p.hand.pop() as number);
+    const discardCard = p.discard[0] as number;
+    p.played.push(p.hand.pop() as number);
+    const playedCard = p.played[0] as number;
+    const foreign = getPlayer(state, 1).deck[0] as number;
+    const spec = purifyTarget();
+    expect(checkOwnCardsChoice(state, 0, spec, [])).toBeNull();
+    expect(checkOwnCardsChoice(state, 0, spec, [d1])).toBeNull();
+    expect(checkOwnCardsChoice(state, 0, spec, [d1, discardCard])).toBeNull();
+    expect(checkOwnCardsChoice(state, 0, spec, [d1, d2, discardCard])).toBe("tooManyCards");
+    expect(checkOwnCardsChoice(state, 0, spec, [handCard])).toBe("invalidCardChoice");
+    expect(checkOwnCardsChoice(state, 0, spec, [playedCard])).toBe("invalidCardChoice");
+    expect(checkOwnCardsChoice(state, 0, spec, [foreign])).toBe("invalidCardChoice");
+    expect(checkOwnCardsChoice(state, 0, spec, [d1, d1])).toBe("invalidCardChoice");
+    expect(checkOwnCardsChoice(state, 0, spec, [9999])).toBe("invalidCardChoice");
+    expect(checkOwnCardsChoice(state, 0, spec, ["1"])).toBe("invalidCardChoice");
+    expect(checkOwnCardsChoice(state, 0, spec, "1")).toBe("malformed");
+    // Nur Ablagestapel erlaubt → Deckkarte abgelehnt.
+    expect(checkOwnCardsChoice(state, 0, { max: 2, from: ["discard"] }, [d1])).toBe("invalidCardChoice");
+    expect(checkOwnCardsChoice(state, 0, { max: 2, from: ["discard"] }, [discardCard])).toBeNull();
+  });
+
+  it("R-14.8: Entfernen ändert die Reihenfolge der übrigen Deckkarten nicht und mischt nicht", () => {
+    const state = newGame();
+    const p = getPlayer(state, 0);
+    const deckBefore = [...p.deck];
+    const [, second, , fourth] = deckBefore as [number, number, number, number];
+    p.discard.push(p.deck.pop() as number);
+    const discardCard = p.discard[0] as number;
+    const logBefore = state.log.length;
+    expect(trashCards(state, 0, [fourth, discardCard, second])).toEqual([fourth, discardCard, second]);
+    expect(p.deck).toEqual(deckBefore.slice(0, -1).filter((id) => id !== second && id !== fourth));
+    expect(p.discard).toEqual([]);
+    const newEvents = state.log.slice(logBefore);
+    expect(newEvents.some((e) => e.type === "deck_shuffled" || e.type === "discard_reshuffled")).toBe(false);
+    expect(eventsOf(state, "cards_trashed")).toEqual([
+      expect.objectContaining({
+        player: 0,
+        cards: [
+          expect.objectContaining({ cardInstanceId: fourth, from: "deck" }),
+          expect.objectContaining({ cardInstanceId: discardCard, from: "discard" }),
+          expect.objectContaining({ cardInstanceId: second, from: "deck" }),
+        ],
+      }),
+    ]);
+  });
+
+  it("R-14.8: nicht mehr vorhandene Karten werden übersprungen, ohne Ereignis wenn nichts entfernt wird", () => {
+    const state = newGame();
+    drawCards(state, 0, 1);
+    const p = getPlayer(state, 0);
+    const drawn = p.hand[0] as number;
+    expect(trashCards(state, 0, [drawn])).toEqual([]);
+    expect(p.hand).toEqual([drawn]);
+    expect(eventsOf(state, "cards_trashed")).toEqual([]);
+  });
+});
+
+describe("R-18.2a: Sicht auf das eigene Deck", () => {
+  it("R-18.2a: Inhalt des eigenen Decks vollständig, aber unabhängig von der Reihenfolge", () => {
+    const a = newGame(1);
+    const b = newGame(2);
+    const p = getPlayer(a, 0);
+    const contents = ownDeckContents(a, 0);
+    expect(contents.map((c) => c.cardInstanceId).sort((x, y) => x - y)).toEqual([...p.deck].sort((x, y) => x - y));
+    for (const c of contents) expect(a.cards[c.cardInstanceId]?.cardId).toBe(c.cardId);
+    // Gleiche Karten, andere Mischung → gleiche Sicht.
+    expect(p.deck).not.toEqual(getPlayer(b, 0).deck);
+    expect(ownDeckContents(b, 0)).toEqual(contents);
+    // Umsortieren des Decks ändert die Sicht nicht.
+    p.deck.reverse();
+    expect(ownDeckContents(a, 0)).toEqual(contents);
   });
 });

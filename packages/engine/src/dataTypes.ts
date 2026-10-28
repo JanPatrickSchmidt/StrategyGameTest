@@ -74,7 +74,7 @@ export type GoldDestination = (typeof GOLD_DESTINATIONS)[number];
 export const SUMMON_PLACEMENTS = ["adjacentFree", "zoneFree", "targetHexThenAdjacentFree"] as const;
 export type SummonPlacement = (typeof SUMMON_PLACEMENTS)[number];
 
-export const TRASH_SOURCES = ["chosenHandCards"] as const;
+export const TRASH_SOURCES = ["chosenOwnCards"] as const;
 export type TrashSource = (typeof TRASH_SOURCES)[number];
 
 export const COST_MODIFIER_SCOPES = ["raceCards"] as const;
@@ -138,12 +138,15 @@ export type ArenaScope = (typeof ARENA_SCOPES)[number];
 
 export const PLAYER_CHOICES = ["neighbors"] as const;
 export const MOVE_DESTINATIONS = ["ownFreeHex", "participatingFreeHex"] as const;
+/** R-14.8: Bereiche, aus denen eigene Karten gewählt werden dürfen. */
+export const OWN_CARD_ZONES = ["deck", "discard"] as const;
+export type OwnCardZone = (typeof OWN_CARD_ZONES)[number];
 
 export type TargetSpec =
   | { kind: "hex"; arenas: ArenaScope; mustBeFree?: boolean }
   | { kind: "zone"; arenas: ArenaScope }
   | { kind: "player"; allowed: (typeof PLAYER_CHOICES)[number] }
-  | { kind: "handCards"; max: number }
+  | { kind: "ownCards"; max: number; from: OwnCardZone[] }
   | { kind: "moveUnits"; count: number; destination: (typeof MOVE_DESTINATIONS)[number] }
   | { kind: "none" };
 

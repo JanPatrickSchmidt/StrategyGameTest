@@ -14,7 +14,8 @@ export type ActionTarget =
   | { kind: "hex"; arena: ArenaRef; cell: OffsetCoord }
   | { kind: "zone"; arenas: ArenaRef[] }
   | { kind: "player"; player: PlayerIndex }
-  | { kind: "handCards"; cardInstanceIds: CardInstanceId[] }
+  /** R-14.8: eigene Karteninstanzen aus Deck oder Ablagestapel. */
+  | { kind: "ownCards"; cardInstanceIds: CardInstanceId[] }
   | { kind: "moveUnits"; moves: { unitId: UnitId; to: UnitLocation }[] };
 
 export type PlanningAction =
@@ -90,6 +91,10 @@ export const REJECTION_REASONS = [
   "pileEmpty",
   /** R-11.3: Spieler kauft schon so viele Kopien, wie der Stapel zu Beginn der Kaufphase enthielt. */
   "pileLimitReached",
+  /** R-14.8: gewählte Karte ist doppelt, nicht die eigene oder liegt nicht in einem erlaubten Bereich. */
+  "invalidCardChoice",
+  /** R-14.8: mehr Karten gewählt als `max`. */
+  "tooManyCards",
   /** Vorübergehend: Ausführung folgt in E7b/E7c. */
   "notImplemented",
 ] as const;

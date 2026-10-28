@@ -6,8 +6,8 @@
     { "id": "gold_bar", "name": "Goldbarren", "type": "resource", "cost": 6, "gold": 3, "pool": "basic", "pileSize": 12 },
     {
       "id": "purify", "name": "Läutern", "type": "spell", "slot": "post", "tempo": 1, "cost": 2, "pool": "basic", "pileSize": 12,
-      "target": { "kind": "handCards", "max": 2 },
-      "effects": [{ "op": "trash", "from": "chosenHandCards" }]
+      "target": { "kind": "ownCards", "max": 2, "from": ["deck", "discard"] },
+      "effects": [{ "op": "trash", "from": "chosenOwnCards" }]
     },
     { "id": "curse", "name": "Fluch", "type": "curse", "cost": 0, "pool": "basic", "pileSize": 16, "buyable": false },
 

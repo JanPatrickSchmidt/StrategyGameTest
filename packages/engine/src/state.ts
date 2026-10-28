@@ -134,6 +134,8 @@ export type GameEventPayload =
   | { type: "unit_placed"; player: PlayerIndex; unitId: UnitId; sourceId: string; kind: UnitKind; location: UnitLocation }
   | { type: "deck_shuffled"; player: PlayerIndex; size: number }
   | { type: "discard_reshuffled"; player: PlayerIndex; size: number }
+  /** R-14.8: Karten dauerhaft aus dem Spiel entfernt (öffentlich, die Wahl wird beim Aufdecken ohnehin bekannt). */
+  | { type: "cards_trashed"; player: PlayerIndex; cards: { cardInstanceId: CardInstanceId; cardId: string; from: "deck" | "discard" }[] }
   /** Privat: welche Karten gezogen wurden. */
   | { type: "cards_drawn"; player: PlayerIndex; cardInstanceIds: CardInstanceId[] }
   /** Öffentlich: wie viele Karten gezogen wurden (R-18.1 Handgröße). */

@@ -158,6 +158,27 @@ describe("E2 Datenvalidierung: kaputte Daten werden erkannt", () => {
       expectSingleIssue(issues, ".target.kind", "unbekannte Art für Ziel-Angabe");
     });
 
+    it("R-14.8: ownCards mit unerlaubtem Bereich (Hand) wird erkannt", () => {
+      const issues = broken((raw) => (at(card(raw, "purify"), "target").from = ["deck", "hand"]));
+      expectSingleIssue(issues, ".target.from[1]", "unbekannter Wert für from");
+    });
+
+    it("R-14.8: ownCards ohne Bereich oder mit leerer Liste wird erkannt", () => {
+      expectSingleIssue(
+        broken((raw) => delete at(card(raw, "purify"), "target").from),
+        ".target.from",
+        "",
+      );
+      expectSingleIssue(broken((raw) => (at(card(raw, "purify"), "target").from = [])), ".target.from", "mindestens 1");
+    });
+
+    it("R-14.8: alte Ziel-Angabe handCards und Quelle chosenHandCards sind nicht mehr bekannt", () => {
+      const issues = broken((raw) => (at(card(raw, "purify"), "target").kind = "handCards"));
+      expectSingleIssue(issues, ".target.kind", "unbekannte Art für Ziel-Angabe");
+      const trash = broken((raw) => (at(card(raw, "purify"), "effects", 0).from = "chosenHandCards"));
+      expectSingleIssue(trash, ".effects[0].from", "chosenOwnCards");
+    });
+
     it("unbekannter Auslöser (trigger)", () => {
       const issues = broken((raw) => (at(card(raw, "tinker"), "abilities", 0).trigger = "onSunrise"));
       expectSingleIssue(issues, ".abilities[0].trigger", "unbekannter Wert für Auslöser");
