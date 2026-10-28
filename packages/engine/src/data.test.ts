@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadGameData } from "./data";
 
-describe("Daten laden (Vorstufe zu E2)", () => {
+describe("Daten laden", () => {
   const data = loadGameData();
 
   it("enthält die vier Anführer des Mini-Sets", () => {
@@ -17,7 +17,7 @@ describe("Daten laden (Vorstufe zu E2)", () => {
     for (const cls of data.classes.keys()) {
       const pool = [...data.cards.values()].filter((c) => c.pool === `class:${cls}`);
       expect(pool, cls).toHaveLength(3);
-      const starters = [...data.cards.values()].filter((c) => c.starterFor === cls);
+      const starters = [...data.cards.values()].filter((c) => c.type === "unit" && c.starterFor === cls);
       expect(starters, cls).toHaveLength(1);
     }
   });
@@ -26,8 +26,7 @@ describe("Daten laden (Vorstufe zu E2)", () => {
     for (const leader of data.leaders.values()) {
       expect(data.classes.has(leader.class), leader.id).toBe(true);
       expect(data.races.has(leader.race), leader.id).toBe(true);
-      const active = leader.active as { branches: unknown[] };
-      expect(active.branches, leader.id).toHaveLength(3);
+      expect(leader.active.branches, leader.id).toHaveLength(3);
     }
   });
 });

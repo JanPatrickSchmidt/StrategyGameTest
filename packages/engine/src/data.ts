@@ -1,68 +1,63 @@
 /**
- * Loads the game content from packages/engine/data.
- * Types are intentionally loose for now; E2 (Datenvalidierung) tightens them
- * and adds reference checks.
+ * Loads and validates the game content from packages/engine/data (E2).
  */
 import configJson from "../data/config.json";
 import cardsJson from "../data/cards.json";
 import leadersJson from "../data/leaders.json";
 import racesJson from "../data/races.json";
 import classesJson from "../data/classes.json";
+import type { CardData, ClassData, LeaderData, RaceData } from "./dataTypes";
+import { formatIssues, type RawGameData, type ValidationIssue, validateGameData } from "./validate";
 
-export type CardType = "resource" | "unit" | "spell" | "curse";
+export * from "./dataTypes";
 
-export interface CardData {
-  id: string;
-  name: string;
-  type: CardType;
-  cost: number;
-  pool: string;
-  [key: string]: unknown;
-}
-
-export interface LeaderData {
-  id: string;
-  name: string;
-  class: string;
-  race: string;
-  [key: string]: unknown;
-}
-
-export interface RaceData {
-  id: string;
-  name: string;
-  [key: string]: unknown;
-}
-
-export interface ClassData {
-  id: string;
-  name: string;
-  combatBehavior: string;
-}
+export type ConfigData = typeof configJson;
 
 export interface GameData {
-  config: typeof configJson;
+  config: ConfigData;
   cards: ReadonlyMap<string, CardData>;
   leaders: ReadonlyMap<string, LeaderData>;
   races: ReadonlyMap<string, RaceData>;
   classes: ReadonlyMap<string, ClassData>;
 }
 
-function indexById<T extends { id: string }>(items: readonly T[], label: string): Map<string, T> {
-  const map = new Map<string, T>();
-  for (const item of items) {
-    if (map.has(item.id)) throw new Error(`Doppelte ${label}-ID: ${item.id}`);
-    map.set(item.id, item);
+export class GameDataError extends Error {
+  constructor(readonly issues: readonly ValidationIssue[]) {
+    super(`Ungültige Spieldaten (${issues.length} Fehler):\n${formatIssues(issues)}`);
+    this.name = "GameDataError";
   }
-  return map;
+}
+
+function indexById<T extends { id: string }>(items: readonly T[]): Map<string, T> {
+  return new Map(items.map((item) => [item.id, item]));
+}
+
+/** Validates raw data and returns it typed. Throws GameDataError with all issues if invalid. */
+export function parseGameData(raw: RawGameData): GameData {
+  const issues = validateGameData(raw);
+  if (issues.length > 0) throw new GameDataError(issues);
+  // The validator has checked exactly the shapes described in dataTypes.ts.
+  const valid = raw as {
+    config: ConfigData;
+    cards: { cards: CardData[] };
+    leaders: LeaderData[];
+    races: RaceData[];
+    classes: ClassData[];
+  };
+  return {
+    config: valid.config,
+    cards: indexById(valid.cards.cards),
+    leaders: indexById(valid.leaders),
+    races: indexById(valid.races),
+    classes: indexById(valid.classes),
+  };
+}
+
+/** The real data files of the repository. */
+export function rawGameData(): RawGameData {
+  return { config: configJson, cards: cardsJson, leaders: leadersJson, races: racesJson, classes: classesJson };
 }
 
 export function loadGameData(): GameData {
-  return {
-    config: configJson,
-    cards: indexById(cardsJson.cards as CardData[], "Karten"),
-    leaders: indexById(leadersJson as LeaderData[], "Anführer"),
-    races: indexById(racesJson as RaceData[], "Rassen"),
-    classes: indexById(classesJson as ClassData[], "Klassen"),
-  };
+  return parseGameData(rawGameData());
 }

@@ -8,7 +8,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
 
 - [x] **E1 Projekt-Setup** (2026-10-28) – Workspace, TypeScript, Vitest, Seed-Zufall, Datenlader-Grundlage.
   - Abnahme: `npm test` und `npm run typecheck` grün.
-- [ ] **E2 Datenvalidierung**
+- [x] **E2 Datenvalidierung** (2026-10-28)
   - Alle Datendateien laden, typisieren und prüfen: jede referenzierte ID (Rasse, Klasse, Token, Karte) existiert, jeder `op` und jedes `target` ist im Effekt-System bekannt, Pflichtfelder vorhanden.
   - Abnahme: Test, der die echten Daten fehlerfrei validiert, und Tests mit absichtlich kaputten Daten, die erkannt werden.
 - [ ] **E3 Hex-Geometrie**
