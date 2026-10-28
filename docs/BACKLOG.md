@@ -17,7 +17,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
 - [x] **E4 Spielzustand und Aufbau** (2026-10-28)
   - Zustandsmodell, `createGame(config, leaders, seed)`, Startdeck, Mischen, Ziehen mit Nachmischen (R-4, R-6.3).
   - Abnahme: Tests zu R-4.x und R-6.3.
-- [ ] **E5 Rundenmaschine**
+- [x] **E5 Rundenmaschine** (2026-10-28)
   - Phasen laut R-5, API: `submitPlanning`, `submitPurchases`, `advance` bzw. `resolveRound`. Ungültige Aktionen → `action_rejected`.
   - Abnahme: Eine Runde ohne Aktionen läuft vollständig durch; Phasenreihenfolge getestet.
 - [ ] **E6 Wirtschaft**

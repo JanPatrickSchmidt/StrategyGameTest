@@ -5,3 +5,5 @@ export * from "./hex";
 export * from "./state";
 export * from "./deck";
 export * from "./setup";
+export * from "./actions";
+export * from "./round";

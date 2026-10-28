@@ -3,6 +3,7 @@
  * Der Zustand ist ein reines, JSON-serialisierbares Objekt. Alle Zustandsänderungen
  * laufen über Engine-Funktionen, die zusätzlich Ereignisse (R-19) ins Protokoll schreiben.
  */
+import type { PlanningAction, PurchaseList, RejectionReason } from "./actions";
 import type { OffsetCoord } from "./hex";
 import type { RngState } from "./rng";
 
@@ -110,6 +111,21 @@ interface EventBase {
 export type GameEventPayload =
   | { type: "game_created"; seed: number; leaders: string[] }
   | { type: "phase_started"; phase: Phase }
+  | { type: "round_started" }
+  /** Öffentlich nur, dass eingereicht wurde; der Inhalt bleibt bis zum Aufdecken privat (R-18.2). */
+  | { type: "planning_submitted"; player: PlayerIndex; actionCount: number }
+  | { type: "purchases_submitted"; player: PlayerIndex; buyCount: number }
+  /** R-7.9: keine Planung bzw. keine Käufe eingereicht → leere Liste. */
+  | { type: "submission_timeout"; player: PlayerIndex; kind: SubmissionKind }
+  | { type: "submission_rejected"; player: PlayerIndex; kind: SubmissionKind; reason: RejectionReason }
+  /** R-8.1: Planungen werden öffentlich. */
+  | { type: "planning_revealed"; player: PlayerIndex; actions: PlanningAction[] }
+  /** R-7: ungültige Aktion wird übersprungen. `index` = Position in der eingereichten Liste. */
+  | { type: "action_rejected"; player: PlayerIndex; kind: SubmissionKind; index: number; action: string; reason: RejectionReason }
+  /** R-12.1: Handkarten auf den Ablagestapel (Ablagestapel ist öffentlich, R-18.1). */
+  | { type: "hand_discarded"; player: PlayerIndex; cardInstanceIds: CardInstanceId[] }
+  /** R-12.2 */
+  | { type: "token_removed"; player: PlayerIndex; unitId: UnitId }
   | { type: "supply_created"; piles: Record<string, number> }
   | { type: "class_pool_created"; player: PlayerIndex; piles: Record<string, number> }
   | { type: "cards_created"; player: PlayerIndex; cardInstanceIds: CardInstanceId[] }
@@ -124,6 +140,8 @@ export type GameEventPayload =
 
 export type GameEvent = EventBase & GameEventPayload;
 
+export type SubmissionKind = "planning" | "purchases";
+
 export interface GameState {
   seed: number;
   rng: RngState;
@@ -135,6 +153,10 @@ export interface GameState {
   units: Record<UnitId, Unit>;
   /** Gemeinsame Stapel: Basisstapel und Königreich (R-4.5). */
   supply: Record<string, number>;
+  /** Eingereichte, noch nicht aufgedeckte Planungen der laufenden Runde (null = fehlt). */
+  pendingPlanning: (PlanningAction[] | null)[];
+  /** Eingereichte Käufe der laufenden Kaufphase (null = fehlt). */
+  pendingPurchases: (PurchaseList | null)[];
   nextCardInstanceId: CardInstanceId;
   nextUnitId: UnitId;
   /** Ereignisprotokoll (R-19), in Entstehungsreihenfolge. */
