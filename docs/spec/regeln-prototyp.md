@@ -210,12 +210,16 @@ Ein Kampf läuft höchstens **300 Ticks** [TUNING]. In jedem Tick werden die leb
 - **R-16.3 Kampfeinheit:** Bei Stufe 3 steigen `attack` und `hp` der Kampfeinheit um 30 % (abgerundet) [TUNING].
 - **R-16.4 Aktive Fähigkeit:** einmal pro Runde, unabhängig davon, wo die Kampfeinheit steht oder ob sie verwundet ist.
 - **R-16.5** Die Kampfeinheit des Anführers verhält sich im Kampf wie jede Einheit ihrer Klasse.
+- **R-16.6 Hinter feindliche Linien (Vex):** Fähigkeiten mit Ziel `participatingFreeHex` dürfen eigene Einheiten auf jedes freie Feld einer Arena setzen, an der der Spieler teilnimmt, **auch in die gegnerische Hälfte einer Frontarena** und überall in der Mittelarena. Die Einheit kämpft in dieser Runde in dieser Arena von diesem Feld aus. Nach dem Aufräumen kehrt sie auf ihr Ausgangsfeld zurück (ist es belegt: nächstes freies Feld derselben Zone, sonst Reserve).
 
 ## R-17 Rassen-Resonanz
 
 - **R-17.1** Gezählt werden die verschiedenen Karten-IDs (nicht Kopien) einer Rasse unter den nicht verwundeten Einheiten in `left`, `right` und `center` zusammen, inklusive Anführer. Tokens zählen nicht.
 - **R-17.2** Die Boni der Stufe 2 bzw. 4 laut Daten gelten in allen Kämpfen dieser Runde für alle Einheiten dieser Rasse des Spielers. Maßgeblich ist das Brett nach dem Aufdecken (R-8.1).
 - **R-17.3** Kostenboni (z. B. Goblins ab 4) gelten beim Ausspielen nach dem Brett zum Zeitpunkt der Aktion; Kosten fallen nie unter 0.
+
+- **R-17.4 Resonanzen mit Rundenwirkung:** Resonanz-Effekte mit `when: roundStart` (Zwerge: Gold) sowie `gainLeaderXp` (Menschen) werden einmal pro Runde beim Rundenbeginn ausgewertet, und zwar nach dem Brett am Ende der Vorrunde. Reihenfolge: Resonanz-Gold in die Schatzkammer → Zinsen (R-6.1). `bonusInterest` (Zwerge 4): zusätzlich `amount` Zinsen pro volle `perGold` Gold in der Schatzkammer.
+- **R-17.5 Bonus-XP (Menschen):** Menschen-Einheiten erhalten zusätzlich zu R-10.7 die angegebene XP, wenn sie einen Kampf überleben.
 
 ## R-17a Zeitpunkte „pro Runde“
 

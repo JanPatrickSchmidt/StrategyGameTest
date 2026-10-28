@@ -54,7 +54,7 @@ Pflichtfelder: `id`, `name`, `type` (`resource` | `unit` | `spell` | `curse`), `
 | `summon` | `token`, `count`, `where`, optional `statOverride`, `countsForResonance` | Token erzeugen |
 | `move` | `target` | gewählte Einheiten auf gewählte freie Felder setzen |
 | `wound` | `target` | verwunden (R-14.4) |
-| `gainGold` | `amount`, `when` (`now` \| `nextRound`), optional `to` (`pool` \| `treasury`, Standard `pool`) | Gold |
+| `gainGold` | `amount`, `when` (`now` \| `nextRound` \| `roundStart`), optional `to` (`pool` \| `treasury`, Standard `pool`) | Gold |
 | `stealGold` | `amount`, `from` | Gold aus fremder Schatzkammer sofort in die eigene Schatzkammer (R-10.3) |
 | `giveCurse` | `to` | Fluch auf den Ablagestapel (R-14.7) |
 | `trash` | `from` | Karten dauerhaft entfernen (R-14.8) |
@@ -63,6 +63,8 @@ Pflichtfelder: `id`, `name`, `type` (`resource` | `unit` | `spell` | `curse`), `
 | `costModifier` | `amount`, `appliesTo` | Kosten ändern (R-17.3) |
 | `returnOnDeath` | `hp`, `limit`, `target` | Wiederkehr (Untote) |
 | `onFrontWinOfChosen` | `effects` | verzögerter Auslöser für die gewählten Einheiten |
+| `bonusInterest` | `perGold`, `amount` | zusätzliche Zinsen (R-17.4) |
+| `bonusXp` | `amount`, `target` | zusätzliche XP beim Überleben eines Kampfes (R-17.5) |
 
 Erlaubte Werte weiterer Parameter:
 - `summon.where`: `adjacentFree`, `zoneFree`, `targetHexThenAdjacentFree`; `summon.token` muss eine Karte mit `pool: "token"` sein.
@@ -81,7 +83,7 @@ Als Objekt: `{ "kind": "nearestEnemies", "count": n }`, `{ "kind": "alliesInRang
 Spieler: `frontOpponent`, `frontOpponentTreasury`, `targetPlayer`.
 
 ### Ziel-Angaben bei Zaubern und Anführer-Fähigkeiten
-`{ "kind": "hex" | "zone" | "player" | "handCards" | "moveUnits" | "none", … }`. Parameter: `hex`: `arenas`, optional `mustBeFree`; `zone`: `arenas`; `player`: `allowed` (`neighbors`); `handCards`: `max`; `moveUnits`: `count`, `destination` (`ownFreeHex`). `arenas`: `participating` (eigene Fronten und Mitte, R-14.2) oder `own` (nur eigene Zonen).
+`{ "kind": "hex" | "zone" | "player" | "handCards" | "moveUnits" | "none", … }`. Parameter: `hex`: `arenas`, optional `mustBeFree`; `zone`: `arenas`; `player`: `allowed` (`neighbors`); `handCards`: `max`; `moveUnits`: `count`, `destination` (`ownFreeHex` \| `participatingFreeHex`, R-16.6). `arenas`: `participating` (eigene Fronten und Mitte, R-14.2) oder `own` (nur eigene Zonen).
 
 ### Schlüsselwörter
 `firstStrike` (R-9.3), `unwoundable`, `woundOnKill`.

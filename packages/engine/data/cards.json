@@ -33,12 +33,12 @@
     { "id": "tinker", "name": "Kesselflicker", "type": "unit", "cost": 3, "race": "goblin", "class": "shaman", "pool": "kingdom",
       "stats": { "attack": 1, "hp": 4, "breakthrough": 0, "range": 2 },
       "abilities": [{ "trigger": "onCombatStart", "effects": [{ "op": "summon", "token": "goblin_token", "count": 1, "where": "adjacentFree" }] }] },
-    { "id": "bone_soldier", "name": "Knochensoldat", "type": "unit", "cost": 2, "race": "undead", "class": "warrior", "pool": "kingdom",
+    { "id": "mercenary", "name": "Söldner", "type": "unit", "cost": 2, "race": "human", "class": "warrior", "pool": "kingdom",
       "stats": { "attack": 2, "hp": 4, "breakthrough": 1, "range": 1 } },
-    { "id": "curse_weaver", "name": "Fluchweber", "type": "unit", "cost": 4, "race": "undead", "class": "mage", "pool": "kingdom",
+    { "id": "curse_weaver", "name": "Fluchweber", "type": "unit", "cost": 4, "race": "human", "class": "mage", "pool": "kingdom",
       "stats": { "attack": 2, "hp": 5, "breakthrough": 0, "range": 3 },
       "abilities": [{ "trigger": "onFrontWin", "effects": [{ "op": "giveCurse", "to": "frontOpponent" }] }] },
-    { "id": "soul_reaper", "name": "Seelenernter", "type": "unit", "cost": 5, "race": "undead", "class": "rogue", "pool": "kingdom",
+    { "id": "bounty_hunter", "name": "Kopfgeldjäger", "type": "unit", "cost": 5, "race": "human", "class": "rogue", "pool": "kingdom",
       "stats": { "attack": 5, "hp": 5, "breakthrough": 4, "range": 1 },
       "altCost": { "gold": 2, "sacrifice": 1 } },
     { "id": "shieldwall_veteran", "name": "Schildwall-Veteran", "type": "unit", "cost": 3, "race": "dwarf", "class": "warrior", "pool": "kingdom",
@@ -137,7 +137,7 @@
       "stats": { "attack": 1, "hp": 1, "breakthrough": 1, "range": 1 } },
     { "id": "small_spirit", "name": "Kleiner Geist", "type": "unit", "cost": 0, "race": null, "class": "warrior", "pool": "token",
       "stats": { "attack": 1, "hp": 1, "breakthrough": 1, "range": 1 } },
-    { "id": "spirit", "name": "Geist", "type": "unit", "cost": 0, "race": "undead", "class": "warrior", "pool": "token",
+    { "id": "spirit", "name": "Geist", "type": "unit", "cost": 0, "race": "human", "class": "warrior", "pool": "token",
       "stats": { "attack": 2, "hp": 2, "breakthrough": 1, "range": 1 } }
   ]
 }

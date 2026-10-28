@@ -248,16 +248,16 @@ describe("R-11: Kaufphase", () => {
     const state = newGame();
     setGold(state, 0, 4, 3);
     const before = state.supply.silver ?? 0;
-    const rejected = resolvePurchases(state, data, [0, 1, 2, 3], purchases({ 0: ["silver", "bone_soldier"] }));
+    const rejected = resolvePurchases(state, data, [0, 1, 2, 3], purchases({ 0: ["silver", "mercenary"] }));
     expect(rejected).toEqual([]);
     const p = getPlayer(state, 0);
-    expect(p.discard.map((id) => getCard(state, id).cardId)).toEqual(["silver", "bone_soldier"]);
+    expect(p.discard.map((id) => getCard(state, id).cardId)).toEqual(["silver", "mercenary"]);
     expect(p.discard.every((id) => getCard(state, id).owner === 0)).toBe(true);
     expect([p.roundGold, p.treasury]).toEqual([0, 2]);
     expect(state.supply.silver).toBe(before - 1);
     expect(eventsOf(state, "card_bought")).toEqual([
       expect.objectContaining({ player: 0, cardId: "silver", source: "supply", paidFromRoundGold: 3, paidFromTreasury: 0 }),
-      expect.objectContaining({ player: 0, cardId: "bone_soldier", source: "supply", paidFromRoundGold: 1, paidFromTreasury: 1 }),
+      expect.objectContaining({ player: 0, cardId: "mercenary", source: "supply", paidFromRoundGold: 1, paidFromTreasury: 1 }),
     ]);
     expect(eventsOf(state, "pile_changed")).toEqual(
       expect.arrayContaining([expect.objectContaining({ pile: "silver", owner: null, remaining: before - 1, created: 0 })]),

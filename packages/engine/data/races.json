@@ -3,10 +3,28 @@
     "id": "goblin",
     "name": "Goblins",
     "resonance": {
-      "2": [{ "op": "buff", "stat": "breakthrough", "amount": 1, "duration": "round", "target": "raceUnits" }],
+      "2": [
+        {
+          "op": "buff",
+          "stat": "breakthrough",
+          "amount": 1,
+          "duration": "round",
+          "target": "raceUnits"
+        }
+      ],
       "4": [
-        { "op": "buff", "stat": "breakthrough", "amount": 2, "duration": "round", "target": "raceUnits" },
-        { "op": "costModifier", "amount": -1, "appliesTo": "raceCards" }
+        {
+          "op": "buff",
+          "stat": "breakthrough",
+          "amount": 2,
+          "duration": "round",
+          "target": "raceUnits"
+        },
+        {
+          "op": "costModifier",
+          "amount": -1,
+          "appliesTo": "raceCards"
+        }
       ]
     }
   },
@@ -14,10 +32,45 @@
     "id": "dwarf",
     "name": "Zwerge",
     "resonance": {
-      "2": [{ "op": "buff", "stat": "armor", "amount": 1, "duration": "round", "target": "raceUnits" }],
+      "2": [
+        {
+          "op": "buff",
+          "stat": "armor",
+          "amount": 1,
+          "duration": "round",
+          "target": "raceUnits"
+        },
+        {
+          "op": "gainGold",
+          "amount": 1,
+          "when": "roundStart",
+          "to": "treasury"
+        }
+      ],
       "4": [
-        { "op": "buff", "stat": "armor", "amount": 2, "duration": "round", "target": "raceUnits" },
-        { "op": "grantKeyword", "keyword": "unwoundable", "target": "raceUnits" }
+        {
+          "op": "buff",
+          "stat": "armor",
+          "amount": 2,
+          "duration": "round",
+          "target": "raceUnits"
+        },
+        {
+          "op": "grantKeyword",
+          "keyword": "unwoundable",
+          "target": "raceUnits"
+        },
+        {
+          "op": "gainGold",
+          "amount": 1,
+          "when": "roundStart",
+          "to": "treasury"
+        },
+        {
+          "op": "bonusInterest",
+          "perGold": 10,
+          "amount": 1
+        }
       ]
     }
   },
@@ -25,16 +78,48 @@
     "id": "elf",
     "name": "Elfen",
     "resonance": {
-      "2": [{ "op": "startManaPercent", "amount": 30, "target": "raceUnits" }],
-      "4": [{ "op": "startManaPercent", "amount": 60, "target": "raceUnits" }]
+      "2": [
+        {
+          "op": "startManaPercent",
+          "amount": 30,
+          "target": "raceUnits"
+        }
+      ],
+      "4": [
+        {
+          "op": "startManaPercent",
+          "amount": 60,
+          "target": "raceUnits"
+        }
+      ]
     }
   },
   {
-    "id": "undead",
-    "name": "Untote",
+    "id": "human",
+    "name": "Menschen",
     "resonance": {
-      "2": [{ "op": "returnOnDeath", "hp": 1, "limit": "firstRaceUnitPerCombat", "target": "raceUnits" }],
-      "4": [{ "op": "returnOnDeath", "hp": 1, "limit": "oncePerUnitPerCombat", "target": "raceUnits" }]
+      "2": [
+        {
+          "op": "gainLeaderXp",
+          "amount": 1
+        },
+        {
+          "op": "bonusXp",
+          "amount": 1,
+          "target": "raceUnits"
+        }
+      ],
+      "4": [
+        {
+          "op": "gainLeaderXp",
+          "amount": 2
+        },
+        {
+          "op": "bonusXp",
+          "amount": 2,
+          "target": "raceUnits"
+        }
+      ]
     }
   }
 ]

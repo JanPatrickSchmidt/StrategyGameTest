@@ -65,7 +65,7 @@ export type UnitTarget =
 export const PLAYER_TARGETS = ["frontOpponent", "frontOpponentTreasury", "targetPlayer"] as const;
 export type PlayerTarget = (typeof PLAYER_TARGETS)[number];
 
-export const TIMINGS = ["now", "nextRound"] as const;
+export const TIMINGS = ["now", "nextRound", "roundStart"] as const;
 export type Timing = (typeof TIMINGS)[number];
 
 export const GOLD_DESTINATIONS = ["pool", "treasury"] as const;
@@ -116,7 +116,9 @@ export type Effect =
   | { op: "grantKeyword"; keyword: Keyword; duration?: Duration; target: UnitTarget }
   | { op: "costModifier"; amount: Amount; appliesTo: CostModifierScope }
   | { op: "returnOnDeath"; hp: number; limit: ReturnLimit; target: UnitTarget }
-  | { op: "onFrontWinOfChosen"; effects: Effect[] };
+  | { op: "onFrontWinOfChosen"; effects: Effect[] }
+  | { op: "bonusInterest"; perGold: number; amount: number }
+  | { op: "bonusXp"; amount: Amount; target: UnitTarget };
 
 export type EffectOp = Effect["op"];
 
@@ -135,7 +137,7 @@ export const ARENA_SCOPES = ["participating", "own"] as const;
 export type ArenaScope = (typeof ARENA_SCOPES)[number];
 
 export const PLAYER_CHOICES = ["neighbors"] as const;
-export const MOVE_DESTINATIONS = ["ownFreeHex"] as const;
+export const MOVE_DESTINATIONS = ["ownFreeHex", "participatingFreeHex"] as const;
 
 export type TargetSpec =
   | { kind: "hex"; arenas: ArenaScope; mustBeFree?: boolean }

@@ -89,7 +89,7 @@
     "active": {
       "name": "Schattenschritt",
       "category": "move",
-      "target": { "kind": "moveUnits", "count": 1, "destination": "ownFreeHex" },
+      "target": { "kind": "moveUnits", "count": 1, "destination": "participatingFreeHex" },
       "base": { "effects": [{ "op": "move", "target": "chosenUnits" }] },
       "branches": [
         {
@@ -123,7 +123,7 @@
     "id": "morgra",
     "name": "Morgra",
     "class": "shaman",
-    "race": "undead",
+    "race": "human",
     "stats": { "attack": 2, "hp": 8, "breakthrough": 1, "range": 2 },
     "abilities": [{ "trigger": "onManaFull", "name": "Lebensband", "effects": [{ "op": "heal", "amount": 4, "target": { "kind": "alliesInRange", "range": 2 } }] }],
     "active": {

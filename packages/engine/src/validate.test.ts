@@ -99,7 +99,7 @@ describe("E2 Datenvalidierung: kaputte Daten werden erkannt", () => {
 
     it("unbekanntes Feld (Tippfehler) wird gemeldet", () => {
       const issues = broken((raw) => {
-        const stats = at(card(raw, "bone_soldier"), "stats");
+        const stats = at(card(raw, "mercenary"), "stats");
         stats.atack = stats.attack;
         delete stats.attack;
       });

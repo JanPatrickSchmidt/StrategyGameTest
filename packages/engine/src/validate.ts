@@ -272,6 +272,8 @@ const EFFECT_PARAMS: Record<EffectOp, Fields> = {
   costModifier: { amount: req(amount), appliesTo: req(oneOf(COST_MODIFIER_SCOPES, "appliesTo")) },
   returnOnDeath: { hp: req(int(1)), limit: req(oneOf(RETURN_LIMITS, "limit")), target: req(unitTarget) },
   onFrontWinOfChosen: { effects: req(effects) },
+  bonusInterest: { perGold: req(int(1)), amount: req(int(1)) },
+  bonusXp: { amount: req(amount), target: req(unitTarget) },
 };
 
 export const KNOWN_EFFECT_OPS: readonly string[] = Object.keys(EFFECT_PARAMS);
