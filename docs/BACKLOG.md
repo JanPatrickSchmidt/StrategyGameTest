@@ -20,7 +20,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
 - [x] **E5 Rundenmaschine** (2026-10-28)
   - Phasen laut R-5, API: `submitPlanning`, `submitPurchases`, `advance` bzw. `resolveRound`. Ungültige Aktionen → `action_rejected`.
   - Abnahme: Eine Runde ohne Aktionen läuft vollständig durch; Phasenreihenfolge getestet.
-- [ ] **E6 Wirtschaft**
+- [x] **E6 Wirtschaft** (2026-10-28)
   - Ressourcen automatisch (R-6.4), Rundenvorrat, Schatzkammer und Zinsen (R-6.1, R-11.5), Entnahme (R-7.6), Kaufphase inkl. gleichzeitiger Käufe (R-11).
   - Abnahme: Tests zu allen genannten Regeln.
 - [ ] **E7 Planung**

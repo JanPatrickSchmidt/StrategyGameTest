@@ -103,23 +103,23 @@ describe("R-5: Rundenablauf", () => {
 });
 
 describe("R-6.3/R-12.1: Karten im Rundenlauf", () => {
-  it("R-6.3: zu Rundenbeginn werden 5 Karten gezogen", () => {
+  it("R-6.3: zu Rundenbeginn werden 5 Karten gezogen (Ressourcen davon liegen nach R-6.4 im Spielbereich)", () => {
     const state = newGame();
     advance(state, data);
-    for (const p of state.players) expect(p.hand).toHaveLength(data.config.handSize);
+    for (const p of state.players) expect(p.hand.length + p.played.length).toBe(data.config.handSize);
   });
 
   it("R-12.1: beim Aufräumen gehen alle Handkarten auf den Ablagestapel; Runde 3 mischt nach", () => {
     const state = newGame();
     advance(state, data);
-    const hand1 = [...getPlayer(state, 0).hand];
+    const hand1 = [...getPlayer(state, 0).hand, ...getPlayer(state, 0).played];
     submitAllEmpty(state, "planning");
     advance(state, data);
     submitAllEmpty(state, "purchases");
     advance(state, data); // Aufräumen, Runde 2 beginnt und zieht
     const p = getPlayer(state, 0);
     expect(p.discard).toEqual(hand1);
-    expect(p.hand).toHaveLength(5);
+    expect(p.hand.length + p.played.length).toBe(5);
     expect(p.deck).toEqual([]);
     expect(state.log.some((e) => e.type === "hand_discarded" && e.player === 0 && e.round === 1)).toBe(true);
     // Runde 2 durchspielen: Runde 3 muss den Ablagestapel nachmischen.
@@ -127,8 +127,8 @@ describe("R-6.3/R-12.1: Karten im Rundenlauf", () => {
     advance(state, data);
     submitAllEmpty(state, "purchases");
     advance(state, data);
-    expect(p.hand).toHaveLength(5);
-    expect(p.deck.length + p.hand.length + p.discard.length).toBe(10);
+    expect(p.hand.length + p.played.length).toBe(5);
+    expect(p.deck.length + p.hand.length + p.played.length + p.discard.length).toBe(10);
     expect(state.log.some((e) => e.type === "discard_reshuffled" && e.round === 3)).toBe(true);
   });
 
@@ -226,7 +226,7 @@ describe("R-7: Eingaben und Ablehnungen", () => {
     advance(state, data);
     const actions = [
       { type: "fly" },
-      { type: "withdraw", amount: 1 },
+      { type: "heal", unitId: 1 },
     ] as unknown as PlanningAction[];
     submitPlanning(state, 0, actions);
     for (const p of [1, 2, 3] as const) submitPlanning(state, p, []);
@@ -234,8 +234,8 @@ describe("R-7: Eingaben und Ablehnungen", () => {
     const rejected = state.log.filter((e) => e.type === "action_rejected");
     expect(rejected).toEqual([
       expect.objectContaining({ player: 0, kind: "planning", index: 0, action: "fly", reason: "unknownActionType", phase: "reveal" }),
-      // Ausführung folgt in E6/E7.
-      expect.objectContaining({ player: 0, kind: "planning", index: 1, action: "withdraw", reason: "notImplemented" }),
+      // Ausführung folgt in E7.
+      expect.objectContaining({ player: 0, kind: "planning", index: 1, action: "heal", reason: "notImplemented" }),
     ]);
   });
 
@@ -257,16 +257,16 @@ describe("R-7: Eingaben und Ablehnungen", () => {
     expect(revealed[0]?.visibleTo).toBeUndefined();
   });
 
-  it("R-11: Käufe werden bis zur Umsetzung in E6 abgelehnt und gemeldet", () => {
+  it("R-11: unbekannte Käufe werden abgelehnt und gemeldet", () => {
     const state = newGame();
     advance(state, data);
     submitAllEmpty(state, "planning");
     advance(state, data);
-    submitPurchases(state, 0, { buys: ["silver"] });
+    submitPurchases(state, 0, { buys: ["dragon"] });
     for (const p of [1, 2, 3] as const) submitPurchases(state, p, { buys: [] });
     advance(state, data);
     expect(state.log.filter((e) => e.type === "action_rejected")).toEqual([
-      expect.objectContaining({ player: 0, kind: "purchases", index: 0, action: "silver", phase: "buy" }),
+      expect.objectContaining({ player: 0, kind: "purchases", index: 0, action: "dragon", phase: "buy", reason: "unknownCard" }),
     ]);
   });
 });

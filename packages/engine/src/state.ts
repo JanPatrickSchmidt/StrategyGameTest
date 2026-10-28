@@ -87,6 +87,8 @@ export interface PlayerState {
   /** Deck, oberste Karte zuerst. */
   deck: CardInstanceId[];
   hand: CardInstanceId[];
+  /** R-6.4: in dieser Runde ausgespielte Ressourcen; gehen beim Aufräumen auf den Ablagestapel (R-12.1). */
+  played: CardInstanceId[];
   discard: CardInstanceId[];
   leader: LeaderState;
   /** Eigene Stapel des Klassen-Pools (R-4.5): Karten-ID → verbleibende Kopien. */
@@ -136,7 +138,37 @@ export type GameEventPayload =
   | { type: "cards_drawn"; player: PlayerIndex; cardInstanceIds: CardInstanceId[] }
   /** Öffentlich: wie viele Karten gezogen wurden (R-18.1 Handgröße). */
   | { type: "cards_drawn_count"; player: PlayerIndex; count: number }
-  | { type: "draw_stopped"; player: PlayerIndex; missing: number };
+  | { type: "draw_stopped"; player: PlayerIndex; missing: number }
+  /** R-6.1: Zinsen in die Schatzkammer. */
+  | { type: "interest_paid"; player: PlayerIndex; amount: number; treasury: number }
+  /** R-6.2: Rundenvorrat startet mit dem Überlauf der Vorrunde (R-10.3). */
+  | { type: "round_gold_started"; player: PlayerIndex; amount: number }
+  /** R-6.4 privat: welche Ressourcen ausgespielt wurden und wie viel Gold sie bringen. */
+  | { type: "resources_played"; player: PlayerIndex; cardInstanceIds: CardInstanceId[]; gold: number }
+  /** R-6.4 öffentlich: wie viele Karten die Hand dadurch verlassen (R-18.1 Handgröße). */
+  | { type: "resources_played_count"; player: PlayerIndex; count: number }
+  /** R-7.6: Entnahme aus der Schatzkammer in den Rundenvorrat. */
+  | { type: "gold_withdrawn"; player: PlayerIndex; amount: number; treasury: number }
+  /** R-10.3: Gold-Gewinn nach der Planung; Überlauf geht in den Rundenvorrat der nächsten Runde. */
+  | { type: "gold_gained"; player: PlayerIndex; amount: number; toTreasury: number; toNextRound: number; treasury: number }
+  /** Gold-Gewinn während der Planung in den Rundenvorrat (R-10.3, letzter Satz). */
+  | { type: "round_gold_gained"; player: PlayerIndex; amount: number }
+  /** R-11.2: Kauf; die neue Karteninstanz liegt auf dem Ablagestapel. */
+  | {
+      type: "card_bought";
+      player: PlayerIndex;
+      cardId: string;
+      cardInstanceId: CardInstanceId;
+      source: "supply" | "classPool";
+      paidFromRoundGold: number;
+      paidFromTreasury: number;
+    }
+  /** R-11.3: Stapelstand nach den gleichzeitigen Käufen; `created` = zusätzlich erzeugte Kopien. */
+  | { type: "pile_changed"; pile: string; owner: PlayerIndex | null; remaining: number; created: number }
+  /** R-11.5: Einzahlung aus dem Rundenvorrat in die Schatzkammer. */
+  | { type: "gold_deposited"; player: PlayerIndex; amount: number; treasury: number }
+  /** R-11.5: Rest des Rundenvorrats verfällt. */
+  | { type: "gold_forfeited"; player: PlayerIndex; amount: number };
 
 export type GameEvent = EventBase & GameEventPayload;
 

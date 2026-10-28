@@ -134,6 +134,7 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
       roundGold: 0,
       deck: [],
       hand: [],
+      played: [],
       discard: [],
       leader: { leaderId, unitId: leaderUnit.id, xp: 0, level: 1, branchId: null },
       classPool: createClassPool(data, leaderData.class),

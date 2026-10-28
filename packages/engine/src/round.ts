@@ -5,13 +5,14 @@
  * → Käufe einreichen (`submitPurchases`) → `advance` → … `advance` arbeitet alle automatischen
  * Phasen ab und hält an, sobald Eingaben fehlen (Planung, Kaufphase) oder die Partie vorbei ist.
  *
- * Die Inhalte vieler Phasen folgen in späteren Aufgaben (E6 Wirtschaft, E7 Planung, E8/E9 Kampf,
+ * Wirtschaft (E6) steht in `economy.ts`. Die Inhalte weiterer Phasen folgen in späteren Aufgaben (E7 Planung, E8/E9 Kampf,
  * E10/E11 Effekte und Zauber, E12 Auswertung und Sieg). Hier steht nur das Gerüst mit
  * Phasenreihenfolge, Eingaben und Ablehnungen.
  */
 import { isPlanningActionType, type PlanningAction, type PurchaseList, type RejectionReason } from "./actions";
 import type { GameData } from "./data";
 import { drawForRound } from "./deck";
+import { depositRoundGold, payInterest, playResources, resolvePurchases, startRoundGold, withdraw } from "./economy";
 import {
   emit,
   type GameState,
@@ -151,7 +152,7 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         break;
       }
       case "reveal":
-        runReveal(state);
+        runReveal(state, data);
         enterPhase(state, "leaderAbilities");
         break;
       case "leaderAbilities":
@@ -185,7 +186,7 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
           }
         }
         timeout = false;
-        runBuy(state);
+        runBuy(state, data);
         enterPhase(state, "cleanup");
         break;
       }
@@ -215,13 +216,17 @@ function isGameOver(state: GameState): boolean {
   return state.players.filter((p) => !p.eliminated).length <= 1;
 }
 
-/** R-6: Rundenbeginn. Zinsen, Rundengold und Ressourcen (R-6.1, R-6.2, R-6.4) folgen in E6. */
+/** R-6: Rundenbeginn in der Reihenfolge R-6.1 Zinsen, R-6.2 Rundenvorrat, R-6.3 Ziehen, R-6.4 Ressourcen. */
 function runRoundStart(state: GameState, data: GameData): void {
+  payInterest(state, data.config);
+  // R-17a.1 („pro Runde“-Effekte) folgt in E10.
+  startRoundGold(state);
   drawForRound(state, data.config);
+  playResources(state, data);
 }
 
 /** R-8.1: alle Planungen werden gleichzeitig wirksam, Abarbeitung in Prioritätsreihenfolge. */
-function runReveal(state: GameState): void {
+function runReveal(state: GameState, data: GameData): void {
   const order = activePlayersInPriority(state);
   for (const p of order) {
     emit(state, { type: "planning_revealed", player: p, actions: (state.pendingPlanning[p] ?? []).map(structuredCopy) });
@@ -229,7 +234,7 @@ function runReveal(state: GameState): void {
   for (const p of order) {
     const actions = state.pendingPlanning[p] ?? [];
     actions.forEach((action, index) => {
-      const reason = executePlanningAction(state, p, action);
+      const reason = executePlanningAction(state, data, p, action);
       if (reason) {
         const name = isPlanningActionType((action as { type?: unknown }).type) ? action.type : String((action as { type?: unknown }).type);
         emit(state, { type: "action_rejected", player: p, kind: "planning", index, action: name, reason });
@@ -240,31 +245,41 @@ function runReveal(state: GameState): void {
 }
 
 /** Führt eine Planungsaktion aus. Gibt bei Ablehnung den Grund zurück (R-7). */
-function executePlanningAction(_state: GameState, _player: PlayerIndex, action: PlanningAction): RejectionReason | null {
+function executePlanningAction(
+  state: GameState,
+  _data: GameData,
+  player: PlayerIndex,
+  action: PlanningAction,
+): RejectionReason | null {
   if (typeof action !== "object" || action === null) return "malformed";
   if (!isPlanningActionType((action as { type?: unknown }).type)) return "unknownActionType";
-  // Ausführung der einzelnen Aktionen folgt in E6 (withdraw) und E7.
-  return "notImplemented";
+  switch (action.type) {
+    case "withdraw":
+      return withdraw(state, player, action.amount);
+    default:
+      // Übrige Aktionen folgen in E7.
+      return "notImplemented";
+  }
 }
 
-/** R-11: Käufe. Ausführung folgt in E6; bis dahin wird jeder Kauf abgelehnt. */
-function runBuy(state: GameState): void {
-  for (const p of activePlayersInPriority(state)) {
-    const list = state.pendingPurchases[p] ?? { buys: [] };
-    list.buys.forEach((cardId, index) => {
-      emit(state, { type: "action_rejected", player: p, kind: "purchases", index, action: cardId, reason: "notImplemented" });
-    });
+/** R-11: gleichzeitige Käufe (R-11.2–R-11.4), danach Einzahlung (R-11.5). */
+function runBuy(state: GameState, data: GameData): void {
+  const rejections = resolvePurchases(state, data, activePlayersInPriority(state), state.pendingPurchases);
+  for (const r of rejections) {
+    emit(state, { type: "action_rejected", player: r.player, kind: "purchases", index: r.index, action: r.cardId, reason: r.reason });
   }
+  depositRoundGold(state, data.config);
   state.pendingPurchases = PLAYER_INDICES.map(() => null);
 }
 
-/** R-12.1, R-12.2. Anführer-XP, Schilde und Buffs (R-12.3, R-12.4) folgen in E10/E11. */
+/** R-12.1 (Hand und ausgespielte Ressourcen), R-12.2. Anführer-XP, Schilde und Buffs (R-12.3, R-12.4) folgen in E10/E11. */
 function runCleanup(state: GameState): void {
   for (const p of state.players) {
     if (p.eliminated) continue;
-    if (p.hand.length > 0) {
-      const cards = p.hand;
+    if (p.hand.length > 0 || p.played.length > 0) {
+      const cards = [...p.hand, ...p.played];
       p.hand = [];
+      p.played = [];
       p.discard.push(...cards);
       emit(state, { type: "hand_discarded", player: p.index, cardInstanceIds: [...cards] });
     }

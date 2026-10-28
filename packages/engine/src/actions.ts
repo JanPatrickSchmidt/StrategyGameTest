@@ -1,6 +1,6 @@
 /**
  * Eingaben der Spieler: Planungsaktionen (R-7) und Käufe (R-11).
- * Die Ausführung der einzelnen Aktionen folgt in E6 (Käufe, Entnahme) und E7 (Planung).
+ * Käufe und Entnahme: `economy.ts` (E6). Übrige Planungsaktionen folgen in E7.
  */
 import type { OffsetCoord } from "./hex";
 import type { CardInstanceId, FrontZoneName, PlayerIndex, UnitId, UnitLocation } from "./state";
@@ -57,7 +57,19 @@ export const REJECTION_REASONS = [
   "unknownPlayer",
   "malformed",
   "unknownActionType",
-  /** Vorübergehend: Ausführung folgt in E6/E7. */
+  /** R-7.6: Betrag keine positive ganze Zahl. */
+  "invalidAmount",
+  /** R-7.6: Schatzkammer enthält weniger als den Betrag. */
+  "notEnoughTreasury",
+  /** R-7 / R-11.2: Rundenvorrat und Schatzkammer reichen nicht. */
+  "notEnoughGold",
+  /** R-11.2: Karten-ID existiert nicht. */
+  "unknownCard",
+  /** R-11.2: Karte ist nicht kaufbar (Starter, Token, Fluch, fremder Klassen-Pool). */
+  "notBuyable",
+  /** R-11.4: Stapel ist leer. */
+  "pileEmpty",
+  /** Vorübergehend: Ausführung folgt in E7. */
   "notImplemented",
 ] as const;
 export type RejectionReason = (typeof REJECTION_REASONS)[number];

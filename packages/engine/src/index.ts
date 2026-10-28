@@ -7,3 +7,4 @@ export * from "./deck";
 export * from "./setup";
 export * from "./actions";
 export * from "./round";
+export * from "./economy";
