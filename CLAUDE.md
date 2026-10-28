@@ -31,6 +31,8 @@ Lieber eine Aufgabe sauber abschließen als drei anfangen.
 - Mit **[TUNING]** markierte Zahlen in der Spec, um höchstens ±50 % vom Startwert, wenn Simulationsdaten das stützen. Jede Änderung wird in `docs/ENTSCHEIDUNGEN.md` mit Begründung und Daten festgehalten.
 - Lücken oder Widersprüche in der Spec: die einfachste Auslegung wählen, die zum Rest der Spec passt, umsetzen und als Frage in `docs/FRAGEN_AN_JAN.md` notieren (inklusive der gewählten Auslegung).
 
+**Grundsatz für Auslegungen (von Jan):** Effekte so früh wie möglich abhandeln und im Zweifel zugunsten des Spielers auslegen (Spec R-1.9).
+
 **Agenten dürfen nicht entscheiden:**
 - Spielregeln ändern, Mechaniken hinzufügen oder streichen, Kartentexte inhaltlich ändern.
 - Stattdessen: Vorschlag in `docs/FRAGEN_AN_JAN.md` aufschreiben und nach der bestehenden Regel weiterarbeiten.

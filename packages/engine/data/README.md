@@ -55,7 +55,7 @@ Pflichtfelder: `id`, `name`, `type` (`resource` | `unit` | `spell` | `curse`), `
 | `move` | `target` | gewählte Einheiten auf gewählte freie Felder setzen |
 | `wound` | `target` | verwunden (R-14.4) |
 | `gainGold` | `amount`, `when` (`now` \| `nextRound`), optional `to` (`pool` \| `treasury`, Standard `pool`) | Gold |
-| `stealGold` | `amount`, `from` | Gold aus fremder Schatzkammer in den eigenen Rundenvorrat der nächsten Runde |
+| `stealGold` | `amount`, `from` | Gold aus fremder Schatzkammer sofort in die eigene Schatzkammer (R-10.3) |
 | `giveCurse` | `to` | Fluch auf den Ablagestapel (R-14.7) |
 | `trash` | `from` | Karten dauerhaft entfernen (R-14.8) |
 | `gainLeaderXp` | `amount` | XP für den eigenen Anführer |

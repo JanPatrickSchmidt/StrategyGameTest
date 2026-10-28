@@ -29,7 +29,7 @@
       "altCost": { "bloodToll": 2 } },
     { "id": "goblin_skirmisher", "name": "Goblin-Plänkler", "type": "unit", "cost": 2, "race": "goblin", "class": "warrior", "pool": "kingdom",
       "stats": { "attack": 2, "hp": 4, "breakthrough": 2, "range": 1 },
-      "abilities": [{ "trigger": "onDeath", "effects": [{ "op": "gainGold", "amount": 1, "when": "nextRound" }] }] },
+      "abilities": [{ "trigger": "onDeath", "effects": [{ "op": "gainGold", "amount": 1, "when": "now", "to": "treasury" }] }] },
     { "id": "tinker", "name": "Kesselflicker", "type": "unit", "cost": 3, "race": "goblin", "class": "shaman", "pool": "kingdom",
       "stats": { "attack": 1, "hp": 4, "breakthrough": 0, "range": 2 },
       "abilities": [{ "trigger": "onCombatStart", "effects": [{ "op": "summon", "token": "goblin_token", "count": 1, "where": "adjacentFree" }] }] },

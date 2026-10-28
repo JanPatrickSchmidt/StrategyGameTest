@@ -111,9 +111,9 @@
         {
           "id": "loot", "name": "Beute",
           "levels": {
-            "2": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "onFrontWinOfChosen", "effects": [{ "op": "gainGold", "amount": 2, "when": "nextRound" }] }] },
-            "3": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "onFrontWinOfChosen", "effects": [{ "op": "gainGold", "amount": 3, "when": "nextRound" }] }] },
-            "4": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "onFrontWinOfChosen", "effects": [{ "op": "gainGold", "amount": 4, "when": "nextRound" }] }] }
+            "2": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "onFrontWinOfChosen", "effects": [{ "op": "gainGold", "amount": 2, "when": "now", "to": "treasury" }] }] },
+            "3": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "onFrontWinOfChosen", "effects": [{ "op": "gainGold", "amount": 3, "when": "now", "to": "treasury" }] }] },
+            "4": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "onFrontWinOfChosen", "effects": [{ "op": "gainGold", "amount": 4, "when": "now", "to": "treasury" }] }] }
           }
         }
       ]

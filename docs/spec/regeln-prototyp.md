@@ -21,6 +21,7 @@ Werte, die mit **[TUNING]** markiert sind, dürfen Agenten innerhalb von ±50 % 
 - **R-1.5 Anführer:** besondere Einheit jedes Spielers, nicht im Deck, immer vorhanden.
 - **R-1.6 Zonen eines Spielers:** `left` (Front links), `right` (Front rechts), `center` (Mitte), `reserve` (Reserve).
 - **R-1.7 Prioritätsreihenfolge:** In Runde `r` (beginnend bei 1) ist die Reihenfolge der Spieler `(r-1) mod 4, …` aufsteigend zyklisch. Alle Gleichstände zwischen Spielern, die nicht anders geregelt sind, werden nach dieser Reihenfolge aufgelöst.
+- **R-1.9 Auslegung:** Wo eine Regel offen lässt, wann oder wohin ein Effekt wirkt, wird er so früh wie möglich und zugunsten des betroffenen Spielers abgehandelt.
 - **R-1.8 Zufall:** Jeder Zufall stammt aus einem einzigen, mit einem Seed initialisierten Zufallsgenerator der Partie. Gleiche Seeds und gleiche Eingaben ergeben exakt dieselbe Partie.
 
 ## R-2 Sitzordnung und Nachbarn
@@ -41,6 +42,7 @@ Alle Arenen sind Hexfelder in **versetzten Koordinaten** (Spalte `col`, Zeile `r
 - **R-3.4 Mittelarena:** 7 × 7 Felder. Startbereiche: Spieler-Sitz 0 = Zeile 0, Spalten 1–5; Sitz 1 = Spalte 6, Zeilen 1–5; Sitz 2 = Zeile 6, Spalten 1–5; Sitz 3 = Spalte 0, Zeilen 1–5. Der Spieler wählt in seiner Mittelzone eine Position 0–4, die auf diese Felder abgebildet wird. Die Sitze bleiben fest, auch wenn Spieler ausscheiden.
 - **R-3.5 Reserve:** 3 Plätze ohne Koordinaten. Einheiten in der Reserve kämpfen nicht.
 - **R-3.6 Kapazität:** In `left`, `right` und `center` zusammen dürfen höchstens **5** Einheiten stehen [TUNING], der Anführer zählt nicht mit. +1 Platz bei Anführer-Stufe 2 und nochmals +1 bei Stufe 4. Tokens zählen nicht gegen die Kapazität.
+- **R-3.8 Benennung in der Oberfläche:** Felder werden für Spieler schachähnlich benannt: Spalte als Buchstabe (a, b, c …), Zeile als Zahl (1, 2, 3 …), jeweils aus Sicht des Spielers. Intern bleiben die Koordinaten aus R-3.1 bis R-3.4.
 - **R-3.7 Persistenz:** Einheiten bleiben von Runde zu Runde auf ihrem Feld, bis der Spieler sie bewegt oder sie das Brett verlassen.
 
 ## R-4 Partie-Aufbau
@@ -70,7 +72,7 @@ Jede Runde durchläuft genau diese Phasen:
 ## R-6 Rundenbeginn
 
 - **R-6.1 Zinsen:** Spieler erhalten `min(2, floor(Schatzkammer / 5))` Gold in die Schatzkammer, ohne das Maximum (R-11.5) zu überschreiten.
-- **R-6.2 Rundengold:** Jeder Spieler hat einen Gold-Vorrat für die Runde, der mit dem Bonusgold aus der Vorrunde startet (Schwung/Trotz R-10.6, Mitte R-10.4, Beute R-10.3).
+- **R-6.2 Rundengold:** Jeder Spieler hat einen Gold-Vorrat für die Runde, der mit dem Gold startet, das in der Vorrunde nicht mehr in die Schatzkammer passte (Überlauf, R-10.3).
 - **R-6.3 Ziehen:** Jeder Spieler zieht 5 Karten [TUNING] (+1, falls die Mitte-Belohnung „Karte“ fällig ist). Ist das Deck leer, wird der Ablagestapel gemischt und wird zum Deck. Sind beide leer, wird nicht weiter gezogen.
 - **R-6.4 Ressourcen:** Alle Ressourcenkarten auf der Hand werden automatisch ausgespielt; ihr Gold geht in den Rundenvorrat. Sie gehen beim Aufräumen auf den Ablagestapel.
 - **R-6.5 Genesung durch Reserve:** Verwundete Einheiten, die die gesamte Vorrunde in der Reserve verbracht haben, sind nicht mehr verwundet.
@@ -154,10 +156,10 @@ Ein Kampf läuft höchstens **300 Ticks** [TUNING]. In jedem Tick werden die leb
 
 - **R-10.1 Durchbruch:** Der Verlierer eines Frontkampfs verliert Leben = Summe `breakthrough` aller überlebenden Einheiten des Siegers (Tokens zählen) + **Grundschaden**.
 - **R-10.2 Leere Front:** Gewinnt eine Seite, weil die Gegenseite keine Einheiten hatte, gilt R-10.1 mit allen Einheiten des Siegers, und der Sieger erhält zusätzlich **2 Gold Beute** [TUNING].
-- **R-10.3 Beute** und andere Gold-Gewinne aus dem Kampf gehen in den Rundenvorrat der **nächsten** Runde, sofern die Karte nichts anderes sagt.
-- **R-10.4 Mitte:** Der Halter erhöht seine Halteserie um 1, alle anderen setzen ihre auf 0. Belohnung nach Länge der Serie: 1 → +2 Gold nächste Runde; 2 → +2 Gold und +1 Karte nächste Runde; ≥ 3 → +2 Gold, +1 Karte und sofort +1 Machtpunkt [TUNING].
+- **R-10.3 Gold sofort in die Schatzkammer:** Beute, Mitte-Gold, Schwung/Trotz-Gold und alle Gold-Gewinne aus Effekten nach der Planung gehen **sofort in die Schatzkammer** (zählen also schon für die Zinsen der nächsten Runde). Was über das Maximum (R-11.5) hinausgeht, verfällt nicht, sondern geht in den Rundenvorrat der nächsten Runde. Gold-Gewinne während der Planung (z. B. Hehler, R-17a.1) gehen in den Rundenvorrat dieser Runde.
+- **R-10.4 Mitte:** Der Halter erhöht seine Halteserie um 1, alle anderen setzen ihre auf 0. Belohnung nach Länge der Serie: 1 → +2 Gold (R-10.3); 2 → +2 Gold und +1 Karte beim Ziehen der nächsten Runde; ≥ 3 → +2 Gold, +1 Karte und sofort +1 Machtpunkt [TUNING].
 - **R-10.5 Grundschaden** = `1 + max(0, Runde − 10)` [TUNING].
-- **R-10.6 Schwung und Trotz:** Eine Runde gilt für einen Spieler als **gewonnen**, wenn er mehr Frontkämpfe gewonnen als verloren hat, als **verloren** bei umgekehrt, sonst neutral (die Serie bleibt unverändert). Serien zählen gewonnene bzw. verlorene Runden in Folge. Bonusgold nächste Runde: Serie 2 → +1, 3–4 → +2, ≥ 5 → +3 [TUNING], für Sieges- und Niederlagenserien gleich.
+- **R-10.6 Schwung und Trotz:** Eine Runde gilt für einen Spieler als **gewonnen**, wenn er mehr Frontkämpfe gewonnen als verloren hat, als **verloren** bei umgekehrt, sonst neutral (die Serie bleibt unverändert). Serien zählen gewonnene bzw. verlorene Runden in Folge. Bonusgold (R-10.3): Serie 2 → +1, 3–4 → +2, ≥ 5 → +3 [TUNING], für Sieges- und Niederlagenserien gleich.
 - **R-10.7 Einheiten-XP:** Jede Karten-Einheit, die einen Kampf überlebt hat, erhält +1 XP.
 - **R-10.8 Anführer-XP:** +1, wenn der Anführer an einem Kampf teilgenommen und überlebt hat.
 

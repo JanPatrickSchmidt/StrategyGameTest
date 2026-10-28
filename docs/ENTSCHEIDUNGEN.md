@@ -4,6 +4,7 @@ Getroffene Entscheidungen mit Datum und Begründung. Neueste oben.
 
 | Datum | Entscheidung | Begründung | Von |
 | --- | --- | --- | --- |
+| 2026-10-28 | F8: Gold aus Effekten, Beute, Mitte und Serien geht sofort in die Schatzkammer, Überlauf in den Rundenvorrat der nächsten Runde (R-10.3). Allgemeiner Grundsatz: Effekte so früh wie möglich und zugunsten des Spielers auslegen (R-1.9). F9: Zwerge-Unverwundbarkeit gilt für die laufende Runde. F10: Positionen intern nach Arena-Koordinaten; in der Oberfläche schachähnliche Benennung (R-3.8). | Mehr Zinsen, weniger verfallendes Gold; einheitliche Auslegungsregel | Jan |
 | 2026-10-28 | F1–F7 bestätigt: Flächenschaden nur gegen Gegner; Zeitlimit-Unentschieden ohne Schaden; Schattenschritt nach dem Aufdecken frei in eigenen Zonen; bei 2 Spielern zwei Frontkämpfe; Ressourcen automatisch; Rundenlimit 30 und Grundschaden ab Runde 11; Totengräber +10 Mana | Standards aus der Spec von Jan abgenommen | Jan |
 | 2026-10-28 | Prototyp-Umfang laut Tab „Mini-Set Prototyp“: Kernkreislauf ohne Pakte, Weltereignisse, Angebotsfenster, Evolution, Fusion, Gelände | Erst prüfen, ob das Fundament Spaß macht | Jan + Claude |
 | 2026-10-28 | Eine Klassenliste für Einheiten und Anführer: Krieger, Zauberer, Schurke, Schamane | Klasse bestimmt Kampfverhalten und Klassen-Pool | Claude, Jan informiert |
