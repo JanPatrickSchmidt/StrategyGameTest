@@ -2,3 +2,6 @@ export * from "./rng";
 export * from "./data";
 export * from "./validate";
 export * from "./hex";
+export * from "./state";
+export * from "./deck";
+export * from "./setup";

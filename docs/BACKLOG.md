@@ -14,7 +14,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
 - [x] **E3 Hex-Geometrie** (2026-10-28)
   - Versetzte Koordinaten („odd-r“) ↔ Würfelkoordinaten, Abstand, Nachbarn, Breitensuche über freie Felder, Abbildung Frontzone → Frontarena (R-3.2), Mittelzonen-Startbereiche (R-3.4).
   - Abnahme: Tests für alle Funktionen inklusive Randfälle.
-- [ ] **E4 Spielzustand und Aufbau**
+- [x] **E4 Spielzustand und Aufbau** (2026-10-28)
   - Zustandsmodell, `createGame(config, leaders, seed)`, Startdeck, Mischen, Ziehen mit Nachmischen (R-4, R-6.3).
   - Abnahme: Tests zu R-4.x und R-6.3.
 - [ ] **E5 Rundenmaschine**
