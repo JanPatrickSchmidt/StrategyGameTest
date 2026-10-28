@@ -13,7 +13,7 @@ Evolution ist Jan besonders wichtig. Sie muss sich **gut anfühlen**: spürbar s
 - **E-1 Wer:** Alle Einheitenkarten außer Tokens. Anführer entwickeln sich über ihre eigenen Stufen (R-16), nicht über dieses System.
 - **E-2 Stufen:** Stufe 1 = Grundform. **Stufe 2** ab 3 XP [TUNING]. **Stufe 3** ab 7 XP [TUNING] **und** mindestens ★2.
 - **E-3 Äste:** Jede Einheitenkarte hat zwei Äste A und B mit je einer Stufe 2 und Stufe 3: Name, Wertänderungen, zusätzliche Schlüsselwörter oder Fähigkeiten. Format in den Kartendaten unter `evolution` (in `data/README.md` dokumentieren).
-- **E-4 Zeitpunkt:** Erreicht eine Einheit beim Aufräumen eine neue Stufe, ist die Evolution „bereit“. In der nächsten Planung wählt der Spieler den Ast (Aktion `chooseEvolution(unitId, branch)`, nur beim Übergang von Stufe 1 zu 2; Stufe 3 folgt dem gewählten Ast). Ohne Wahl wird beim Aufdecken Ast A genommen. Ereignis `unit_evolved` für die Animation.
+- **E-4 Zeitpunkt:** Erreicht eine Einheit am Rundenende (R-12, nach der Kampfauswertung) eine neue Stufe, ist die Evolution „bereit“. In der nächsten Planung wählt der Spieler den Ast (Aktion `chooseEvolution(unitId, branch)`, nur beim Übergang von Stufe 1 zu 2; Stufe 3 folgt dem gewählten Ast). Ohne Wahl wird beim Aufdecken Ast A genommen. Ereignis `unit_evolved` für die Animation.
 - **E-5 Verschmelzen:** XP werden addiert (R-15.1). Das Ergebnis übernimmt Stufe und Ast der beteiligten Einheit mit der höchsten Stufe, bei Gleichstand der mit den meisten XP, dann kleinste ID. Danach wird sofort geprüft, ob eine weitere Stufe erreicht ist.
 - **E-6 Werte (Richtwerte, per Kalibrierung zu prüfen):** Stufe 2 ungefähr **+40 %** auf die Werte der aktuellen Sternstufe plus **ein** neues Schlüsselwort oder eine neue Fähigkeit. Stufe 3 ungefähr **+80 %** plus eine deutlich stärkere oder größere Fähigkeit. Evolutionen wirken zusätzlich zum Sternfaktor. Goldwert-Parität laut `balancing.md` beachten.
 - **E-7 Inhalte:** Die Äste für alle Einheiten des Mini-Sets entwerfen die Agenten selbst und markieren sie in den Daten mit `"draft": true`. Jan überarbeitet sie nach seiner Rückkehr. Leitlinien: Die beiden Äste einer Einheit führen in **verschiedene** Richtungen (z. B. defensiv/offensiv, Einzelziel/Fläche, eigene Stärke/Unterstützung), passen zu Rasse und Klasse, und teure Einheiten bekommen die komplexeren Effekte (B-2).
@@ -36,6 +36,8 @@ Die Agenten dürfen die Ereignisse selbst gestalten (Freigabe von Jan).
 - **F-3 Grenzen:** Anführer und Tokens können nicht fusionieren, eine Fusion nicht erneut. Widersprüchliche Schlüsselwörter: der Spieler wählt eines.
 
 ## Ideen für eine zweite Iteration (nicht bauen)
+
+- **Sicht / Nebel des Krieges** (Idee von Jan, noch offen): Wie viel man vom gegnerischen Feld sieht, hängt von der Sicht der eigenen Einheiten ab. Würde vor allem die Wahl von Zielen für Anführer-Fähigkeiten und Zauber beeinflussen.
 
 - **Gelände** (Heimatgelände, Gelände-Karten), siehe Design-Dokument.
 - **Fliegende Einheiten / zweite Ebene** (Idee von Jan): Flieger bewegen sich über andere Einheiten hinweg und ignorieren Gelände-Hindernisse; Nahkämpfer können sie nicht oder nur eingeschränkt angreifen; Fernkämpfer (Bogenschützen) haben gegen sie einen Vorteil.

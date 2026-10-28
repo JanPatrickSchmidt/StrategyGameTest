@@ -77,7 +77,7 @@ Ziel: Jan spielt im Browser gegen 3 Bots, mit schlichter 3D-Darstellung.
 
 - [ ] **C1 Client-Grundgerüst** – `apps/client` mit Vite und Babylon.js; Engine läuft lokal im Browser, Bots als Gegner. Abnahme: Seite startet eine Partie und zeigt den Zustand als Text.
 - [ ] **C2 3D-Brett** – Visuelle Richtung laut `docs/stil/visuelle-richtung.md`. Arenen, Hexfelder, Einheiten als einfache Formen mit Farbe pro Spieler, Kamera schräg von oben, Lebens- und Sternanzeige. Abnahme: Alle Arenen der Partie sichtbar und lesbar.
-- [ ] **C3 Planungsoberfläche** – Hand, Gold, Schatzkammer, Einheiten platzieren und bewegen (Klicken oder Ziehen), Zauber mit Ziel legen, Anführer-Fähigkeit mit Ziel wählen, Astwahl. Abnahme: Alle Planungsaktionen sind bedienbar.
+- [ ] **C3 Planungsoberfläche** – Gliederung in die Schritte Ausspielen, Kaufen, Aufstellen (R-5), Wechsel zwischen den Schritten bis zum Bestätigen. Automatisch ausgespielte Münzen sichtbar anzeigen (z. B. als gespielte Karten neben der Hand), damit klar ist, warum weniger Karten auf der Hand sind. Hand, Gold, Schatzkammer, Einheiten platzieren und bewegen (Klicken oder Ziehen), Zauber mit Ziel legen, Anführer-Fähigkeit mit Ziel wählen, Astwahl. Abnahme: Alle Planungsaktionen sind bedienbar.
 - [ ] **C4 Kampfwiedergabe** – Ereignisprotokoll als Animation abspielen: Bewegung, Angriff, Treffer, Tod, Fähigkeiten, Zauber, Schadenszahlen; Geschwindigkeit wählbar, überspringbar. Abnahme: Ein Kampf ist ohne Text nachvollziehbar.
 - [ ] **C5 Kaufphase** – Königreich, Klassen-Pool, Stapelgrößen, Kaufen, Einzahlen. Abnahme: Käufe landen im Deck.
 - [ ] **C6 Übersicht** – Leben, Machtpunkte, Serien, Gegner-Infos, Rundenzahl, Spielende mit Platzierung. Abnahme: Partie lässt sich bis zum Ende spielen.
