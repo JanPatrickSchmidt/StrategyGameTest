@@ -1,0 +1,60 @@
+{
+  "_comment": "Startwerte laut docs/spec/regeln-prototyp.md. Werte mit [TUNING] in der Spec duerfen per Simulation angepasst werden.",
+  "players": 4,
+  "startingLife": 30,
+  "handSize": 5,
+  "startingDeck": { "coin": 6, "recruit": 2, "classStarter": 2 },
+  "boardCapacity": 5,
+  "capacityBonusAtLeaderLevel": { "2": 1, "4": 1 },
+  "reserveSlots": 3,
+  "spellSlots": { "pre": 1, "post": 1 },
+  "treasuryMax": 10,
+  "interestPer": 5,
+  "interestMax": 2,
+  "emptyFrontLoot": 2,
+  "baseDamage": { "base": 1, "rampStartsAfterRound": 10, "perRound": 1 },
+  "center": {
+    "rewards": [
+      { "streak": 1, "gold": 2, "cards": 0, "power": 0 },
+      { "streak": 2, "gold": 2, "cards": 1, "power": 0 },
+      { "streak": 3, "gold": 2, "cards": 1, "power": 1 }
+    ]
+  },
+  "streakGold": [
+    { "minStreak": 2, "gold": 1 },
+    { "minStreak": 3, "gold": 2 },
+    { "minStreak": 5, "gold": 3 }
+  ],
+  "powerToWin": 5,
+  "maxRounds": 30,
+  "combat": {
+    "maxTicks": 300,
+    "defaultAttackInterval": 10,
+    "defaultMoveInterval": 6,
+    "defaultManaMax": 100,
+    "manaPerAttack": 10,
+    "manaPerHitTaken": 5,
+    "warriorTargetingBonus": 1,
+    "retargetDistanceGap": 2
+  },
+  "starMultiplier": { "1": 1.0, "2": 1.8, "3": 3.2 },
+  "leader": {
+    "xpPerRound": 2,
+    "xpPerSurvivedFight": 1,
+    "levelThresholds": { "2": 4, "3": 10, "4": 18 },
+    "level3StatBonus": 0.3
+  },
+  "healCostPerStar": 1,
+  "unitXpPerSurvivedFight": 1,
+  "arenas": {
+    "frontZone": { "cols": 5, "rows": 3 },
+    "centerArena": { "cols": 7, "rows": 7 },
+    "centerStartSlots": 5
+  },
+  "pileSizeByCost": [
+    { "maxCost": 3, "copies": 12 },
+    { "maxCost": 4, "copies": 10 },
+    { "maxCost": 99, "copies": 8 }
+  ],
+  "classPoolPileSize": 8
+}

@@ -1,0 +1,162 @@
+[
+  {
+    "id": "brann",
+    "name": "Hauptmann Brann",
+    "class": "warrior",
+    "race": "dwarf",
+    "stats": { "attack": 3, "hp": 12, "breakthrough": 1, "range": 1 },
+    "abilities": [{ "trigger": "onManaFull", "name": "Schildstoß", "effects": [{ "op": "stun", "ticks": 15, "target": "currentTarget" }] }],
+    "active": {
+      "name": "Sammelruf",
+      "category": "buff",
+      "target": { "kind": "zone", "arenas": "own" },
+      "base": { "effects": [{ "op": "buff", "stat": "attack", "amount": 2, "duration": "combat", "target": "zoneAllies" }] },
+      "branches": [
+        {
+          "id": "reach", "name": "Weite",
+          "levels": {
+            "2": { "zones": 2, "effects": [{ "op": "buff", "stat": "attack", "amount": 2, "duration": "combat", "target": "zoneAllies" }] },
+            "3": { "zones": 2, "effects": [{ "op": "buff", "stat": "attack", "amount": 3, "duration": "combat", "target": "zoneAllies" }] },
+            "4": { "zones": 3, "effects": [{ "op": "buff", "stat": "attack", "amount": 3, "duration": "combat", "target": "zoneAllies" }] }
+          }
+        },
+        {
+          "id": "might", "name": "Wucht",
+          "levels": {
+            "2": { "effects": [{ "op": "buff", "stat": "attack", "amount": 4, "duration": "combat", "target": "zoneAllies" }] },
+            "3": { "effects": [{ "op": "buff", "stat": "attack", "amount": 5, "duration": "combat", "target": "zoneAllies" }] },
+            "4": { "effects": [{ "op": "buff", "stat": "attack", "amount": 6, "duration": "combat", "target": "zoneAllies" }] }
+          }
+        },
+        {
+          "id": "steadfast", "name": "Standhaft",
+          "levels": {
+            "2": { "effects": [{ "op": "buff", "stat": "attack", "amount": 2, "duration": "combat", "target": "zoneAllies" }, { "op": "buff", "stat": "hp", "amount": 4, "duration": "combat", "target": "zoneAllies" }] },
+            "3": { "effects": [{ "op": "buff", "stat": "attack", "amount": 3, "duration": "combat", "target": "zoneAllies" }, { "op": "buff", "stat": "hp", "amount": 6, "duration": "combat", "target": "zoneAllies" }] },
+            "4": { "effects": [{ "op": "buff", "stat": "attack", "amount": 3, "duration": "combat", "target": "zoneAllies" }, { "op": "buff", "stat": "hp", "amount": 10, "duration": "combat", "target": "zoneAllies" }] }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "ilyra",
+    "name": "Ilyra",
+    "class": "mage",
+    "race": "elf",
+    "stats": { "attack": 2, "hp": 7, "breakthrough": 1, "range": 3 },
+    "abilities": [{ "trigger": "onManaFull", "name": "Arkanbolzen", "effects": [{ "op": "damage", "amount": 4, "target": "currentTarget" }] }],
+    "active": {
+      "name": "Blitzschlag",
+      "category": "damage",
+      "target": { "kind": "hex", "arenas": "participating" },
+      "base": { "effects": [{ "op": "damage", "amount": 4, "target": "hexEnemies" }] },
+      "branches": [
+        {
+          "id": "chain", "name": "Kette",
+          "levels": {
+            "2": { "hexes": 3, "effects": [{ "op": "damage", "amount": 4, "target": "hexEnemies" }] },
+            "3": { "hexes": 3, "effects": [{ "op": "damage", "amount": 5, "target": "hexEnemies" }] },
+            "4": { "hexes": 4, "effects": [{ "op": "damage", "amount": 6, "target": "hexEnemies" }] }
+          }
+        },
+        {
+          "id": "storm", "name": "Sturm",
+          "levels": {
+            "2": { "effects": [{ "op": "damage", "amount": 3, "target": "hexAndNeighborEnemies" }] },
+            "3": { "effects": [{ "op": "damage", "amount": 4, "target": "hexAndNeighborEnemies" }] },
+            "4": { "effects": [{ "op": "damage", "amount": 5, "target": "hexAndNeighborEnemies" }] }
+          }
+        },
+        {
+          "id": "might", "name": "Wucht",
+          "levels": {
+            "2": { "effects": [{ "op": "damage", "amount": 8, "target": "hexEnemies", "wound": true }] },
+            "3": { "effects": [{ "op": "damage", "amount": 10, "target": "hexEnemies", "wound": true }] },
+            "4": { "effects": [{ "op": "damage", "amount": 14, "target": "hexEnemies", "wound": true }] }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "vex",
+    "name": "Vex",
+    "class": "rogue",
+    "race": "goblin",
+    "stats": { "attack": 4, "hp": 6, "breakthrough": 3, "range": 1 },
+    "abilities": [{ "trigger": "onManaFull", "name": "Rückenstich", "effects": [{ "op": "damage", "amount": { "kind": "selfAttackTimes", "factor": 2 }, "target": "currentTarget" }] }],
+    "active": {
+      "name": "Schattenschritt",
+      "category": "move",
+      "target": { "kind": "moveUnits", "count": 1, "destination": "ownFreeHex" },
+      "base": { "effects": [{ "op": "move", "target": "chosenUnits" }] },
+      "branches": [
+        {
+          "id": "double", "name": "Doppelt",
+          "levels": {
+            "2": { "count": 2, "effects": [{ "op": "move", "target": "chosenUnits" }] },
+            "3": { "count": 2, "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "buff", "stat": "attack", "amount": 1, "duration": "combat", "target": "chosenUnits" }] },
+            "4": { "count": 3, "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "buff", "stat": "attack", "amount": 1, "duration": "combat", "target": "chosenUnits" }] }
+          }
+        },
+        {
+          "id": "ambush", "name": "Hinterhalt",
+          "levels": {
+            "2": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "buff", "stat": "breakthrough", "amount": 2, "duration": "round", "target": "chosenUnits" }] },
+            "3": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "buff", "stat": "breakthrough", "amount": 3, "duration": "round", "target": "chosenUnits" }] },
+            "4": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "buff", "stat": "breakthrough", "amount": 4, "duration": "round", "target": "chosenUnits" }, { "op": "grantKeyword", "keyword": "firstStrike", "duration": "combat", "target": "chosenUnits" }] }
+          }
+        },
+        {
+          "id": "loot", "name": "Beute",
+          "levels": {
+            "2": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "onFrontWinOfChosen", "effects": [{ "op": "gainGold", "amount": 2, "when": "nextRound" }] }] },
+            "3": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "onFrontWinOfChosen", "effects": [{ "op": "gainGold", "amount": 3, "when": "nextRound" }] }] },
+            "4": { "effects": [{ "op": "move", "target": "chosenUnits" }, { "op": "onFrontWinOfChosen", "effects": [{ "op": "gainGold", "amount": 4, "when": "nextRound" }] }] }
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "morgra",
+    "name": "Morgra",
+    "class": "shaman",
+    "race": "undead",
+    "stats": { "attack": 2, "hp": 8, "breakthrough": 1, "range": 2 },
+    "abilities": [{ "trigger": "onManaFull", "name": "Lebensband", "effects": [{ "op": "heal", "amount": 4, "target": { "kind": "alliesInRange", "range": 2 } }] }],
+    "active": {
+      "name": "Beschwörung",
+      "category": "summon",
+      "target": { "kind": "hex", "arenas": "own", "mustBeFree": true },
+      "base": { "effects": [{ "op": "summon", "token": "spirit", "count": 1, "where": "targetHexThenAdjacentFree" }] },
+      "branches": [
+        {
+          "id": "horde", "name": "Schar",
+          "levels": {
+            "2": { "effects": [{ "op": "summon", "token": "spirit", "count": 2, "where": "targetHexThenAdjacentFree" }] },
+            "3": { "effects": [{ "op": "summon", "token": "spirit", "count": 2, "where": "targetHexThenAdjacentFree", "statOverride": { "attack": 3, "hp": 3 } }] },
+            "4": { "effects": [{ "op": "summon", "token": "spirit", "count": 3, "where": "targetHexThenAdjacentFree", "statOverride": { "attack": 3, "hp": 3 } }] }
+          }
+        },
+        {
+          "id": "ancestors", "name": "Ahnen",
+          "levels": {
+            "2": { "effects": [{ "op": "summon", "token": "spirit", "count": 1, "where": "targetHexThenAdjacentFree", "statOverride": { "attack": 4, "hp": 4 } }] },
+            "3": { "effects": [{ "op": "summon", "token": "spirit", "count": 1, "where": "targetHexThenAdjacentFree", "statOverride": { "attack": 5, "hp": 6 } }] },
+            "4": { "effects": [{ "op": "summon", "token": "spirit", "count": 1, "where": "targetHexThenAdjacentFree", "statOverride": { "attack": 6, "hp": 9 } }] }
+          }
+        },
+        {
+          "id": "soulbond", "name": "Seelenband",
+          "levels": {
+            "2": { "effects": [{ "op": "summon", "token": "spirit", "count": 1, "where": "targetHexThenAdjacentFree", "countsForResonance": true }] },
+            "3": { "effects": [{ "op": "summon", "token": "spirit", "count": 1, "where": "targetHexThenAdjacentFree", "countsForResonance": true, "statOverride": { "attack": 3, "hp": 3 } }] },
+            "4": { "effects": [{ "op": "summon", "token": "spirit", "count": 2, "where": "targetHexThenAdjacentFree", "countsForResonance": true, "statOverride": { "attack": 3, "hp": 3 } }] }
+          }
+        }
+      ]
+    }
+  }
+]

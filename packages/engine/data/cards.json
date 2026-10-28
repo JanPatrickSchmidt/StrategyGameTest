@@ -1,0 +1,143 @@
+{
+  "_comment": "Kartendaten Mini-Set Prototyp. Schema und Effekt-Bausteine: data/README.md. pool: starter | basic | kingdom | class:<classId> | token.",
+  "cards": [
+    { "id": "coin", "name": "Münze", "type": "resource", "cost": 0, "gold": 1, "pool": "starter" },
+    { "id": "silver", "name": "Silber", "type": "resource", "cost": 3, "gold": 2, "pool": "basic", "pileSize": 20 },
+    { "id": "gold_bar", "name": "Goldbarren", "type": "resource", "cost": 6, "gold": 3, "pool": "basic", "pileSize": 12 },
+    {
+      "id": "purify", "name": "Läutern", "type": "spell", "slot": "post", "tempo": 1, "cost": 2, "pool": "basic", "pileSize": 12,
+      "target": { "kind": "handCards", "max": 2 },
+      "effects": [{ "op": "trash", "from": "chosenHandCards" }]
+    },
+    { "id": "curse", "name": "Fluch", "type": "curse", "cost": 0, "pool": "basic", "pileSize": 16, "buyable": false },
+
+    { "id": "recruit", "name": "Rekrut", "type": "unit", "cost": 1, "race": null, "class": "warrior", "pool": "starter",
+      "stats": { "attack": 2, "hp": 3, "breakthrough": 1, "range": 1 } },
+    { "id": "squire", "name": "Schildknappe", "type": "unit", "cost": 1, "race": null, "class": "warrior", "pool": "starter", "starterFor": "warrior",
+      "stats": { "attack": 1, "hp": 5, "breakthrough": 0, "range": 1 } },
+    { "id": "apprentice", "name": "Lehrling", "type": "unit", "cost": 1, "race": null, "class": "mage", "pool": "starter", "starterFor": "mage",
+      "stats": { "attack": 1, "hp": 3, "breakthrough": 0, "range": 3 },
+      "abilities": [{ "trigger": "onManaFull", "effects": [{ "op": "damage", "amount": 2, "target": "currentTarget" }] }] },
+    { "id": "pickpocket", "name": "Taschendieb", "type": "unit", "cost": 1, "race": null, "class": "rogue", "pool": "starter", "starterFor": "rogue",
+      "stats": { "attack": 2, "hp": 2, "breakthrough": 2, "range": 1 } },
+    { "id": "gravedigger", "name": "Totengräber", "type": "unit", "cost": 1, "race": null, "class": "shaman", "pool": "starter", "starterFor": "shaman",
+      "stats": { "attack": 1, "hp": 3, "breakthrough": 0, "range": 2 },
+      "abilities": [{ "trigger": "onAllyDeath", "effects": [{ "op": "gainMana", "amount": 10, "target": "allAllies" }] }] },
+
+    { "id": "spark_rider", "name": "Funkenreiter", "type": "unit", "cost": 2, "race": "goblin", "class": "rogue", "pool": "kingdom",
+      "stats": { "attack": 3, "hp": 2, "breakthrough": 3, "range": 1 },
+      "altCost": { "bloodToll": 2 } },
+    { "id": "goblin_skirmisher", "name": "Goblin-Plänkler", "type": "unit", "cost": 2, "race": "goblin", "class": "warrior", "pool": "kingdom",
+      "stats": { "attack": 2, "hp": 4, "breakthrough": 2, "range": 1 },
+      "abilities": [{ "trigger": "onDeath", "effects": [{ "op": "gainGold", "amount": 1, "when": "nextRound" }] }] },
+    { "id": "tinker", "name": "Kesselflicker", "type": "unit", "cost": 3, "race": "goblin", "class": "shaman", "pool": "kingdom",
+      "stats": { "attack": 1, "hp": 4, "breakthrough": 0, "range": 2 },
+      "abilities": [{ "trigger": "onCombatStart", "effects": [{ "op": "summon", "token": "goblin_token", "count": 1, "where": "adjacentFree" }] }] },
+    { "id": "bone_soldier", "name": "Knochensoldat", "type": "unit", "cost": 2, "race": "undead", "class": "warrior", "pool": "kingdom",
+      "stats": { "attack": 2, "hp": 4, "breakthrough": 1, "range": 1 } },
+    { "id": "curse_weaver", "name": "Fluchweber", "type": "unit", "cost": 4, "race": "undead", "class": "mage", "pool": "kingdom",
+      "stats": { "attack": 2, "hp": 5, "breakthrough": 0, "range": 3 },
+      "abilities": [{ "trigger": "onFrontWin", "effects": [{ "op": "giveCurse", "to": "frontOpponent" }] }] },
+    { "id": "soul_reaper", "name": "Seelenernter", "type": "unit", "cost": 5, "race": "undead", "class": "rogue", "pool": "kingdom",
+      "stats": { "attack": 5, "hp": 5, "breakthrough": 4, "range": 1 },
+      "altCost": { "gold": 2, "sacrifice": 1 } },
+    { "id": "shieldwall_veteran", "name": "Schildwall-Veteran", "type": "unit", "cost": 3, "race": "dwarf", "class": "warrior", "pool": "kingdom",
+      "stats": { "attack": 2, "hp": 8, "breakthrough": 0, "range": 1, "armor": 1 } },
+    { "id": "runesmith", "name": "Runenschmied", "type": "unit", "cost": 4, "race": "dwarf", "class": "shaman", "pool": "kingdom",
+      "stats": { "attack": 2, "hp": 6, "breakthrough": 0, "range": 1 },
+      "abilities": [{ "trigger": "onCombatStart", "effects": [{ "op": "buff", "stat": "armor", "amount": 1, "duration": "combat", "target": "adjacentAllies" }] }] },
+    { "id": "thunder_gun", "name": "Donnerbüchse", "type": "unit", "cost": 4, "race": "dwarf", "class": "mage", "pool": "kingdom",
+      "stats": { "attack": 3, "hp": 5, "breakthrough": 1, "range": 3 },
+      "abilities": [{ "trigger": "onManaFull", "effects": [{ "op": "damage", "amount": 3, "target": "currentTargetAndNeighbors" }] }] },
+    { "id": "ranger", "name": "Waldläuferin", "type": "unit", "cost": 3, "race": "elf", "class": "mage", "pool": "kingdom",
+      "stats": { "attack": 3, "hp": 3, "breakthrough": 1, "range": 4 },
+      "abilities": [{ "trigger": "onManaFull", "effects": [{ "op": "damage", "amount": 2, "target": { "kind": "nearestEnemies", "count": 3 } }] }] },
+    { "id": "blade_dancer", "name": "Klingentänzerin", "type": "unit", "cost": 4, "race": "elf", "class": "rogue", "pool": "kingdom",
+      "stats": { "attack": 4, "hp": 4, "breakthrough": 3, "range": 1 },
+      "keywords": ["firstStrike"] },
+    { "id": "moon_priestess", "name": "Mondpriesterin", "type": "unit", "cost": 5, "race": "elf", "class": "shaman", "pool": "kingdom",
+      "stats": { "attack": 2, "hp": 6, "breakthrough": 0, "range": 2 },
+      "abilities": [{ "trigger": "onManaFull", "effects": [{ "op": "shield", "amount": 6, "target": "weakestAlly" }] }] },
+    {
+      "id": "fireball", "name": "Feuerball", "type": "spell", "slot": "pre", "tempo": 2, "cost": 4, "pool": "kingdom",
+      "target": { "kind": "hex", "arenas": "participating" },
+      "effects": [
+        { "op": "damage", "amount": 5, "target": "hexEnemies" },
+        { "op": "damage", "amount": 2, "target": "hexNeighborEnemies" }
+      ]
+    },
+    {
+      "id": "rune_shield", "name": "Schutzrune", "type": "spell", "slot": "pre", "tempo": 1, "cost": 2, "pool": "kingdom",
+      "target": { "kind": "hex", "arenas": "own" },
+      "effects": [{ "op": "shield", "amount": 5, "target": "hexAlly" }]
+    },
+    {
+      "id": "war_spoils", "name": "Kriegsbeute", "type": "spell", "slot": "post", "tempo": 1, "cost": 3, "pool": "kingdom",
+      "target": { "kind": "none" },
+      "condition": { "kind": "wonFrontThisRound" },
+      "effects": [{ "op": "gainGold", "amount": 3, "when": "now", "to": "treasury" }]
+    },
+    {
+      "id": "burden", "name": "Bürde", "type": "spell", "slot": "post", "tempo": 2, "cost": 3, "pool": "kingdom",
+      "target": { "kind": "player", "allowed": "neighbors" },
+      "effects": [{ "op": "giveCurse", "to": "targetPlayer" }]
+    },
+
+    { "id": "banner_bearer", "name": "Bannerträger", "type": "unit", "cost": 3, "race": null, "class": "warrior", "pool": "class:warrior",
+      "stats": { "attack": 2, "hp": 6, "breakthrough": 1, "range": 1 },
+      "abilities": [{ "trigger": "onCombatStart", "effects": [{ "op": "buff", "stat": "attack", "amount": 1, "duration": "combat", "target": "alliesInArena" }] }] },
+    {
+      "id": "war_cry", "name": "Kriegsruf", "type": "spell", "slot": "pre", "tempo": 1, "cost": 2, "pool": "class:warrior",
+      "target": { "kind": "zone", "arenas": "own" },
+      "effects": [{ "op": "buff", "stat": "hp", "amount": 2, "duration": "combat", "target": "zoneAllies" }]
+    },
+    { "id": "arena_champion", "name": "Champion der Arena", "type": "unit", "cost": 6, "race": null, "class": "warrior", "pool": "class:warrior",
+      "stats": { "attack": 6, "hp": 12, "breakthrough": 3, "range": 1 },
+      "abilities": [{ "trigger": "onKill", "effects": [{ "op": "buff", "stat": "attack", "amount": 1, "duration": "permanent", "target": "self" }] }] },
+
+    {
+      "id": "spark_forge", "name": "Funkenschmiede", "type": "spell", "slot": "post", "tempo": 1, "cost": 3, "pool": "class:mage",
+      "target": { "kind": "none" },
+      "effects": [{ "op": "startManaPercent", "amount": 50, "target": "ownClassUnits", "class": "mage", "when": "nextRound" }]
+    },
+    {
+      "id": "frost_lance", "name": "Frostlanze", "type": "spell", "slot": "pre", "tempo": 2, "cost": 3, "pool": "class:mage",
+      "target": { "kind": "hex", "arenas": "participating" },
+      "effects": [{ "op": "wound", "target": "hexEnemies" }]
+    },
+    { "id": "archmage", "name": "Erzmagier", "type": "unit", "cost": 6, "race": null, "class": "mage", "pool": "class:mage",
+      "stats": { "attack": 3, "hp": 8, "breakthrough": 1, "range": 4 },
+      "abilities": [{ "trigger": "onManaFull", "effects": [{ "op": "damage", "amount": 6, "target": "currentTargetAndNeighbors" }] }] },
+
+    {
+      "id": "poison_blade", "name": "Giftklinge", "type": "spell", "slot": "pre", "tempo": 2, "cost": 2, "pool": "class:rogue",
+      "target": { "kind": "hex", "arenas": "own" },
+      "effects": [{ "op": "grantKeyword", "keyword": "woundOnKill", "duration": "combat", "target": "hexAlly" }]
+    },
+    { "id": "fence", "name": "Hehler", "type": "unit", "cost": 3, "race": null, "class": "rogue", "pool": "class:rogue",
+      "stats": { "attack": 1, "hp": 3, "breakthrough": 0, "range": 1 },
+      "abilities": [{ "trigger": "onRoundStart", "condition": { "kind": "inReserve" }, "effects": [{ "op": "gainGold", "amount": 1, "when": "now", "to": "pool" }] }] },
+    { "id": "master_thief", "name": "Meisterdieb", "type": "unit", "cost": 5, "race": null, "class": "rogue", "pool": "class:rogue",
+      "stats": { "attack": 4, "hp": 5, "breakthrough": 5, "range": 1 },
+      "abilities": [{ "trigger": "onFrontWin", "effects": [{ "op": "stealGold", "amount": 2, "from": "frontOpponentTreasury" }] }] },
+
+    {
+      "id": "spirit_drum", "name": "Geistertrommel", "type": "spell", "slot": "pre", "tempo": 1, "cost": 2, "pool": "class:shaman",
+      "target": { "kind": "zone", "arenas": "own" },
+      "effects": [{ "op": "summon", "token": "small_spirit", "count": 2, "where": "zoneFree" }]
+    },
+    { "id": "ancestor_pole", "name": "Ahnenpfahl", "type": "unit", "cost": 4, "race": null, "class": "shaman", "pool": "class:shaman",
+      "stats": { "attack": 0, "hp": 10, "breakthrough": 0, "range": 1 },
+      "abilities": [{ "trigger": "onCombatStart", "effects": [{ "op": "buff", "stat": "attack", "amount": { "kind": "distinctOwnRaces" }, "duration": "combat", "target": { "kind": "alliesInRange", "range": 2 } }] }] },
+    { "id": "soul_shepherd", "name": "Seelenhirte", "type": "unit", "cost": 5, "race": null, "class": "shaman", "pool": "class:shaman",
+      "stats": { "attack": 3, "hp": 7, "breakthrough": 1, "range": 2 },
+      "abilities": [{ "trigger": "onAllyDeath", "effects": [{ "op": "gainLeaderXp", "amount": 1 }] }] },
+
+    { "id": "goblin_token", "name": "Goblin", "type": "unit", "cost": 0, "race": "goblin", "class": "warrior", "pool": "token",
+      "stats": { "attack": 1, "hp": 1, "breakthrough": 1, "range": 1 } },
+    { "id": "small_spirit", "name": "Kleiner Geist", "type": "unit", "cost": 0, "race": null, "class": "warrior", "pool": "token",
+      "stats": { "attack": 1, "hp": 1, "breakthrough": 1, "range": 1 } },
+    { "id": "spirit", "name": "Geist", "type": "unit", "cost": 0, "race": "undead", "class": "warrior", "pool": "token",
+      "stats": { "attack": 2, "hp": 2, "breakthrough": 1, "range": 1 } }
+  ]
+}

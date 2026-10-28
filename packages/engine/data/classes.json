@@ -1,0 +1,6 @@
+[
+  { "id": "warrior", "name": "Krieger", "combatBehavior": "taunt", "_note": "Zielwahl: effektiver Abstand -1 (R-9.4)" },
+  { "id": "mage", "name": "Zauberer", "combatBehavior": "default" },
+  { "id": "rogue", "name": "Schurke", "combatBehavior": "backlineJump", "_note": "Sprung zu Kampfbeginn (R-9.4)" },
+  { "id": "shaman", "name": "Schamane", "combatBehavior": "default" }
+]

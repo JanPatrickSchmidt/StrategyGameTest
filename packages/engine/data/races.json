@@ -1,0 +1,40 @@
+[
+  {
+    "id": "goblin",
+    "name": "Goblins",
+    "resonance": {
+      "2": [{ "op": "buff", "stat": "breakthrough", "amount": 1, "duration": "round", "target": "raceUnits" }],
+      "4": [
+        { "op": "buff", "stat": "breakthrough", "amount": 2, "duration": "round", "target": "raceUnits" },
+        { "op": "costModifier", "amount": -1, "appliesTo": "raceCards" }
+      ]
+    }
+  },
+  {
+    "id": "dwarf",
+    "name": "Zwerge",
+    "resonance": {
+      "2": [{ "op": "buff", "stat": "armor", "amount": 1, "duration": "round", "target": "raceUnits" }],
+      "4": [
+        { "op": "buff", "stat": "armor", "amount": 2, "duration": "round", "target": "raceUnits" },
+        { "op": "grantKeyword", "keyword": "unwoundable", "target": "raceUnits" }
+      ]
+    }
+  },
+  {
+    "id": "elf",
+    "name": "Elfen",
+    "resonance": {
+      "2": [{ "op": "startManaPercent", "amount": 30, "target": "raceUnits" }],
+      "4": [{ "op": "startManaPercent", "amount": 60, "target": "raceUnits" }]
+    }
+  },
+  {
+    "id": "undead",
+    "name": "Untote",
+    "resonance": {
+      "2": [{ "op": "returnOnDeath", "hp": 1, "limit": "firstRaceUnitPerCombat", "target": "raceUnits" }],
+      "4": [{ "op": "returnOnDeath", "hp": 1, "limit": "oncePerUnitPerCombat", "target": "raceUnits" }]
+    }
+  }
+]
