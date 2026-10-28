@@ -71,16 +71,16 @@ describe("R-7.1: Einheit ausspielen", () => {
     const p = getPlayer(state, 0);
     p.roundGold = 1;
     p.treasury = 2;
-    const [card] = addToHand(state, 0, ["bone_soldier"]);
+    const [card] = addToHand(state, 0, ["mercenary"]);
     expect(playUnit(state, data, 0, card, front("right", 1, 2), undefined)).toBeNull();
     expect(p.hand).not.toContain(card);
     const unit = Object.values(state.units).find((u) => u.cardInstanceIds.includes(card as number));
     expect(unit).toEqual(
-      expect.objectContaining({ owner: 0, kind: "card", sourceId: "bone_soldier", stars: 1, xp: 0, wounded: false, location: front("right", 1, 2) }),
+      expect.objectContaining({ owner: 0, kind: "card", sourceId: "mercenary", stars: 1, xp: 0, wounded: false, location: front("right", 1, 2) }),
     );
     expect([p.roundGold, p.treasury]).toEqual([0, 1]);
     expect(eventsOf(state, "unit_played")).toEqual([
-      expect.objectContaining({ player: 0, cardInstanceId: card, sourceId: "bone_soldier", paidFromRoundGold: 1, paidFromTreasury: 1 }),
+      expect.objectContaining({ player: 0, cardInstanceId: card, sourceId: "mercenary", paidFromRoundGold: 1, paidFromTreasury: 1 }),
     ]);
   });
 
@@ -138,7 +138,7 @@ describe("R-7.1: Einheit ausspielen", () => {
     const p = getPlayer(state, 0);
     p.roundGold = 2;
     p.treasury = 2;
-    const [card] = addToHand(state, 0, ["soul_reaper"]);
+    const [card] = addToHand(state, 0, ["bounty_hunter"]);
     expect(playUnit(state, data, 0, card, front("left", 0, 0), undefined)).toBe("notEnoughGold");
     expect(p.hand).toContain(card);
     expect([p.roundGold, p.treasury]).toEqual([2, 2]);
