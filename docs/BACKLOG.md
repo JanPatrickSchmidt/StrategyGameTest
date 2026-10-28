@@ -28,6 +28,12 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
   - [ ] **E7b Alternative Kosten und Genesung durch Reserve** – R-14.6 (`bloodToll`, `sacrifice`, Kombination mit Gold), R-6.5. Abnahme: Tests zu beiden Regeln.
   - [ ] **E7c Zauber legen, Anführer-Fähigkeit, Astwahl** – R-7.3 (Slots, Kosten sofort, Ziel nach R-14.2 prüfen), R-7.4, R-7.7. Abnahme: Tests zu allen genannten Regeln.
   - [ ] **E7d Verschmelzen und Sternfaktor** – R-7.8, R-15.1 bis R-15.3. Abnahme: Tests zu allen genannten Regeln, inklusive Verkettung.
+- [ ] **P0 Anpassung an Jans Antworten F12–F15** (vor allem anderen erledigen)
+  - Schatzkammer ohne Obergrenze, Gold verfällt nie, Rundenvorrat beginnt bei 0, kein Überlauf mehr (R-6.1, R-6.2, R-10.3, R-11.5); `treasuryMax` aus `config.json` und Code entfernen, Zinsdeckel bleibt `interestMax`.
+  - Kauflimit pro Spieler auf den Stapelstand zu Beginn der Kaufphase, zusätzliche Kopien nur bei mehreren Käufern (R-11.3).
+  - Läutern wählt Karten aus Deck oder Ablagestapel (R-14.8): neue Zielart in Validator und `data/README.md`, `purify` in `cards.json` anpassen (z. B. `{ "kind": "ownCards", "max": 2, "from": ["deck", "discard"] }`), Sicht des eigenen Deckinhalts ohne Reihenfolge (R-18.2a).
+  - Ausspielen direkt in die Reserve bleibt erlaubt (R-3.5, R-7.1), Test dafür sicherstellen.
+  - Abnahme: Tests zu allen genannten Regeln, bestehende Tests angepasst (nicht abgeschwächt).
 - [ ] **E8 Kampf: Frontarena**
   - Tick-Simulation (R-9.0 bis R-9.7) für Frontkämpfe, Zielwahl inkl. Krieger und Schurken, Bewegung, Angriff, Panzer, Schild, Tod, Ende.
   - Abnahme: Tests zu allen genannten Regeln; ein Determinismus-Test.
