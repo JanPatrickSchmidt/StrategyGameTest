@@ -8,3 +8,4 @@ export * from "./setup";
 export * from "./actions";
 export * from "./round";
 export * from "./economy";
+export * from "./board";

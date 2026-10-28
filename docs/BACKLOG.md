@@ -23,9 +23,11 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
 - [x] **E6 Wirtschaft** (2026-10-28)
   - Ressourcen automatisch (R-6.4), Rundenvorrat, Schatzkammer und Zinsen (R-6.1, R-11.5), Entnahme (R-7.6), Kaufphase inkl. gleichzeitiger Käufe (R-11).
   - Abnahme: Tests zu allen genannten Regeln.
-- [ ] **E7 Planung**
-  - Aktionen R-7.1 bis R-7.10, Kapazität (R-3.6), alternative Kosten (R-14.6), Verschmelzen und Sternfaktor (R-15).
-  - Abnahme: Tests zu allen genannten Regeln.
+- **E7 Planung** – Aktionen R-7.1 bis R-7.10, Kapazität (R-3.6), alternative Kosten (R-14.6), Verschmelzen und Sternfaktor (R-15). Aufgeteilt (2026-10-28); R-7.6 Entnahme ist mit E6 erledigt, R-7.9 Timeout mit E5.
+  - [x] **E7a Brett: Ausspielen, Bewegen, Genesen** (2026-10-28) – R-7.1 (ohne alternative Kosten), R-7.2, R-7.5, R-7.10, Kapazität R-3.6, Felder und Reserve R-3.1/R-3.3/R-3.5. Abnahme: Tests zu allen genannten Regeln.
+  - [ ] **E7b Alternative Kosten und Genesung durch Reserve** – R-14.6 (`bloodToll`, `sacrifice`, Kombination mit Gold), R-6.5. Abnahme: Tests zu beiden Regeln.
+  - [ ] **E7c Zauber legen, Anführer-Fähigkeit, Astwahl** – R-7.3 (Slots, Kosten sofort, Ziel nach R-14.2 prüfen), R-7.4, R-7.7. Abnahme: Tests zu allen genannten Regeln.
+  - [ ] **E7d Verschmelzen und Sternfaktor** – R-7.8, R-15.1 bis R-15.3. Abnahme: Tests zu allen genannten Regeln, inklusive Verkettung.
 - [ ] **E8 Kampf: Frontarena**
   - Tick-Simulation (R-9.0 bis R-9.7) für Frontkämpfe, Zielwahl inkl. Krieger und Schurken, Bewegung, Angriff, Panzer, Schild, Tod, Ende.
   - Abnahme: Tests zu allen genannten Regeln; ein Determinismus-Test.

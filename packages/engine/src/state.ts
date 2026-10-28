@@ -168,7 +168,22 @@ export type GameEventPayload =
   /** R-11.5: Einzahlung aus dem Rundenvorrat in die Schatzkammer. */
   | { type: "gold_deposited"; player: PlayerIndex; amount: number; treasury: number }
   /** R-11.5: Rest des Rundenvorrats verfällt. */
-  | { type: "gold_forfeited"; player: PlayerIndex; amount: number };
+  | { type: "gold_forfeited"; player: PlayerIndex; amount: number }
+  /** R-7.1: Karte verlässt die Hand und wird zur Einheit. */
+  | {
+      type: "unit_played";
+      player: PlayerIndex;
+      unitId: UnitId;
+      cardInstanceId: CardInstanceId;
+      sourceId: string;
+      location: UnitLocation;
+      paidFromRoundGold: number;
+      paidFromTreasury: number;
+    }
+  /** R-7.2 */
+  | { type: "unit_moved"; player: PlayerIndex; unitId: UnitId; from: UnitLocation; to: UnitLocation }
+  /** R-7.5 */
+  | { type: "unit_healed"; player: PlayerIndex; unitId: UnitId; paidFromRoundGold: number; paidFromTreasury: number };
 
 export type GameEvent = EventBase & GameEventPayload;
 

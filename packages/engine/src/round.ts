@@ -11,6 +11,7 @@
  */
 import { isPlanningActionType, type PlanningAction, type PurchaseList, type RejectionReason } from "./actions";
 import type { GameData } from "./data";
+import { healUnit, moveUnit, playUnit } from "./board";
 import { drawForRound } from "./deck";
 import { depositRoundGold, payInterest, playResources, resolvePurchases, startRoundGold, withdraw } from "./economy";
 import {
@@ -247,7 +248,7 @@ function runReveal(state: GameState, data: GameData): void {
 /** Führt eine Planungsaktion aus. Gibt bei Ablehnung den Grund zurück (R-7). */
 function executePlanningAction(
   state: GameState,
-  _data: GameData,
+  data: GameData,
   player: PlayerIndex,
   action: PlanningAction,
 ): RejectionReason | null {
@@ -256,8 +257,14 @@ function executePlanningAction(
   switch (action.type) {
     case "withdraw":
       return withdraw(state, player, action.amount);
+    case "playUnit":
+      return playUnit(state, data, player, action.cardInstanceId, action.to, action.useAltCost);
+    case "moveUnit":
+      return moveUnit(state, data, player, action.unitId, action.to);
+    case "heal":
+      return healUnit(state, data, player, action.unitId);
     default:
-      // Übrige Aktionen folgen in E7.
+      // setSpell, setLeaderAbility, chooseBranch folgen in E7c.
       return "notImplemented";
   }
 }

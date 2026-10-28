@@ -226,7 +226,7 @@ describe("R-7: Eingaben und Ablehnungen", () => {
     advance(state, data);
     const actions = [
       { type: "fly" },
-      { type: "heal", unitId: 1 },
+      { type: "chooseBranch", branchId: "x" },
     ] as unknown as PlanningAction[];
     submitPlanning(state, 0, actions);
     for (const p of [1, 2, 3] as const) submitPlanning(state, p, []);
@@ -234,8 +234,8 @@ describe("R-7: Eingaben und Ablehnungen", () => {
     const rejected = state.log.filter((e) => e.type === "action_rejected");
     expect(rejected).toEqual([
       expect.objectContaining({ player: 0, kind: "planning", index: 0, action: "fly", reason: "unknownActionType", phase: "reveal" }),
-      // Ausführung folgt in E7.
-      expect.objectContaining({ player: 0, kind: "planning", index: 1, action: "heal", reason: "notImplemented" }),
+      // Ausführung folgt in E7c.
+      expect.objectContaining({ player: 0, kind: "planning", index: 1, action: "chooseBranch", reason: "notImplemented" }),
     ]);
   });
 

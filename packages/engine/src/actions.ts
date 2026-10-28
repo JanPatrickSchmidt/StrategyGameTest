@@ -1,6 +1,7 @@
 /**
  * Eingaben der Spieler: Planungsaktionen (R-7) und Käufe (R-11).
- * Käufe und Entnahme: `economy.ts` (E6). Übrige Planungsaktionen folgen in E7.
+ * Käufe und Entnahme: `economy.ts` (E6). Ausspielen, Bewegen, Genesen: `board.ts` (E7a).
+ * Zauber, Anführer-Fähigkeit, Astwahl und alternative Kosten folgen in E7b/E7c.
  */
 import type { OffsetCoord } from "./hex";
 import type { CardInstanceId, FrontZoneName, PlayerIndex, UnitId, UnitLocation } from "./state";
@@ -63,13 +64,31 @@ export const REJECTION_REASONS = [
   "notEnoughTreasury",
   /** R-7 / R-11.2: Rundenvorrat und Schatzkammer reichen nicht. */
   "notEnoughGold",
+  /** R-7.1: Karteninstanz ist nicht auf der Hand. */
+  "cardNotInHand",
+  /** R-7.1: Karte ist keine Einheitenkarte. */
+  "notAUnitCard",
+  /** R-7.1/R-7.2: Ort existiert nicht (Zone, Feld, Position oder Reserveplatz). */
+  "invalidLocation",
+  /** R-7.1/R-7.2: Zielfeld ist besetzt. */
+  "cellOccupied",
+  /** R-3.6: Kapazität erreicht. */
+  "capacityExceeded",
+  /** R-7.2/R-7.5: Einheit existiert nicht. */
+  "unknownUnit",
+  /** R-7.2/R-7.5: Einheit gehört einem anderen Spieler. */
+  "notOwnUnit",
+  /** R-7.2: Einheit steht bereits dort. */
+  "sameLocation",
+  /** R-7.5: Einheit ist nicht verwundet. */
+  "notWounded",
   /** R-11.2: Karten-ID existiert nicht. */
   "unknownCard",
   /** R-11.2: Karte ist nicht kaufbar (Starter, Token, Fluch, fremder Klassen-Pool). */
   "notBuyable",
   /** R-11.4: Stapel ist leer. */
   "pileEmpty",
-  /** Vorübergehend: Ausführung folgt in E7. */
+  /** Vorübergehend: Ausführung folgt in E7b/E7c. */
   "notImplemented",
 ] as const;
 export type RejectionReason = (typeof REJECTION_REASONS)[number];
