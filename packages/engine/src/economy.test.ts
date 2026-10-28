@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { PlanningAction, PurchaseList } from "./actions";
+import type { Planning, PlanningAction } from "./actions";
 import { type ConfigData, loadGameData } from "./data";
 import {
   availableGold,
@@ -10,7 +10,7 @@ import {
   payGold,
   resolvePurchases,
 } from "./economy";
-import { advance, submitPlanning, submitPurchases } from "./round";
+import { advance, submitPlanning } from "./round";
 import { createGame, defaultLeaders } from "./setup";
 import { type CardInstanceId, type GameEvent, type GameState, getCard, getPlayer, PLAYER_INDICES, type PlayerIndex } from "./state";
 
@@ -34,20 +34,15 @@ function eventsOf<T extends GameEvent["type"]>(state: GameState, type: T): Extra
   return state.log.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 }
 
-/** Bis in die Kaufphase von Runde 1, mit den angegebenen Planungen. */
-function toBuyPhase(state: GameState, planning: Partial<Record<PlayerIndex, PlanningAction[]>> = {}): void {
+/** Spielt eine Runde mit den angegebenen Planungen bis zur Planung der nächsten Runde. */
+function playRound(state: GameState, planning: Partial<Record<PlayerIndex, Partial<Planning>>> = {}): void {
   expect(advance(state, data).waitingFor).toBe("planning");
-  for (const p of PLAYER_INDICES) submitPlanning(state, p, planning[p] ?? []);
-  expect(advance(state, data).waitingFor).toBe("purchases");
+  for (const p of PLAYER_INDICES) expect(submitPlanning(state, p, planning[p] ?? {})).toEqual({ ok: true });
+  expect(advance(state, data).waitingFor).toBe("planning");
 }
 
-function finishBuy(state: GameState, buys: Partial<Record<PlayerIndex, string[]>>): void {
-  for (const p of PLAYER_INDICES) submitPurchases(state, p, { buys: buys[p] ?? [] });
-  advance(state, data);
-}
-
-function purchases(buys: Partial<Record<PlayerIndex, string[]>>): PurchaseList[] {
-  return PLAYER_INDICES.map((p) => ({ buys: buys[p] ?? [] }));
+function purchases(buys: Partial<Record<PlayerIndex, string[]>>): string[][] {
+  return PLAYER_INDICES.map((p) => buys[p] ?? []);
 }
 
 function setGold(state: GameState, player: PlayerIndex, roundGold: number, treasury: number): void {
@@ -108,14 +103,14 @@ describe("R-6.2: Rundenvorrat", () => {
     const state = newGame();
     // Runde 1: drei Münzen; Runde 2: nur Rekruten.
     stackDeck(state, 1, ["coin", "coin", "coin", "recruit", "recruit", "recruit", "recruit", "recruit", "recruit", "recruit"]);
-    toBuyPhase(state);
+    advance(state, data);
     const p = getPlayer(state, 1);
     expect(p.roundGold).toBe(3);
     p.treasury = 12;
     gainGoldAfterPlanning(state, 1, 5);
     expect(p.treasury).toBe(17);
-    finishBuy(state, {});
-    // Einzahlung: 17 + 3 = 20; Runde 2: Zinsen +2, Rundenvorrat 0 (nur Rekruten auf der Hand).
+    playRound(state);
+    // Einzahlung am Rundenende: 17 + 3 = 20; Runde 2: Zinsen +2, Rundenvorrat 0 (nur Rekruten auf der Hand).
     expect(p.roundGold).toBe(0);
     expect(p.treasury).toBe(22);
     expect(state.round).toBe(2);
@@ -150,8 +145,7 @@ describe("R-6.4: Ressourcen", () => {
   it("R-6.4/R-12.1: ausgespielte Ressourcen gehen beim Aufräumen auf den Ablagestapel", () => {
     const state = newGame();
     const ids = stackDeck(state, 0, ["coin", "coin", "recruit", "silver", "recruit"]);
-    toBuyPhase(state);
-    finishBuy(state, {});
+    playRound(state);
     const p = getPlayer(state, 0);
     expect([...p.discard].sort((a, b) => a - b)).toEqual([...ids].sort((a, b) => a - b));
     expect(p.played.length + p.hand.length).toBe(config.handSize);
@@ -164,12 +158,13 @@ describe("R-7.6: Entnahme", () => {
     const state = newGame();
     stackDeck(state, 0, ["recruit", "recruit", "recruit", "recruit", "recruit"]);
     getPlayer(state, 0).treasury = 5;
-    toBuyPhase(state, { 0: [{ type: "withdraw", amount: 3 }] });
+    playRound(state, { 0: { play: [{ type: "withdraw", amount: 3 }] } });
     const p = getPlayer(state, 0);
-    // Zinsen +1 zu Rundenbeginn → 6, Entnahme 3.
-    expect(p.treasury).toBe(3);
-    expect(p.roundGold).toBe(3);
+    // Zinsen +1 zu Rundenbeginn → 6, Entnahme 3 → Schatzkammer 3, Rundenvorrat 3.
     expect(eventsOf(state, "gold_withdrawn")).toEqual([expect.objectContaining({ player: 0, amount: 3, treasury: 3, phase: "reveal" })]);
+    // Ungenutztes Gold geht am Rundenende zurück (R-12.5): 3 + 3 = 6, Runde 2 Zinsen +1.
+    expect(eventsOf(state, "gold_deposited").filter((e) => e.player === 0)).toEqual([expect.objectContaining({ amount: 3, treasury: 6 })]);
+    expect(p.treasury).toBe(7);
   });
 
   it("R-7.6: zu große und ungültige Beträge werden abgelehnt, die übrigen Aktionen laufen weiter", () => {
@@ -184,7 +179,7 @@ describe("R-7.6: Entnahme", () => {
       { type: "withdraw", amount: 4 },
       { type: "withdraw", amount: 1 },
     ] as unknown as PlanningAction[];
-    toBuyPhase(state, { 1: actions });
+    playRound(state, { 1: { play: actions } });
     const rejected = eventsOf(state, "action_rejected").filter((e) => e.player === 1);
     expect(rejected.map((e) => [e.index, e.reason])).toEqual([
       [0, "notEnoughTreasury"],
@@ -194,8 +189,7 @@ describe("R-7.6: Entnahme", () => {
       [4, "invalidAmount"],
       [6, "notEnoughTreasury"],
     ]);
-    expect(getPlayer(state, 1).treasury).toBe(0);
-    expect(eventsOf(state, "gold_withdrawn").filter((e) => e.player === 1)).toHaveLength(1);
+    expect(eventsOf(state, "gold_withdrawn").filter((e) => e.player === 1)).toEqual([expect.objectContaining({ amount: 4, treasury: 0 })]);
   });
 });
 
@@ -241,7 +235,7 @@ describe("R-10.3: Gold-Gewinne", () => {
   });
 });
 
-describe("R-11: Kaufphase", () => {
+describe("R-11: Kaufen", () => {
   it("R-11.2: Kauf aus dem Königreich legt eine neue Karte auf den Ablagestapel und bezahlt", () => {
     const state = newGame();
     setGold(state, 0, 4, 3);
@@ -253,9 +247,13 @@ describe("R-11: Kaufphase", () => {
     expect(p.discard.every((id) => getCard(state, id).owner === 0)).toBe(true);
     expect([p.roundGold, p.treasury]).toEqual([0, 2]);
     expect(state.supply.silver).toBe(before - 1);
-    expect(eventsOf(state, "card_bought")).toEqual([
+    expect(eventsOf(state, "purchase_paid")).toEqual([
       expect.objectContaining({ player: 0, cardId: "silver", source: "supply", paidFromRoundGold: 3, paidFromTreasury: 0 }),
       expect.objectContaining({ player: 0, cardId: "mercenary", source: "supply", paidFromRoundGold: 1, paidFromTreasury: 1 }),
+    ]);
+    expect(eventsOf(state, "card_bought")).toEqual([
+      expect.objectContaining({ player: 0, cardId: "silver", source: "supply", cardInstanceId: p.discard[0] }),
+      expect.objectContaining({ player: 0, cardId: "mercenary", source: "supply", cardInstanceId: p.discard[1] }),
     ]);
     expect(eventsOf(state, "pile_changed")).toEqual(
       expect.arrayContaining([expect.objectContaining({ pile: "silver", owner: null, remaining: before - 1, created: 0 })]),
@@ -312,7 +310,7 @@ describe("R-11: Kaufphase", () => {
     state.supply.blade_dancer = 1;
     for (const p of PLAYER_INDICES) setGold(state, p, 10, 0);
     const rejected = resolvePurchases(state, data, [1, 2, 3, 0], purchases({ 0: ["blade_dancer"], 1: ["blade_dancer"], 3: ["blade_dancer", "blade_dancer"] }));
-    // Spieler 3 darf nur 1 Kopie kaufen (Stapelstand zu Beginn der Kaufphase).
+    // Spieler 3 darf nur 1 Kopie kaufen (Stapelstand zu Beginn der Runde).
     expect(rejected).toEqual([{ player: 3, index: 1, cardId: "blade_dancer", reason: "pileLimitReached" }]);
     expect(state.supply.blade_dancer).toBe(0);
     const bought = eventsOf(state, "card_bought");
@@ -326,7 +324,7 @@ describe("R-11: Kaufphase", () => {
     }
   });
 
-  it("R-11.3: Käufe anderer Spieler nehmen niemandem eine Kopie weg (Stand zu Beginn der Kaufphase)", () => {
+  it("R-11.3: Käufe anderer Spieler nehmen niemandem eine Kopie weg (Stand zu Beginn der Runde)", () => {
     const state = newGame();
     state.supply.ranger = 2;
     for (const p of PLAYER_INDICES) setGold(state, p, 9, 0);
@@ -390,19 +388,65 @@ describe("R-11: Kaufphase", () => {
     expect(state.log.some((e) => (e.type as string) === "gold_forfeited")).toBe(false);
   });
 
-  it("R-11: Kaufen in der Rundenmaschine mit Gold aus Ressourcen, danach Einzahlung (R-11.5)", () => {
+  it("R-11.1/R-11.3/R-12.5: Kaufen im Planungsblock, Karte beim Aufdecken, Rest am Rundenende in die Schatzkammer", () => {
     const state = newGame();
     stackDeck(state, 0, ["coin", "coin", "coin", "coin", "recruit"]);
-    toBuyPhase(state);
-    expect(getPlayer(state, 0).roundGold).toBe(4);
-    finishBuy(state, { 0: ["silver"] });
+    playRound(state, { 0: { buy: [{ type: "buy", cardId: "silver" }] } });
     const p = getPlayer(state, 0);
-    expect(eventsOf(state, "card_bought")).toEqual([expect.objectContaining({ player: 0, cardId: "silver", phase: "buy" })]);
+    expect(eventsOf(state, "purchase_paid")).toEqual([
+      expect.objectContaining({ player: 0, cardId: "silver", paidFromRoundGold: 3, paidFromTreasury: 0, phase: "reveal" }),
+    ]);
+    expect(eventsOf(state, "card_bought")).toEqual([expect.objectContaining({ player: 0, cardId: "silver", phase: "reveal" })]);
     expect(p.discard.map((id) => getCard(state, id).cardId)).toContain("silver");
     // 4 Gold − 3 für Silber = 1 eingezahlt; in Runde 2 noch keine Zinsen (1 < 5).
     expect(p.treasury).toBe(1);
-    expect(eventsOf(state, "gold_deposited").filter((e) => e.player === 0)).toEqual([expect.objectContaining({ amount: 1, round: 1 })]);
+    expect(eventsOf(state, "gold_deposited").filter((e) => e.player === 0)).toEqual([
+      expect.objectContaining({ amount: 1, round: 1, phase: "cleanup" }),
+    ]);
     expect(state.phase).toBe("planning");
     expect(state.round).toBe(2);
+  });
+
+  it("R-11.1: Abschnitte laufen in der Reihenfolge play → buy → position, Gold wird sofort abgezogen", () => {
+    const state = newGame();
+    stackDeck(state, 0, ["coin", "coin", "coin", "recruit", "recruit"]);
+    advance(state, data);
+    const p = getPlayer(state, 0);
+    p.treasury = 1;
+    const recruit = p.hand[0] as number;
+    // Reihenfolge der Schlüssel spielt keine Rolle: erst play (Rekrut 1 Gold), dann buy (Silber 3), dann position.
+    const planning = {
+      position: [{ type: "withdraw", amount: 1 }],
+      buy: [{ type: "buy", cardId: "silver" }, { type: "buy", cardId: "silver" }],
+      play: [{ type: "playUnit", cardInstanceId: recruit, to: { zone: "reserve", slot: 0 } }],
+    } as Planning;
+    for (const pl of PLAYER_INDICES) submitPlanning(state, pl, pl === 0 ? planning : {});
+    advance(state, data);
+    const mine = state.log.filter((e) => e.round === 1 && "player" in e && e.player === 0);
+    const order = mine
+      .filter((e) => ["unit_played", "purchase_paid", "action_rejected", "gold_withdrawn", "card_bought"].includes(e.type))
+      .map((e) => e.type);
+    expect(order).toEqual(["unit_played", "purchase_paid", "action_rejected", "action_rejected", "card_bought"]);
+    // 3 + 1 = 4 Gold: Rekrut 1, Silber 3 (davon 1 aus der Schatzkammer), zweites Silber fehlt Gold;
+    // die Entnahme im Abschnitt position findet eine leere Schatzkammer vor.
+    expect(eventsOf(state, "purchase_paid")).toEqual([expect.objectContaining({ paidFromRoundGold: 2, paidFromTreasury: 1 })]);
+    expect(eventsOf(state, "action_rejected").filter((e) => e.player === 0)).toEqual([
+      expect.objectContaining({ section: "buy", index: 1, reason: "notEnoughGold" }),
+      expect.objectContaining({ section: "position", index: 0, reason: "notEnoughTreasury" }),
+    ]);
+  });
+
+  it("R-11.3: im Rundenlauf verteilen sich Käufe gleichzeitig in Prioritätsreihenfolge, Limit je Spieler", () => {
+    const state = newGame();
+    state.supply.blade_dancer = 1;
+    for (const p of PLAYER_INDICES) getPlayer(state, p).treasury = 20;
+    const buy = (n: number): Partial<Planning> => ({ buy: Array.from({ length: n }, () => ({ type: "buy" as const, cardId: "blade_dancer" })) });
+    playRound(state, { 0: buy(1), 2: buy(2), 3: buy(1) });
+    expect(eventsOf(state, "card_bought").map((e) => e.player)).toEqual([0, 2, 3]);
+    expect(eventsOf(state, "action_rejected")).toEqual([
+      expect.objectContaining({ player: 2, section: "buy", index: 1, reason: "pileLimitReached" }),
+    ]);
+    expect(state.supply.blade_dancer).toBe(0);
+    expect(eventsOf(state, "pile_changed")).toEqual([expect.objectContaining({ pile: "blade_dancer", remaining: 0, created: 2 })]);
   });
 });

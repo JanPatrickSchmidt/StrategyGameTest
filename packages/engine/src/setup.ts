@@ -100,7 +100,6 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
     units: {},
     supply: createSupply(data),
     pendingPlanning: PLAYER_INDICES.map(() => null),
-    pendingPurchases: PLAYER_INDICES.map(() => null),
     nextCardInstanceId: 1,
     nextUnitId: 1,
     log: [],

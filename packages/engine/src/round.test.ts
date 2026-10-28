@@ -1,26 +1,25 @@
 import { describe, expect, it } from "vitest";
-import type { PlanningAction } from "./actions";
+import type { Planning, PlanningAction } from "./actions";
 import { loadGameData } from "./data";
-import { activePlayersInPriority, advance, priorityOrder, ROUND_PHASES, submitPlanning, submitPurchases } from "./round";
+import { activePlayersInPriority, advance, priorityOrder, ROUND_PHASES, submitPlanning } from "./round";
 import { createGame, defaultLeaders } from "./setup";
 import { type GameState, getPlayer, PLAYER_INDICES } from "./state";
 
 const data = loadGameData();
 const newGame = (seed = 3): GameState => createGame(data, defaultLeaders(data), seed);
 
-function submitAllEmpty(state: GameState, kind: "planning" | "purchases"): void {
+const EMPTY: Planning = { play: [], buy: [], position: [] };
+
+function submitAllEmpty(state: GameState): void {
   for (const p of activePlayersInPriority(state)) {
-    const r = kind === "planning" ? submitPlanning(state, p, []) : submitPurchases(state, p, { buys: [] });
-    expect(r).toEqual({ ok: true });
+    expect(submitPlanning(state, p, EMPTY)).toEqual({ ok: true });
   }
 }
 
-/** Spielt eine Runde ohne Aktionen und gibt die Phasen dieser Runde in Reihenfolge zurück. */
+/** Spielt eine Runde ohne Aktionen: genau ein Wartepunkt (Planung). */
 function playEmptyRound(state: GameState): void {
   expect(advance(state, data).waitingFor).toBe("planning");
-  submitAllEmpty(state, "planning");
-  expect(advance(state, data).waitingFor).toBe("purchases");
-  submitAllEmpty(state, "purchases");
+  submitAllEmpty(state);
   expect(advance(state, data).waitingFor).toBe("planning");
 }
 
@@ -42,7 +41,6 @@ describe("R-5: Rundenablauf", () => {
       "combat",
       "combatResolution",
       "postCombatSpells",
-      "buy",
       "cleanup",
       "victoryCheck",
     ]);
@@ -59,26 +57,19 @@ describe("R-5: Rundenablauf", () => {
     expect(state.round).toBe(6);
   });
 
-  it("R-5 Schritt 2: Planung wartet auf alle aktiven Spieler", () => {
+  it("R-5: der Planungsblock ist der einzige Wartepunkt und wartet auf alle aktiven Spieler", () => {
     const state = newGame();
     expect(advance(state, data)).toEqual({ waitingFor: "planning", players: [0, 1, 2, 3] });
-    submitPlanning(state, 2, []);
-    submitPlanning(state, 0, []);
+    submitPlanning(state, 2, EMPTY);
+    submitPlanning(state, 0, EMPTY);
     expect(advance(state, data)).toEqual({ waitingFor: "planning", players: [1, 3] });
     expect(state.phase).toBe("planning");
-    submitPlanning(state, 1, []);
-    submitPlanning(state, 3, []);
-    expect(advance(state, data)).toEqual({ waitingFor: "purchases", players: [0, 1, 2, 3] });
-    expect(state.phase).toBe("buy");
-  });
-
-  it("R-5 Schritt 9: Kaufphase wartet auf alle aktiven Spieler", () => {
-    const state = newGame();
-    advance(state, data);
-    submitAllEmpty(state, "planning");
-    advance(state, data);
-    submitPurchases(state, 3, { buys: [] });
-    expect(advance(state, data)).toEqual({ waitingFor: "purchases", players: [0, 1, 2] });
+    submitPlanning(state, 1, EMPTY);
+    submitPlanning(state, 3, EMPTY);
+    // Danach läuft die Runde ohne weiteren Halt bis zur Planung der nächsten Runde.
+    expect(advance(state, data)).toEqual({ waitingFor: "planning", players: [1, 2, 3, 0] });
+    expect(state.round).toBe(2);
+    expect((ROUND_PHASES as readonly string[]).includes("buy")).toBe(false);
   });
 
   it("R-5: ausgeschiedene Spieler werden nicht erwartet und ziehen nicht", () => {
@@ -86,16 +77,14 @@ describe("R-5: Rundenablauf", () => {
     getPlayer(state, 1).eliminated = true;
     expect(advance(state, data)).toEqual({ waitingFor: "planning", players: [0, 2, 3] });
     expect(getPlayer(state, 1).hand).toEqual([]);
-    expect(submitPlanning(state, 1, [])).toEqual({ ok: false, reason: "playerEliminated" });
+    expect(submitPlanning(state, 1, EMPTY)).toEqual({ ok: false, reason: "playerEliminated" });
   });
 
   it("R-13.4 (vorläufig): mit nur einem aktiven Spieler endet die Partie bei der Siegprüfung", () => {
     const state = newGame();
     for (const p of [1, 2, 3] as const) getPlayer(state, p).eliminated = true;
     advance(state, data);
-    submitAllEmpty(state, "planning");
-    advance(state, data);
-    submitAllEmpty(state, "purchases");
+    submitAllEmpty(state);
     expect(advance(state, data)).toEqual({ waitingFor: "nothing", gameOver: true });
     expect(state.phase).toBe("gameOver");
     expect(advance(state, data)).toEqual({ waitingFor: "nothing", gameOver: true });
@@ -113,19 +102,15 @@ describe("R-6.3/R-12.1: Karten im Rundenlauf", () => {
     const state = newGame();
     advance(state, data);
     const hand1 = [...getPlayer(state, 0).hand, ...getPlayer(state, 0).played];
-    submitAllEmpty(state, "planning");
-    advance(state, data);
-    submitAllEmpty(state, "purchases");
-    advance(state, data); // Aufräumen, Runde 2 beginnt und zieht
+    submitAllEmpty(state);
+    advance(state, data); // Rundenende, Runde 2 beginnt und zieht
     const p = getPlayer(state, 0);
     expect(p.discard).toEqual(hand1);
     expect(p.hand.length + p.played.length).toBe(5);
     expect(p.deck).toEqual([]);
     expect(state.log.some((e) => e.type === "hand_discarded" && e.player === 0 && e.round === 1)).toBe(true);
     // Runde 2 durchspielen: Runde 3 muss den Ablagestapel nachmischen.
-    submitAllEmpty(state, "planning");
-    advance(state, data);
-    submitAllEmpty(state, "purchases");
+    submitAllEmpty(state);
     advance(state, data);
     expect(p.hand.length + p.played.length).toBe(5);
     expect(p.deck.length + p.hand.length + p.played.length + p.discard.length).toBe(10);
@@ -146,9 +131,7 @@ describe("R-6.3/R-12.1: Karten im Rundenlauf", () => {
       wounded: false,
       location: { zone: "right", cell: { col: 0, row: 0 } },
     };
-    submitAllEmpty(state, "planning");
-    advance(state, data);
-    submitAllEmpty(state, "purchases");
+    submitAllEmpty(state);
     advance(state, data);
     expect(state.units[99]).toBeUndefined();
     expect(state.log.some((e) => e.type === "token_removed" && e.unitId === 99)).toBe(true);
@@ -157,85 +140,72 @@ describe("R-6.3/R-12.1: Karten im Rundenlauf", () => {
 });
 
 describe("R-7.9: Timeout", () => {
-  it("R-7.9: wer keine Planung einreicht, plant eine leere Liste", () => {
+  it("R-7.9: wer keine Planung einreicht, plant leere Abschnitte; die Runde läuft durch", () => {
     const state = newGame();
     advance(state, data);
-    submitPlanning(state, 0, []);
+    submitPlanning(state, 0, EMPTY);
     const r = advance(state, data, { timeout: true });
-    // Timeout gilt nur für die Planung; danach wartet die Kaufphase normal.
-    expect(r).toEqual({ waitingFor: "purchases", players: [0, 1, 2, 3] });
-    const timeouts = state.log.filter((e) => e.type === "submission_timeout");
-    expect(timeouts.map((e) => (e.type === "submission_timeout" ? [e.player, e.kind] : null))).toEqual([
-      [1, "planning"],
-      [2, "planning"],
-      [3, "planning"],
-    ]);
-  });
-
-  it("R-7.9: Timeout in der Kaufphase ergibt leere Käufe, die nächste Planung wartet wieder", () => {
-    const state = newGame();
-    advance(state, data, { timeout: true });
-    const r = advance(state, data, { timeout: true });
-    // Runde 2: wartende Spieler in Prioritätsreihenfolge (R-1.7).
+    // Timeout gilt nur für die aktuelle Planung; die nächste Runde wartet wieder.
     expect(r).toEqual({ waitingFor: "planning", players: [1, 2, 3, 0] });
-    expect(state.round).toBe(2);
+    const timeouts = state.log.filter((e) => e.type === "submission_timeout");
+    expect(timeouts.map((e) => (e.type === "submission_timeout" ? e.player : null))).toEqual([1, 2, 3]);
+    const revealed = state.log.filter((e) => e.type === "planning_revealed" && e.player === 2);
+    expect(revealed).toEqual([expect.objectContaining({ planning: EMPTY })]);
   });
 });
 
 describe("R-7: Eingaben und Ablehnungen", () => {
   it("R-7: Planung außerhalb der Planungsphase wird abgelehnt", () => {
     const state = newGame();
-    expect(submitPlanning(state, 0, [])).toEqual({ ok: false, reason: "wrongPhase" });
+    expect(submitPlanning(state, 0, EMPTY)).toEqual({ ok: false, reason: "wrongPhase" });
     advance(state, data);
-    submitAllEmpty(state, "planning");
-    advance(state, data);
-    expect(submitPlanning(state, 0, [])).toEqual({ ok: false, reason: "wrongPhase" });
-    expect(state.log.filter((e) => e.type === "submission_rejected")).toHaveLength(2);
+    submitAllEmpty(state);
+    expect(submitPlanning(state, 0, EMPTY)).toEqual({ ok: false, reason: "alreadySubmitted" });
+    state.phase = "reveal";
+    expect(submitPlanning(state, 1, EMPTY)).toEqual({ ok: false, reason: "wrongPhase" });
+    expect(state.log.filter((e) => e.type === "submission_rejected")).toHaveLength(3);
   });
 
   it("R-7: genau eine Planung pro Spieler und Runde", () => {
     const state = newGame();
     advance(state, data);
-    expect(submitPlanning(state, 0, [])).toEqual({ ok: true });
-    expect(submitPlanning(state, 0, [])).toEqual({ ok: false, reason: "alreadySubmitted" });
+    expect(submitPlanning(state, 0, EMPTY)).toEqual({ ok: true });
+    expect(submitPlanning(state, 0, EMPTY)).toEqual({ ok: false, reason: "alreadySubmitted" });
   });
 
-  it("R-11.1: Käufe nur in der Kaufphase, einmal pro Spieler, Form wird geprüft", () => {
+  it("R-5: Planung mit drei Abschnitten; fehlende Abschnitte sind leer, falsche Form wird abgelehnt", () => {
     const state = newGame();
     advance(state, data);
-    expect(submitPurchases(state, 0, { buys: [] })).toEqual({ ok: false, reason: "wrongPhase" });
-    submitAllEmpty(state, "planning");
-    advance(state, data);
-    expect(submitPurchases(state, 0, { buys: [1] } as unknown as { buys: string[] })).toEqual({
-      ok: false,
-      reason: "malformed",
-    });
-    expect(submitPurchases(state, 0, { buys: [] })).toEqual({ ok: true });
-    expect(submitPurchases(state, 0, { buys: [] })).toEqual({ ok: false, reason: "alreadySubmitted" });
+    expect(submitPlanning(state, 0, { buy: [{ type: "buy", cardId: "silver" }] })).toEqual({ ok: true });
+    expect(state.pendingPlanning[0]).toEqual({ play: [], buy: [{ type: "buy", cardId: "silver" }], position: [] });
+    expect(submitPlanning(state, 1, [] as unknown as Planning)).toEqual({ ok: false, reason: "malformed" });
+    expect(submitPlanning(state, 1, { play: "x" } as unknown as Planning)).toEqual({ ok: false, reason: "malformed" });
+    expect(submitPlanning(state, 1, { play: [], shop: [] } as unknown as Planning)).toEqual({ ok: false, reason: "malformed" });
+    expect(submitPlanning(state, 1, null as unknown as Planning)).toEqual({ ok: false, reason: "malformed" });
+    expect(submitPlanning(state, 1, {})).toEqual({ ok: true });
+    expect(state.log.filter((e) => e.type === "planning_submitted").map((e) => (e.type === "planning_submitted" ? e.actionCount : -1))).toEqual([1, 0]);
   });
 
   it("unbekannte Spieler und kaputte Planungen werden abgelehnt", () => {
     const state = newGame();
     advance(state, data);
-    expect(submitPlanning(state, 7, [])).toEqual({ ok: false, reason: "unknownPlayer" });
-    expect(submitPlanning(state, 0, "x" as unknown as PlanningAction[])).toEqual({ ok: false, reason: "malformed" });
+    expect(submitPlanning(state, 7, EMPTY)).toEqual({ ok: false, reason: "unknownPlayer" });
+    expect(submitPlanning(state, 0, "x" as unknown as Planning)).toEqual({ ok: false, reason: "malformed" });
   });
 
   it("R-7: ungültige Aktionen werden übersprungen und als action_rejected gemeldet", () => {
     const state = newGame();
     advance(state, data);
-    const actions = [
-      { type: "fly" },
-      { type: "chooseBranch", branchId: "x" },
-    ] as unknown as PlanningAction[];
-    submitPlanning(state, 0, actions);
-    for (const p of [1, 2, 3] as const) submitPlanning(state, p, []);
+    const play = [{ type: "fly" }, { type: "chooseBranch", branchId: "x" }, null] as unknown as PlanningAction[];
+    submitPlanning(state, 0, { play });
+    for (const p of [1, 2, 3] as const) submitPlanning(state, p, EMPTY);
     advance(state, data);
     const rejected = state.log.filter((e) => e.type === "action_rejected");
     expect(rejected).toEqual([
-      expect.objectContaining({ player: 0, kind: "planning", index: 0, action: "fly", reason: "unknownActionType", phase: "reveal" }),
+      expect.objectContaining({ player: 0, section: "play", index: 0, action: "fly", reason: "unknownActionType", phase: "reveal" }),
       // Ausführung folgt in E7c.
-      expect.objectContaining({ player: 0, kind: "planning", index: 1, action: "chooseBranch", reason: "notImplemented" }),
+      expect.objectContaining({ player: 0, section: "play", index: 1, action: "chooseBranch", reason: "notImplemented" }),
+      expect.objectContaining({ player: 0, section: "play", index: 2, reason: "malformed" }),
     ]);
   });
 
@@ -243,31 +213,61 @@ describe("R-7: Eingaben und Ablehnungen", () => {
     const state = newGame();
     advance(state, data);
     const actions: PlanningAction[] = [{ type: "withdraw", amount: 2 }];
-    submitPlanning(state, 0, actions);
+    submitPlanning(state, 0, { play: actions });
     const submitted = state.log.filter((e) => e.type === "planning_submitted");
     expect(submitted).toEqual([expect.objectContaining({ player: 0, actionCount: 1 })]);
     expect(JSON.stringify(submitted)).not.toContain("withdraw");
     // Spätere Änderung am übergebenen Array wirkt nicht auf die eingereichte Planung.
     actions.push({ type: "withdraw", amount: 5 });
-    for (const p of [1, 2, 3] as const) submitPlanning(state, p, []);
+    for (const p of [1, 2, 3] as const) submitPlanning(state, p, EMPTY);
     advance(state, data);
     const revealed = state.log.filter((e) => e.type === "planning_revealed");
     expect(revealed.map((e) => (e.type === "planning_revealed" ? e.player : -1))).toEqual([0, 1, 2, 3]);
-    expect(revealed[0]).toEqual(expect.objectContaining({ phase: "reveal", actions: [{ type: "withdraw", amount: 2 }] }));
+    expect(revealed[0]).toEqual(
+      expect.objectContaining({ phase: "reveal", planning: { play: [{ type: "withdraw", amount: 2 }], buy: [], position: [] } }),
+    );
     expect(revealed[0]?.visibleTo).toBeUndefined();
   });
 
   it("R-11: unbekannte Käufe werden abgelehnt und gemeldet", () => {
     const state = newGame();
     advance(state, data);
-    submitAllEmpty(state, "planning");
-    advance(state, data);
-    submitPurchases(state, 0, { buys: ["dragon"] });
-    for (const p of [1, 2, 3] as const) submitPurchases(state, p, { buys: [] });
+    submitPlanning(state, 0, { buy: [{ type: "buy", cardId: "dragon" }, { type: "buy", cardId: 5 } as unknown as PlanningAction] });
+    for (const p of [1, 2, 3] as const) submitPlanning(state, p, EMPTY);
     advance(state, data);
     expect(state.log.filter((e) => e.type === "action_rejected")).toEqual([
-      expect.objectContaining({ player: 0, kind: "purchases", index: 0, action: "dragon", phase: "buy", reason: "unknownCard" }),
+      expect.objectContaining({ player: 0, section: "buy", index: 0, action: "buy", phase: "reveal", reason: "unknownCard" }),
+      expect.objectContaining({ player: 0, section: "buy", index: 1, action: "buy", reason: "malformed" }),
     ]);
+  });
+
+  it("R-5/R-7/R-7b/R-11: Aktionen nur im passenden Abschnitt, Entnahme in jedem", () => {
+    const state = newGame();
+    advance(state, data);
+    getPlayer(state, 0).treasury = 6;
+    submitPlanning(state, 0, {
+      play: [{ type: "buy", cardId: "silver" }, { type: "moveUnit", unitId: 1, to: { zone: "reserve", slot: 0 } }, { type: "withdraw", amount: 1 }],
+      buy: [{ type: "heal", unitId: 1 }, { type: "setLeaderAbility", target: { kind: "none" } }, { type: "withdraw", amount: 1 }],
+      position: [
+        { type: "playUnit", cardInstanceId: 1, to: { zone: "reserve", slot: 0 } },
+        { type: "setSpell", cardInstanceId: 1, slot: "pre", target: { kind: "none" } },
+        { type: "chooseBranch", branchId: "x" },
+        { type: "withdraw", amount: 1 },
+      ],
+    });
+    for (const p of [1, 2, 3] as const) submitPlanning(state, p, EMPTY);
+    advance(state, data);
+    const rejected = state.log.filter((e) => e.type === "action_rejected");
+    expect(rejected.map((e) => (e.type === "action_rejected" ? [e.section, e.index, e.reason] : null))).toEqual([
+      ["play", 0, "wrongSection"],
+      ["play", 1, "wrongSection"],
+      ["buy", 0, "wrongSection"],
+      ["buy", 1, "wrongSection"],
+      ["position", 0, "wrongSection"],
+      ["position", 1, "wrongSection"],
+      ["position", 2, "wrongSection"],
+    ]);
+    expect(state.log.filter((e) => e.type === "gold_withdrawn" && e.player === 0)).toHaveLength(3);
   });
 });
 
@@ -283,7 +283,7 @@ describe("R-1.7: Prioritätsreihenfolge", () => {
   it("R-1.7: Aufdecken folgt der Prioritätsreihenfolge der Runde", () => {
     const state = newGame();
     playEmptyRound(state);
-    submitAllEmpty(state, "planning");
+    submitAllEmpty(state);
     advance(state, data);
     const revealed = state.log.filter((e) => e.type === "planning_revealed" && e.round === 2);
     expect(revealed.map((e) => (e.type === "planning_revealed" ? e.player : -1))).toEqual([1, 2, 3, 0]);
@@ -303,9 +303,13 @@ describe("R-1.8: Determinismus", () => {
       const state = newGame(1234);
       for (let i = 0; i < 6; i++) {
         advance(state, data);
-        for (const p of PLAYER_INDICES) submitPlanning(state, p, i % 2 === 0 ? [] : [{ type: "withdraw", amount: 1 }]);
-        advance(state, data);
-        for (const p of PLAYER_INDICES) submitPurchases(state, p, { buys: [] });
+        for (const p of PLAYER_INDICES) {
+          submitPlanning(
+            state,
+            p,
+            i % 2 === 0 ? EMPTY : { play: [{ type: "withdraw", amount: 1 }], buy: [{ type: "buy", cardId: "silver" }], position: [] },
+          );
+        }
       }
       advance(state, data);
       return JSON.stringify(state.log);

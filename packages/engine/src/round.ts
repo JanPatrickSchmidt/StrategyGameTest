@@ -1,28 +1,38 @@
 /**
  * Rundenmaschine (E5, R-5).
  *
- * Ablauf: `createGame` → `advance` → Planung einreichen (`submitPlanning`) → `advance`
- * → Käufe einreichen (`submitPurchases`) → `advance` → … `advance` arbeitet alle automatischen
- * Phasen ab und hält an, sobald Eingaben fehlen (Planung, Kaufphase) oder die Partie vorbei ist.
+ * Ablauf: `createGame` → `advance` → Planung einreichen (`submitPlanning`, eine pro Spieler mit den
+ * Abschnitten `play`, `buy`, `position`) → `advance` → … `advance` arbeitet alle automatischen Phasen
+ * ab und hält an, sobald Planungen fehlen (der einzige Wartepunkt einer Runde) oder die Partie vorbei ist.
  *
  * Wirtschaft (E6) steht in `economy.ts`. Die Inhalte weiterer Phasen folgen in späteren Aufgaben (E7 Planung, E8/E9 Kampf,
  * E10/E11 Effekte und Zauber, E12 Auswertung und Sieg). Hier steht nur das Gerüst mit
  * Phasenreihenfolge, Eingaben und Ablehnungen.
  */
-import { isPlanningActionType, type PlanningAction, type PurchaseList, type RejectionReason } from "./actions";
+import {
+  emptyPlanning,
+  isPlanningActionType,
+  type Planning,
+  type PlanningAction,
+  PLANNING_SECTIONS,
+  type PlanningSection,
+  type RejectionReason,
+  SECTION_ACTIONS,
+} from "./actions";
 import type { GameData } from "./data";
 import { healUnit, moveUnit, playUnit } from "./board";
 import { drawForRound } from "./deck";
-import { depositRoundGold, payInterest, playResources, resolvePurchases, withdraw } from "./economy";
 import {
-  emit,
-  type GameState,
-  getPlayer,
-  type Phase,
-  PLAYER_INDICES,
-  type PlayerIndex,
-  type SubmissionKind,
-} from "./state";
+  buyCard,
+  depositRoundGold,
+  finishPurchases,
+  payInterest,
+  playResources,
+  type PurchaseSession,
+  startPurchases,
+  withdraw,
+} from "./economy";
+import { emit, type GameState, getPlayer, type Phase, PLAYER_INDICES, type PlayerIndex } from "./state";
 
 /** R-5: Reihenfolge der Phasen einer Runde. */
 export const ROUND_PHASES: readonly Phase[] = [
@@ -34,7 +44,6 @@ export const ROUND_PHASES: readonly Phase[] = [
   "combat",
   "combatResolution",
   "postCombatSpells",
-  "buy",
   "cleanup",
   "victoryCheck",
 ];
@@ -55,68 +64,68 @@ export function activePlayersInPriority(state: GameState): PlayerIndex[] {
 export type SubmitResult = { ok: true } | { ok: false; reason: RejectionReason };
 
 export type AdvanceResult =
-  | { waitingFor: "planning" | "purchases"; players: PlayerIndex[] }
+  | { waitingFor: "planning"; players: PlayerIndex[] }
   | { waitingFor: "nothing"; gameOver: true };
 
 export interface AdvanceOptions {
-  /**
-   * R-7.9: Wer in der aktuell wartenden Phase nichts eingereicht hat, bekommt eine leere Liste.
-   * Gilt nur für die Phase, in der `advance` aufgerufen wird.
-   */
+  /** R-7.9: Wer bis jetzt keine Planung eingereicht hat, plant leere Abschnitte. */
   timeout?: boolean;
 }
 
-function checkSubmission(state: GameState, player: number, kind: SubmissionKind): RejectionReason | null {
+function checkSubmission(state: GameState, player: number): RejectionReason | null {
   if (!PLAYER_INDICES.includes(player as PlayerIndex)) return "unknownPlayer";
   const p = getPlayer(state, player as PlayerIndex);
-  if (state.phase !== (kind === "planning" ? "planning" : "buy")) return "wrongPhase";
+  if (state.phase !== "planning") return "wrongPhase";
   if (p.eliminated) return "playerEliminated";
-  const pending = kind === "planning" ? state.pendingPlanning : state.pendingPurchases;
-  if (pending[player] !== null && pending[player] !== undefined) return "alreadySubmitted";
+  const pending = state.pendingPlanning[player];
+  if (pending !== null && pending !== undefined) return "alreadySubmitted";
   return null;
 }
 
-function reject(state: GameState, player: number, kind: SubmissionKind, reason: RejectionReason): SubmitResult {
+function reject(state: GameState, player: number, reason: RejectionReason): SubmitResult {
   // Unbekannte Spieler bekommen kein Ereignis, weil es keinen Spieler gibt, dem es gehört.
   if (PLAYER_INDICES.includes(player as PlayerIndex)) {
-    emit(state, { type: "submission_rejected", player: player as PlayerIndex, kind, reason }, [player as PlayerIndex]);
+    emit(state, { type: "submission_rejected", player: player as PlayerIndex, reason }, [player as PlayerIndex]);
   }
   return { ok: false, reason };
 }
 
 /**
- * R-7: reicht die Planung eines Spielers ein (genau einmal pro Runde).
- * Die Aktionen werden erst beim Aufdecken (R-8.1) ausgeführt; bis dahin bleibt der Inhalt privat.
+ * Prüft die Form einer Planung: ein Objekt mit den Abschnitten `play`, `buy` und `position`, jeweils
+ * eine Liste (fehlender Abschnitt = leer). Weitere Felder sind nicht erlaubt. Den Inhalt der Aktionen
+ * prüft erst das Ausführen beim Aufdecken.
  */
-export function submitPlanning(state: GameState, player: number, actions: readonly PlanningAction[]): SubmitResult {
-  const problem = checkSubmission(state, player, "planning");
-  if (problem) return reject(state, player, "planning", problem);
-  if (!Array.isArray(actions)) return reject(state, player, "planning", "malformed");
-  state.pendingPlanning[player] = actions.map((a) => structuredCopy(a));
-  emit(state, { type: "planning_submitted", player: player as PlayerIndex, actionCount: actions.length });
-  return { ok: true };
-}
-
-/** R-11.1: reicht die Käufe eines Spielers ein (genau einmal pro Kaufphase). */
-export function submitPurchases(state: GameState, player: number, purchases: PurchaseList): SubmitResult {
-  const problem = checkSubmission(state, player, "purchases");
-  if (problem) return reject(state, player, "purchases", problem);
-  if (
-    typeof purchases !== "object" ||
-    purchases === null ||
-    !Array.isArray(purchases.buys) ||
-    !purchases.buys.every((b) => typeof b === "string")
-  ) {
-    return reject(state, player, "purchases", "malformed");
+function normalizePlanning(planning: unknown): Planning | null {
+  if (typeof planning !== "object" || planning === null || Array.isArray(planning)) return null;
+  const raw = planning as Record<string, unknown>;
+  if (Object.keys(raw).some((k) => !(PLANNING_SECTIONS as readonly string[]).includes(k))) return null;
+  const result = emptyPlanning();
+  for (const section of PLANNING_SECTIONS) {
+    const list = raw[section];
+    if (list === undefined) continue;
+    if (!Array.isArray(list)) return null;
+    result[section] = list.map((a) => structuredCopy(a as PlanningAction));
   }
-  state.pendingPurchases[player] = { buys: [...purchases.buys] };
-  emit(state, { type: "purchases_submitted", player: player as PlayerIndex, buyCount: purchases.buys.length });
+  return result;
+}
+
+/**
+ * R-5: reicht die eine Planung eines Spielers für diese Runde ein (genau einmal).
+ * Die Abschnitte werden erst beim Aufdecken (R-8.1) ausgeführt; bis dahin bleibt der Inhalt privat (R-18.2).
+ */
+export function submitPlanning(state: GameState, player: number, planning: Partial<Planning>): SubmitResult {
+  const problem = checkSubmission(state, player);
+  if (problem) return reject(state, player, problem);
+  const normalized = normalizePlanning(planning);
+  if (!normalized) return reject(state, player, "malformed");
+  state.pendingPlanning[player] = normalized;
+  const actionCount = PLANNING_SECTIONS.reduce((n, section) => n + normalized[section].length, 0);
+  emit(state, { type: "planning_submitted", player: player as PlayerIndex, actionCount });
   return { ok: true };
 }
 
-function missingSubmissions(state: GameState, kind: SubmissionKind): PlayerIndex[] {
-  const pending = kind === "planning" ? state.pendingPlanning : state.pendingPurchases;
-  return activePlayersInPriority(state).filter((p) => pending[p] === null || pending[p] === undefined);
+function missingPlanning(state: GameState): PlayerIndex[] {
+  return activePlayersInPriority(state).filter((p) => state.pendingPlanning[p] === null || state.pendingPlanning[p] === undefined);
 }
 
 function enterPhase(state: GameState, phase: Phase): void {
@@ -140,12 +149,12 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         enterPhase(state, "planning");
         break;
       case "planning": {
-        const missing = missingSubmissions(state, "planning");
+        const missing = missingPlanning(state);
         if (missing.length > 0) {
           if (!timeout) return { waitingFor: "planning", players: missing };
           for (const p of missing) {
-            state.pendingPlanning[p] = [];
-            emit(state, { type: "submission_timeout", player: p, kind: "planning" });
+            state.pendingPlanning[p] = emptyPlanning();
+            emit(state, { type: "submission_timeout", player: p });
           }
         }
         timeout = false;
@@ -174,23 +183,8 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         break;
       case "postCombatSpells":
         // R-8.4 folgt in E11.
-        state.pendingPurchases = PLAYER_INDICES.map(() => null);
-        enterPhase(state, "buy");
-        break;
-      case "buy": {
-        const missing = missingSubmissions(state, "purchases");
-        if (missing.length > 0) {
-          if (!timeout) return { waitingFor: "purchases", players: missing };
-          for (const p of missing) {
-            state.pendingPurchases[p] = { buys: [] };
-            emit(state, { type: "submission_timeout", player: p, kind: "purchases" });
-          }
-        }
-        timeout = false;
-        runBuy(state, data);
         enterPhase(state, "cleanup");
         break;
-      }
       case "cleanup":
         runCleanup(state);
         enterPhase(state, "victoryCheck");
@@ -218,8 +212,10 @@ function isGameOver(state: GameState): boolean {
 }
 
 /**
- * R-6: Rundenbeginn in der Reihenfolge R-6.1 Zinsen, R-6.3 Ziehen, R-6.4 Ressourcen.
- * R-6.2: Der Rundenvorrat beginnt bei 0; das stellt die Einzahlung am Ende der Kaufphase sicher (R-11.5).
+ * R-6: Rundenbeginn in der Reihenfolge R-6.1 Zinsen, Ziehen, R-6.4 Ressourcen.
+ * R-6.2: Der Rundenvorrat beginnt bei 0; das stellt die Einzahlung am Rundenende sicher (R-12.5).
+ * Vorläufig wird noch zu Rundenbeginn gezogen; Starthand (R-4.6) und Nachziehen am Rundenende
+ * (R-12.6) folgen in P1b.
  */
 function runRoundStart(state: GameState, data: GameData): void {
   payInterest(state, data.config);
@@ -228,22 +224,31 @@ function runRoundStart(state: GameState, data: GameData): void {
   playResources(state, data);
 }
 
-/** R-8.1: alle Planungen werden gleichzeitig wirksam, Abarbeitung in Prioritätsreihenfolge. */
+/**
+ * R-8.1: alle Planungen werden gleichzeitig wirksam. Jeder Spieler wird in Prioritätsreihenfolge
+ * vollständig abgearbeitet, Abschnitt für Abschnitt: `play` (R-7), `buy` (R-11.1, Gold sofort),
+ * `position` (R-7b). Die Käufe werden danach gleichzeitig verteilt (R-11.3).
+ */
 function runReveal(state: GameState, data: GameData): void {
   const order = activePlayersInPriority(state);
   for (const p of order) {
-    emit(state, { type: "planning_revealed", player: p, actions: (state.pendingPlanning[p] ?? []).map(structuredCopy) });
+    emit(state, { type: "planning_revealed", player: p, planning: structuredCopy(state.pendingPlanning[p] ?? emptyPlanning()) });
   }
+  const purchases = startPurchases(state);
   for (const p of order) {
-    const actions = state.pendingPlanning[p] ?? [];
-    actions.forEach((action, index) => {
-      const reason = executePlanningAction(state, data, p, action);
-      if (reason) {
-        const name = isPlanningActionType((action as { type?: unknown }).type) ? action.type : String((action as { type?: unknown }).type);
-        emit(state, { type: "action_rejected", player: p, kind: "planning", index, action: name, reason });
-      }
-    });
+    const planning = state.pendingPlanning[p] ?? emptyPlanning();
+    for (const section of PLANNING_SECTIONS) {
+      planning[section].forEach((action, index) => {
+        const reason = executePlanningAction(state, data, purchases, p, section, action);
+        if (reason) {
+          const type = (action as { type?: unknown } | null)?.type;
+          const name = typeof type === "string" ? type : String(type);
+          emit(state, { type: "action_rejected", player: p, section, index, action: name, reason });
+        }
+      });
+    }
   }
+  finishPurchases(purchases, state);
   state.pendingPlanning = PLAYER_INDICES.map(() => null);
 }
 
@@ -251,12 +256,17 @@ function runReveal(state: GameState, data: GameData): void {
 function executePlanningAction(
   state: GameState,
   data: GameData,
+  purchases: PurchaseSession,
   player: PlayerIndex,
+  section: PlanningSection,
   action: PlanningAction,
 ): RejectionReason | null {
   if (typeof action !== "object" || action === null) return "malformed";
   if (!isPlanningActionType((action as { type?: unknown }).type)) return "unknownActionType";
+  if (!SECTION_ACTIONS[section].includes(action.type)) return "wrongSection";
   switch (action.type) {
+    case "buy":
+      return buyCard(purchases, state, data, player, action.cardId);
     case "withdraw":
       return withdraw(state, player, action.amount);
     case "playUnit":
@@ -271,17 +281,10 @@ function executePlanningAction(
   }
 }
 
-/** R-11: gleichzeitige Käufe (R-11.2–R-11.4), danach Einzahlung (R-11.5). */
-function runBuy(state: GameState, data: GameData): void {
-  const rejections = resolvePurchases(state, data, activePlayersInPriority(state), state.pendingPurchases);
-  for (const r of rejections) {
-    emit(state, { type: "action_rejected", player: r.player, kind: "purchases", index: r.index, action: r.cardId, reason: r.reason });
-  }
-  depositRoundGold(state);
-  state.pendingPurchases = PLAYER_INDICES.map(() => null);
-}
-
-/** R-12.1 (Hand und ausgespielte Ressourcen), R-12.2. Anführer-XP, Schilde und Buffs (R-12.3, R-12.4) folgen in E10/E11. */
+/**
+ * R-12 Rundenende: R-12.1 (Hand und ausgespielte Ressourcen), R-12.2 (Tokens), R-12.5 (Gold in die
+ * Schatzkammer). Anführer-XP (R-12.3) und Nachziehen (R-12.6) folgen in P1b, Schilde und Buffs (R-12.4) in E10/E11.
+ */
 function runCleanup(state: GameState): void {
   for (const p of state.players) {
     if (p.eliminated) continue;
@@ -298,6 +301,7 @@ function runCleanup(state: GameState): void {
     delete state.units[unit.id];
     emit(state, { type: "token_removed", player: unit.owner, unitId: unit.id });
   }
+  depositRoundGold(state);
 }
 
 function structuredCopy<T>(value: T): T {

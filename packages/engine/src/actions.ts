@@ -1,5 +1,6 @@
 /**
- * Eingaben der Spieler: Planungsaktionen (R-7) und Käufe (R-11).
+ * Eingaben der Spieler: eine Planung pro Runde mit den Abschnitten `play`, `buy` und `position`
+ * (R-5, R-7, R-7b, R-11).
  * Käufe und Entnahme: `economy.ts` (E6). Ausspielen, Bewegen, Genesen: `board.ts` (E7a).
  * Zauber, Anführer-Fähigkeit, Astwahl und alternative Kosten folgen in E7b/E7c.
  */
@@ -32,7 +33,9 @@ export type PlanningAction =
   /** R-7.6 */
   | { type: "withdraw"; amount: number }
   /** R-7.7 */
-  | { type: "chooseBranch"; branchId: string };
+  | { type: "chooseBranch"; branchId: string }
+  /** R-11.2 */
+  | { type: "buy"; cardId: string };
 
 export type PlanningActionType = PlanningAction["type"];
 
@@ -44,11 +47,33 @@ export const PLANNING_ACTION_TYPES: readonly PlanningActionType[] = [
   "heal",
   "withdraw",
   "chooseBranch",
+  "buy",
 ];
 
-/** R-11.2: ein Kauf ist eine Karten-ID. */
-export interface PurchaseList {
-  buys: string[];
+/** R-5: Abschnitte der Planung, in dieser Reihenfolge ausgeführt. */
+export const PLANNING_SECTIONS = ["play", "buy", "position"] as const;
+export type PlanningSection = (typeof PLANNING_SECTIONS)[number];
+
+/**
+ * Erlaubte Aktionen je Abschnitt: R-7 (Ausspielen, inklusive Astwahl R-7.7), R-11 (Kaufen),
+ * R-7b (Aufstellen, inklusive Anführer-Fähigkeit R-7.4). Entnahme ist in jedem Abschnitt erlaubt (R-7.6).
+ */
+export const SECTION_ACTIONS: Record<PlanningSection, readonly PlanningActionType[]> = {
+  play: ["playUnit", "setSpell", "heal", "chooseBranch", "withdraw"],
+  buy: ["buy", "withdraw"],
+  position: ["moveUnit", "setLeaderAbility", "withdraw"],
+};
+
+/** R-5: die eine Planung eines Spielers pro Runde. */
+export interface Planning {
+  play: PlanningAction[];
+  buy: PlanningAction[];
+  position: PlanningAction[];
+}
+
+/** R-7.9: leere Planung (Timeout). */
+export function emptyPlanning(): Planning {
+  return { play: [], buy: [], position: [] };
 }
 
 /** Gründe, aus denen eine Eingabe oder Aktion abgelehnt wird. */
@@ -87,9 +112,11 @@ export const REJECTION_REASONS = [
   "unknownCard",
   /** R-11.2: Karte ist nicht kaufbar (Starter, Token, Fluch, fremder Klassen-Pool). */
   "notBuyable",
+  /** R-5: Aktion ist in diesem Abschnitt der Planung nicht erlaubt. */
+  "wrongSection",
   /** R-11.4: Stapel ist leer. */
   "pileEmpty",
-  /** R-11.3: Spieler kauft schon so viele Kopien, wie der Stapel zu Beginn der Kaufphase enthielt. */
+  /** R-11.3: Spieler kauft schon so viele Kopien, wie der Stapel zu Beginn der Runde enthielt. */
   "pileLimitReached",
   /** R-14.8: gewählte Karte ist doppelt, nicht die eigene oder liegt nicht in einem erlaubten Bereich. */
   "invalidCardChoice",

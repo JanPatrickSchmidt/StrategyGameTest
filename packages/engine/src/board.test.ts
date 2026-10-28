@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { PlanningAction } from "./actions";
 import { boardCount, capacityFor, healUnit, isValidLocation, moveUnit, playUnit } from "./board";
 import { loadGameData } from "./data";
-import { advance, submitPlanning, submitPurchases } from "./round";
+import { advance, submitPlanning } from "./round";
 import { createGame, defaultLeaders } from "./setup";
 import {
   type CardInstanceId,
@@ -157,19 +157,17 @@ describe("R-7.1: Einheit ausspielen", () => {
       { type: "playUnit", cardInstanceId: r2 as number, to: center(0) },
       { type: "playUnit", cardInstanceId: r3 as number, to: center(1) },
     ];
-    for (const pl of PLAYER_INDICES) submitPlanning(state, pl, pl === 0 ? actions : []);
+    for (const pl of PLAYER_INDICES) submitPlanning(state, pl, pl === 0 ? { play: actions } : {});
     advance(state, data);
     expect(eventsOf(state, "unit_played").map((e) => e.cardInstanceId)).toEqual([r1, r2]);
     expect(eventsOf(state, "unit_played").every((e) => e.phase === "reveal")).toBe(true);
-    expect(eventsOf(state, "action_rejected").filter((e) => e.player === 0).map((e) => [e.index, e.reason])).toEqual([
-      [1, "cellOccupied"],
-      [3, "notEnoughGold"],
+    expect(eventsOf(state, "action_rejected").filter((e) => e.player === 0).map((e) => [e.section, e.index, e.reason])).toEqual([
+      ["play", 1, "cellOccupied"],
+      ["play", 3, "notEnoughGold"],
     ]);
-    // R-7.10: nicht ausgespielte Karten bleiben bis zum Aufräumen auf der Hand.
-    expect(p.hand).toContain(r3);
-    for (const pl of PLAYER_INDICES) submitPurchases(state, pl, { buys: [] });
-    advance(state, data);
-    expect(p.discard).toContain(r3);
+    // R-7.10: nicht ausgespielte Karten bleiben bis zum Rundenende auf der Hand und werden dann abgelegt.
+    expect(eventsOf(state, "hand_discarded").find((e) => e.player === 0 && e.round === 1)?.cardInstanceIds).toContain(r3);
+    expect(p.hand).not.toContain(r3);
     // R-3.7: Einheiten bleiben auf ihrem Feld.
     expect(Object.values(state.units).filter((u) => u.owner === 0 && u.kind === "card")).toHaveLength(2);
   });

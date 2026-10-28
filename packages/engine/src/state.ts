@@ -3,7 +3,7 @@
  * Der Zustand ist ein reines, JSON-serialisierbares Objekt. Alle Zustandsänderungen
  * laufen über Engine-Funktionen, die zusätzlich Ereignisse (R-19) ins Protokoll schreiben.
  */
-import type { PlanningAction, PurchaseList, RejectionReason } from "./actions";
+import type { Planning, PlanningSection, RejectionReason } from "./actions";
 import type { OffsetCoord } from "./hex";
 import type { RngState } from "./rng";
 
@@ -25,7 +25,6 @@ export const PHASES = [
   "combat",
   "combatResolution",
   "postCombatSpells",
-  "buy",
   "cleanup",
   "victoryCheck",
   "gameOver",
@@ -116,14 +115,20 @@ export type GameEventPayload =
   | { type: "round_started" }
   /** Öffentlich nur, dass eingereicht wurde; der Inhalt bleibt bis zum Aufdecken privat (R-18.2). */
   | { type: "planning_submitted"; player: PlayerIndex; actionCount: number }
-  | { type: "purchases_submitted"; player: PlayerIndex; buyCount: number }
-  /** R-7.9: keine Planung bzw. keine Käufe eingereicht → leere Liste. */
-  | { type: "submission_timeout"; player: PlayerIndex; kind: SubmissionKind }
-  | { type: "submission_rejected"; player: PlayerIndex; kind: SubmissionKind; reason: RejectionReason }
+  /** R-7.9: keine Planung eingereicht → leere Abschnitte. */
+  | { type: "submission_timeout"; player: PlayerIndex }
+  | { type: "submission_rejected"; player: PlayerIndex; reason: RejectionReason }
   /** R-8.1: Planungen werden öffentlich. */
-  | { type: "planning_revealed"; player: PlayerIndex; actions: PlanningAction[] }
-  /** R-7: ungültige Aktion wird übersprungen. `index` = Position in der eingereichten Liste. */
-  | { type: "action_rejected"; player: PlayerIndex; kind: SubmissionKind; index: number; action: string; reason: RejectionReason }
+  | { type: "planning_revealed"; player: PlayerIndex; planning: Planning }
+  /** R-7: ungültige Aktion wird übersprungen. `index` = Position im Abschnitt `section`. */
+  | {
+      type: "action_rejected";
+      player: PlayerIndex;
+      section: PlanningSection;
+      index: number;
+      action: string;
+      reason: RejectionReason;
+    }
   /** R-12.1: Handkarten auf den Ablagestapel (Ablagestapel ist öffentlich, R-18.1). */
   | { type: "hand_discarded"; player: PlayerIndex; cardInstanceIds: CardInstanceId[] }
   /** R-12.2 */
@@ -153,19 +158,20 @@ export type GameEventPayload =
   | { type: "gold_gained"; player: PlayerIndex; amount: number; treasury: number }
   /** Gold-Gewinn während der Planung in den Rundenvorrat (R-10.3, letzter Satz). */
   | { type: "round_gold_gained"; player: PlayerIndex; amount: number }
-  /** R-11.2: Kauf; die neue Karteninstanz liegt auf dem Ablagestapel. */
+  /** R-11.1: Kauf im Abschnitt `buy`; das Gold wird sofort abgezogen, die Karte folgt beim Verteilen. */
   | {
-      type: "card_bought";
+      type: "purchase_paid";
       player: PlayerIndex;
       cardId: string;
-      cardInstanceId: CardInstanceId;
       source: "supply" | "classPool";
       paidFromRoundGold: number;
       paidFromTreasury: number;
     }
+  /** R-11.3: Verteilen beim Aufdecken; die neue Karteninstanz liegt auf dem Ablagestapel. */
+  | { type: "card_bought"; player: PlayerIndex; cardId: string; cardInstanceId: CardInstanceId; source: "supply" | "classPool" }
   /** R-11.3: Stapelstand nach den gleichzeitigen Käufen; `created` = zusätzlich erzeugte Kopien. */
   | { type: "pile_changed"; pile: string; owner: PlayerIndex | null; remaining: number; created: number }
-  /** R-11.5: Einzahlung aus dem Rundenvorrat in die Schatzkammer. */
+  /** R-12.5: übriges Gold des Rundenvorrats in die Schatzkammer. */
   | { type: "gold_deposited"; player: PlayerIndex; amount: number; treasury: number }
   /** R-7.1: Karte verlässt die Hand und wird zur Einheit. */
   | {
@@ -185,7 +191,6 @@ export type GameEventPayload =
 
 export type GameEvent = EventBase & GameEventPayload;
 
-export type SubmissionKind = "planning" | "purchases";
 
 export interface GameState {
   seed: number;
@@ -199,9 +204,7 @@ export interface GameState {
   /** Gemeinsame Stapel: Basisstapel und Königreich (R-4.5). */
   supply: Record<string, number>;
   /** Eingereichte, noch nicht aufgedeckte Planungen der laufenden Runde (null = fehlt). */
-  pendingPlanning: (PlanningAction[] | null)[];
-  /** Eingereichte Käufe der laufenden Kaufphase (null = fehlt). */
-  pendingPurchases: (PurchaseList | null)[];
+  pendingPlanning: (Planning | null)[];
   nextCardInstanceId: CardInstanceId;
   nextUnitId: UnitId;
   /** Ereignisprotokoll (R-19), in Entstehungsreihenfolge. */
