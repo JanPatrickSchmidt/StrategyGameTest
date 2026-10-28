@@ -3,6 +3,12 @@
 **Aktueller Meilenstein:** M2 Regel-Engine
 **Nächste Aufgabe:** E3 Hex-Geometrie
 
+## Zum Ausprobieren
+
+Hier tragen Agenten alles ein, was Jan selbst testen kann, mit Pfad und kurzer Anleitung.
+
+- (noch nichts)
+
 ## Verlauf (neueste oben)
 
 | Datum | Aufgabe | Ergebnis | Nächster Schritt |

@@ -32,6 +32,10 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
 - [ ] **E9 Kampf: Mittelarena**
   - Free-for-all-Zielwahl, Halter-Bestimmung.
   - Abnahme: Tests zu R-9.1, R-9.7 für die Mitte.
+- [ ] **D1 Kampf-Sandbox zum Ausprobieren**
+  - Eine einzelne, eigenständige HTML-Datei `apps/sandbox/dist/sandbox.html` (Engine gebündelt, keine Server-Abhängigkeit): Frontarena anzeigen (2D von oben reicht), Einheiten aus dem Mini-Set für beide Seiten auf Felder setzen, Kampf starten, Ablauf schrittweise oder animiert abspielen, Ergebnis und Durchbruch-Schaden anzeigen.
+  - Zweck: Jan kann das Kampfsystem früh selbst ausprobieren und Feedback geben, bevor der 3D-Client existiert.
+  - Abnahme: Datei öffnet sich lokal im Browser ohne Fehler; in `docs/STATUS.md` unter „Zum Ausprobieren“ eingetragen, mit kurzer Anleitung.
 - [ ] **E10 Effekt-System**
   - Auslöser und Bausteine laut `data/README.md`, alle Karten und Rassen des Mini-Sets wirken wie beschrieben.
   - Abnahme: Mindestens ein Test pro Karte mit Fähigkeit und pro Resonanzstufe.
