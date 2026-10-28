@@ -11,7 +11,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
 - [x] **E2 Datenvalidierung** (2026-10-28)
   - Alle Datendateien laden, typisieren und prüfen: jede referenzierte ID (Rasse, Klasse, Token, Karte) existiert, jeder `op` und jedes `target` ist im Effekt-System bekannt, Pflichtfelder vorhanden.
   - Abnahme: Test, der die echten Daten fehlerfrei validiert, und Tests mit absichtlich kaputten Daten, die erkannt werden.
-- [ ] **E3 Hex-Geometrie**
+- [x] **E3 Hex-Geometrie** (2026-10-28)
   - Versetzte Koordinaten („odd-r“) ↔ Würfelkoordinaten, Abstand, Nachbarn, Breitensuche über freie Felder, Abbildung Frontzone → Frontarena (R-3.2), Mittelzonen-Startbereiche (R-3.4).
   - Abnahme: Tests für alle Funktionen inklusive Randfälle.
 - [ ] **E4 Spielzustand und Aufbau**
