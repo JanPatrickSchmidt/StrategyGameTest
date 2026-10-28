@@ -4,6 +4,7 @@ Getroffene Entscheidungen mit Datum und Begründung. Neueste oben.
 
 | Datum | Entscheidung | Begründung | Von |
 | --- | --- | --- | --- |
+| 2026-10-28 | F1–F7 bestätigt: Flächenschaden nur gegen Gegner; Zeitlimit-Unentschieden ohne Schaden; Schattenschritt nach dem Aufdecken frei in eigenen Zonen; bei 2 Spielern zwei Frontkämpfe; Ressourcen automatisch; Rundenlimit 30 und Grundschaden ab Runde 11; Totengräber +10 Mana | Standards aus der Spec von Jan abgenommen | Jan |
 | 2026-10-28 | Prototyp-Umfang laut Tab „Mini-Set Prototyp“: Kernkreislauf ohne Pakte, Weltereignisse, Angebotsfenster, Evolution, Fusion, Gelände | Erst prüfen, ob das Fundament Spaß macht | Jan + Claude |
 | 2026-10-28 | Eine Klassenliste für Einheiten und Anführer: Krieger, Zauberer, Schurke, Schamane | Klasse bestimmt Kampfverhalten und Klassen-Pool | Claude, Jan informiert |
 | 2026-10-28 | TypeScript für Engine, Server und Client; Babylon.js für die 3D-Ansicht; Vitest für Tests | Eine Sprache, kurze Feedback-Schleife, Grafik austauschbar | Jan + Claude |
