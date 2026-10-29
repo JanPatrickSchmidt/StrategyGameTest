@@ -22,7 +22,8 @@ import {
 import type { GameData } from "./data";
 import { healUnit, markReserveRest, moveUnit, playUnit, recoverInReserve } from "./board";
 import { drawEndOfRound } from "./deck";
-import { grantRoundXp, levelUpLeaders } from "./leader";
+import { autoChooseBranch, chooseBranch, grantRoundXp, levelUpLeaders, resetLeaderAbilities, setLeaderAbility } from "./leader";
+import { discardSetSpells, setSpell } from "./spells";
 import {
   buyCard,
   depositRoundGold,
@@ -250,6 +251,8 @@ function runReveal(state: GameState, data: GameData): void {
           emit(state, { type: "action_rejected", player: p, section, index, action: name, reason });
         }
       });
+      // R-7.7: ohne Wahl der erste Ast, direkt nach dem Ausspielen.
+      if (section === "play") autoChooseBranch(state, data, p);
     }
   }
   finishPurchases(purchases, state);
@@ -279,17 +282,23 @@ function executePlanningAction(
       return moveUnit(state, data, player, action.unitId, action.to);
     case "heal":
       return healUnit(state, data, player, action.unitId);
-    default:
-      // setSpell, setLeaderAbility, chooseBranch folgen in E7c.
-      return "notImplemented";
+    case "setSpell":
+      return setSpell(state, data, player, action.cardInstanceId, action.slot, action.target);
+    case "setLeaderAbility":
+      return setLeaderAbility(state, data, player, action.target);
+    case "chooseBranch":
+      return chooseBranch(state, data, player, action.branchId);
   }
 }
 
 /**
  * R-12 Rundenende: R-12.1 (Hand und ausgespielte Ressourcen), R-12.2 (Tokens), R-12.3 (Anführer-XP),
  * R-12.5 (Gold in die Schatzkammer), R-12.6 (Nachziehen). Schilde und Buffs (R-12.4) folgen in E10/E11.
+ * Noch liegende Zauber gehen auf den Ablagestapel (R-8.6), die gewählte Anführer-Fähigkeit verfällt (R-16.4).
  */
 function runCleanup(state: GameState, data: GameData): void {
+  discardSetSpells(state);
+  resetLeaderAbilities(state);
   for (const p of state.players) {
     if (p.eliminated) continue;
     if (p.hand.length > 0 || p.played.length > 0) {

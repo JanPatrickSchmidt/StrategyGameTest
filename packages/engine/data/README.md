@@ -96,6 +96,23 @@ Spieler: `frontOpponent`, `frontOpponentTreasury`, `targetPlayer`.
 - `hexes` (Ilyra): Anzahl wählbarer Felder
 - `count` (Vex): Anzahl bewegbarer Einheiten
 
+Alle drei sind Höchstwerte (mindestens 1, F23). Ohne Angabe gilt 1 bzw. `target.count`.
+
+## Ziele in der Planung
+
+Spieler geben Ziele von Zaubern (`setSpell`, R-7.3) und Anführer-Fähigkeiten (`setLeaderAbility`, R-7.4) als `ActionTarget` an (`src/actions.ts`), geprüft in `src/targets.ts`:
+
+| Ziel-Angabe (`kind`) | Eingabe |
+| --- | --- |
+| `none` | `{ "kind": "none" }` (bei Zaubern auch weglassen) |
+| `hex` | `{ "kind": "hex", "arena", "cell" }` oder mehrere als `{ "kind": "hexes", "hexes": [{ "arena", "cell" }] }` |
+| `zone` | `{ "kind": "zone", "arenas": ["left", …] }` |
+| `player` | `{ "kind": "player", "player": 0–3 }`, `allowed: neighbors` = linker oder rechter Nachbar im aktiven Ring (R-2.2) |
+| `ownCards` | `{ "kind": "ownCards", "cardInstanceIds": [...] }` |
+| `moveUnits` | `{ "kind": "moveUnits", "moves": [{ "unitId", "to": { "arena", "cell" } }] }` |
+
+`arena` ist `left`, `right` (die Frontarena der eigenen linken bzw. rechten Zone) oder `center`. `cell` steht in **Arena-Koordinaten**: Frontarena 5 × 6 nach R-3.2 (in `right` ist der Spieler der erste und belegt die Zeilen 0–2, in `left` der zweite mit den Zeilen 3–5), Mittelarena 7 × 7 nach R-3.4. `arenas: own` bzw. `destination: ownFreeHex` erlaubt nur eigene Felder (in der Mitte der eigene Startbereich, F24), `participating` jedes Feld dieser Arenen. `mustBeFree` und Bewegungsziele prüfen beim Planen nur eigene Einheiten.
+
 ## Validierung
 
 `loadGameData()` prüft alle Dateien beim Laden (`src/validate.ts`) und wirft bei Fehlern einen `GameDataError` mit allen Fundstellen. Geprüft werden: Pflichtfelder und Datentypen, unbekannte Felder (Tippfehler; Felder mit `_` am Anfang sind Kommentare), jeder `op`, jedes `target`, jeder Auslöser, jede Bedingung, jedes Schlüsselwort, doppelte IDs sowie alle Verweise auf Rassen, Klassen und Tokens. Wer einen neuen Baustein oder Wert einführt, ergänzt ihn in `src/dataTypes.ts`, in `src/validate.ts` und in dieser Datei.

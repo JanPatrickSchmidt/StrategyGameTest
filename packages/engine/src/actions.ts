@@ -2,22 +2,41 @@
  * Eingaben der Spieler: eine Planung pro Runde mit den Abschnitten `play`, `buy` und `position`
  * (R-5, R-7, R-7b, R-11).
  * Käufe und Entnahme: `economy.ts` (E6). Ausspielen, Bewegen, Genesen: `board.ts` (E7a).
- * Alternative Kosten (R-14.6): `board.ts` (E7b). Zauber, Anführer-Fähigkeit und Astwahl folgen in E7c.
+ * Alternative Kosten (R-14.6): `board.ts` (E7b). Zauber legen: `spells.ts`, Anführer-Fähigkeit und
+ * Astwahl: `leader.ts`, Zielprüfung: `targets.ts` (E7c).
  */
 import type { OffsetCoord } from "./hex";
 import type { CardInstanceId, FrontZoneName, PlayerIndex, UnitId, UnitLocation } from "./state";
 
-/** R-14.2: Feldziel in einer Arena, an der der Spieler teilnimmt. */
+/**
+ * R-14.2: Arena, an der der Spieler teilnimmt: `left` = die Frontarena seiner linken Zone, `right` = die
+ * Frontarena seiner rechten Zone, `center` = die Mittelarena.
+ */
 export type ArenaRef = FrontZoneName | "center";
+
+/**
+ * R-14.2: ein Feld in einer Arena, in **Arena-Koordinaten**: Frontarena 5 × 6 nach R-3.2 (die Zone des
+ * ersten Spielers belegt die Zeilen 0–2, die gedrehte Zone des Gegners die Zeilen 3–5; in der Arena
+ * `right` ist der Spieler also der erste, in `left` der zweite), Mittelarena 7 × 7 nach R-3.4.
+ */
+export interface ArenaHex {
+  arena: ArenaRef;
+  cell: OffsetCoord;
+}
 
 export type ActionTarget =
   | { kind: "none" }
-  | { kind: "hex"; arena: ArenaRef; cell: OffsetCoord }
+  /** Ein Feld (R-14.2). */
+  | ({ kind: "hex" } & ArenaHex)
+  /** Mehrere Felder (Ilyra, Ast „Kette“: bis zu `hexes` Felder); ein einzelnes `hex` ist gleichwertig. */
+  | { kind: "hexes"; hexes: ArenaHex[] }
+  /** Eigene Zonen (Brann: bis zu `zones` Zonen). */
   | { kind: "zone"; arenas: ArenaRef[] }
   | { kind: "player"; player: PlayerIndex }
   /** R-14.8: eigene Karteninstanzen aus Deck oder Ablagestapel. */
   | { kind: "ownCards"; cardInstanceIds: CardInstanceId[] }
-  | { kind: "moveUnits"; moves: { unitId: UnitId; to: UnitLocation }[] };
+  /** Vex (R-16.6): eigene Einheiten auf freie Felder setzen, Ziel in Arena-Koordinaten. */
+  | { kind: "moveUnits"; moves: { unitId: UnitId; to: ArenaHex }[] };
 
 export type PlanningAction =
   /** R-7.1 */
@@ -134,8 +153,22 @@ export const REJECTION_REASONS = [
   "wrongSacrificeCount",
   /** R-14.6 `sacrifice`: Opfer doppelt, fremd, unbekannt, Anführer oder Token. */
   "invalidSacrifice",
-  /** Vorübergehend: Ausführung folgt in E7c. */
-  "notImplemented",
+  /** R-7.3: Karte ist keine Zauberkarte. */
+  "notASpellCard",
+  /** R-7.3: Slot ist nicht der Slot der Karte (`pre` bzw. `post` laut Kartendaten). */
+  "wrongSlot",
+  /** R-7.3: alle Plätze dieses Slots sind belegt (`config.spellSlots`). */
+  "slotFull",
+  /** R-14.2: Ziel passt nicht zur Ziel-Angabe der Karte bzw. Fähigkeit oder liegt außerhalb der erlaubten Arenen. */
+  "invalidTarget",
+  /** R-14.2: mehr Felder, Zonen oder Einheiten gewählt, als die Fähigkeit erlaubt. */
+  "tooManyTargets",
+  /** R-7.4: Anführer-Fähigkeit wurde in dieser Runde schon gewählt. */
+  "abilityAlreadySet",
+  /** R-7.7: Anführer hat Stufe 2 noch nicht erreicht oder schon einen Ast. */
+  "branchNotAvailable",
+  /** R-7.7: Ast gehört nicht zu diesem Anführer. */
+  "unknownBranch",
 ] as const;
 export type RejectionReason = (typeof REJECTION_REASONS)[number];
 

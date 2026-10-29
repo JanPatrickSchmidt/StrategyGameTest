@@ -3,7 +3,7 @@
  * Der Zustand ist ein reines, JSON-serialisierbares Objekt. Alle Zustandsänderungen
  * laufen über Engine-Funktionen, die zusätzlich Ereignisse (R-19) ins Protokoll schreiben.
  */
-import type { Planning, PlanningSection, RejectionReason } from "./actions";
+import type { ActionTarget, Planning, PlanningSection, RejectionReason } from "./actions";
 import type { OffsetCoord } from "./hex";
 import type { RngState } from "./rng";
 
@@ -81,6 +81,16 @@ export interface NextRoundBonus {
   cards: number;
 }
 
+/** R-7.3: gelegter Zauber; die Karte hat die Hand verlassen und liegt bis zur Auflösung im Slot (R-8.6). */
+export interface SetSpell {
+  cardInstanceId: CardInstanceId;
+  cardId: string;
+  /** Geprüftes Ziel; mehrere Felder stehen immer als `hexes`. */
+  target: ActionTarget;
+}
+
+export type SpellSlot = "pre" | "post";
+
 export interface PlayerState {
   index: PlayerIndex;
   life: number;
@@ -94,6 +104,13 @@ export interface PlayerState {
   /** R-6.4: in dieser Runde ausgespielte Ressourcen; gehen beim Aufräumen auf den Ablagestapel (R-12.1). */
   played: CardInstanceId[];
   discard: CardInstanceId[];
+  /** R-7.3: gelegte Zauber der laufenden Runde je Slot. */
+  spells: Record<SpellSlot, SetSpell[]>;
+  /**
+   * R-7.4: gewählte Anführer-Fähigkeit der laufenden Runde (geprüftes Ziel, `{ kind: "none" }` = bewusst
+   * keine). `null` = noch nicht gewählt. Wird beim Rundenende zurückgesetzt.
+   */
+  leaderAbility: ActionTarget | null;
   leader: LeaderState;
   /** Eigene Stapel des Klassen-Pools (R-4.5): Karten-ID → verbleibende Kopien. */
   classPool: Record<string, number>;
@@ -204,6 +221,23 @@ export type GameEventPayload =
   | { type: "unit_recovered"; player: PlayerIndex; unitId: UnitId }
   /** R-7.2 */
   | { type: "unit_moved"; player: PlayerIndex; unitId: UnitId; from: UnitLocation; to: UnitLocation }
+  /** R-7.3: Zauber gelegt, Kosten bezahlt, Ziel festgelegt (öffentlich ab dem Aufdecken, R-8.1). */
+  | {
+      type: "spell_set";
+      player: PlayerIndex;
+      cardInstanceId: CardInstanceId;
+      cardId: string;
+      slot: SpellSlot;
+      target: ActionTarget;
+      paidFromRoundGold: number;
+      paidFromTreasury: number;
+    }
+  /** R-8.6: Zauber verlässt den Slot und geht auf den Ablagestapel. */
+  | { type: "spell_discarded"; player: PlayerIndex; cardInstanceId: CardInstanceId; slot: SpellSlot }
+  /** R-7.4: Anführer-Fähigkeit gewählt (`{ kind: "none" }` = keine). */
+  | { type: "leader_ability_set"; player: PlayerIndex; target: ActionTarget }
+  /** R-7.7: Ast gewählt; `auto` = ohne Wahl der erste Ast. */
+  | { type: "branch_chosen"; player: PlayerIndex; branchId: string; auto: boolean }
   /** R-7.5 */
   | { type: "unit_healed"; player: PlayerIndex; unitId: UnitId; paidFromRoundGold: number; paidFromTreasury: number };
 

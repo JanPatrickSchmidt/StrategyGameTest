@@ -10,3 +10,6 @@ export * from "./round";
 export * from "./economy";
 export * from "./board";
 export * from "./leader";
+export * from "./seating";
+export * from "./targets";
+export * from "./spells";

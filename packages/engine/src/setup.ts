@@ -136,6 +136,8 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
       hand: [],
       played: [],
       discard: [],
+      spells: { pre: [], post: [] },
+      leaderAbility: null,
       leader: { leaderId, unitId: leaderUnit.id, xp: 0, level: 1, branchId: null },
       classPool: createClassPool(data, leaderData.class),
       winStreak: 0,
