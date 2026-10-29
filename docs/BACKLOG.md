@@ -39,7 +39,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
   - Rundenmaschine, Eingabeformat (`submitPlanning` mit drei Abschnitten; `submitPurchases` entfällt), Wirtschaft und Ziehen anpassen.
   - Abnahme: Tests zu allen geänderten Regeln; bestehende Tests auf den neuen Ablauf umgestellt (nicht abgeschwächt).
   - [x] **P1a Planungsblock und Käufe** (2026-10-28) – eine Planung pro Runde mit `play` → `buy` → `position`, erlaubte Aktionen je Abschnitt, Käufe im Abschnitt `buy` (Gold sofort, Karten beim Aufdecken gleichzeitig verteilt), `submitPurchases` und Kaufphase entfernt, Einzahlung am Rundenende (R-5, R-7, R-7b, R-11, R-12.5). Abnahme: Tests zu allen genannten Regeln.
-  - [ ] **P1b Ziehen und Anführer-Aufstieg im neuen Ablauf** – Starthand beim Aufbau (R-4.6), kein Ziehen zu Rundenbeginn mehr (R-6.3), Nachziehen am Rundenende mit Mischen, wenn das Deck weniger Karten hat als zu ziehen sind (R-12.6), Anführer +2 XP am Rundenende (R-12.3) und Aufstieg zu Rundenbeginn (R-6.6). Abnahme: Tests zu allen genannten Regeln; bestehende Tests umgestellt (nicht abgeschwächt).
+  - [x] **P1b Ziehen und Anführer-Aufstieg im neuen Ablauf** (2026-10-29) – Starthand beim Aufbau (R-4.6), kein Ziehen zu Rundenbeginn mehr (R-6.3), Nachziehen am Rundenende mit Mischen, wenn das Deck weniger Karten hat als zu ziehen sind (R-12.6), Anführer +2 XP am Rundenende (R-12.3) und Aufstieg zu Rundenbeginn (R-6.6). Abnahme: Tests zu allen genannten Regeln; bestehende Tests umgestellt (nicht abgeschwächt).
 - [ ] **E8 Kampf: Frontarena**
   - Tick-Simulation (R-9.0 bis R-9.7) für Frontkämpfe, Zielwahl inkl. Krieger und Schurken, Bewegung, Angriff, Panzer, Schild, Tod, Ende.
   - Abnahme: Tests zu allen genannten Regeln; ein Determinismus-Test.

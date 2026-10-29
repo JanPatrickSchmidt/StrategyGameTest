@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadGameData } from "./data";
-import { checkOwnCardsChoice, drawCards, drawForRound, ownDeckContents, roundDrawCount, trashCards } from "./deck";
+import { checkOwnCardsChoice, drawCards, drawEndOfRound, drawStartingHands, endOfRoundDrawCount, ownDeckContents, trashCards } from "./deck";
 import { createGame, defaultLeaders } from "./setup";
 import { type GameEvent, type GameState, getPlayer } from "./state";
 
@@ -8,51 +8,84 @@ const data = loadGameData();
 const config = data.config;
 const newGame = (seed = 11) => createGame(data, defaultLeaders(data), seed);
 
-describe("R-6.3: Ziehen", () => {
-  it("R-6.3: zu Rundenbeginn zieht jeder Spieler 5 Karten von oben vom Deck", () => {
-    const state = newGame();
+/** Partie direkt nach dem Mischen: die Starthand (R-4.6) liegt wieder oben auf dem Deck. */
+function undrawnGame(seed = 11): GameState {
+  const state = newGame(seed);
+  for (const p of state.players) {
+    p.deck = [...p.hand, ...p.deck];
+    p.hand = [];
+  }
+  return state;
+}
+
+describe("R-4.6/R-12.6: Ziehen", () => {
+  it("R-4.6: Starthand – nach dem Mischen zieht jeder Spieler 5 Karten von oben vom Deck", () => {
+    const state = undrawnGame();
     const tops = state.players.map((p) => p.deck.slice(0, config.handSize));
-    drawForRound(state, config);
+    drawStartingHands(state, config);
     for (const p of state.players) {
       expect(p.hand).toEqual(tops[p.index]);
       expect(p.hand).toHaveLength(5);
       expect(p.deck).toHaveLength(10 - 5);
     }
+    expect(state.log.some((e) => e.type === "discard_reshuffled")).toBe(false);
   });
 
-  it("R-6.3: fällige Mitte-Belohnung „Karte“ gibt +1 Karte und wird verbraucht", () => {
-    const state = newGame();
+  it("R-12.6: am Rundenende zieht jeder Spieler 5 Karten; fällige Mitte-Belohnung „Karte“ gibt +1 und wird verbraucht", () => {
+    const state = undrawnGame();
     getPlayer(state, 2).nextRound.cards = 1;
-    drawForRound(state, config);
+    drawEndOfRound(state, config);
     expect(getPlayer(state, 2).hand).toHaveLength(6);
     expect(getPlayer(state, 2).nextRound.cards).toBe(0);
     expect(getPlayer(state, 1).hand).toHaveLength(5);
-    expect(roundDrawCount(config, 1)).toBe(config.handSize + 1);
+    expect(endOfRoundDrawCount(config, 1)).toBe(config.handSize + 1);
   });
 
-  it("R-6.3: ist das Deck leer, wird der Ablagestapel gemischt und wird zum Deck", () => {
-    const state = newGame();
+  it("R-12.6: hat das Deck genau so viele Karten wie zu ziehen sind, wird nicht gemischt", () => {
+    const state = undrawnGame();
+    const p = getPlayer(state, 0);
+    p.discard = p.deck.splice(5);
+    const deck = [...p.deck];
+    const discard = [...p.discard];
+    expect(drawCards(state, 0, 5)).toEqual(deck);
+    expect(p.deck).toEqual([]);
+    expect(p.discard).toEqual(discard);
+    expect(state.log.some((e) => e.type === "discard_reshuffled")).toBe(false);
+  });
+
+  it("R-12.6: hat das Deck weniger Karten als zu ziehen sind, werden vorher Deck und Ablagestapel zusammen gemischt", () => {
+    const state = undrawnGame();
     const p = getPlayer(state, 0);
     // 8 Karten ablegen, 2 im Deck lassen.
     p.discard = p.deck.splice(2);
-    const remaining = [...p.deck];
-    const discarded = [...p.discard];
+    const all = [...p.deck, ...p.discard].sort((a, b) => a - b);
     const drawn = drawCards(state, 0, 5);
     expect(drawn).toHaveLength(5);
-    // Zuerst die verbliebenen Deckkarten, dann Karten aus dem gemischten Ablagestapel.
-    expect(drawn.slice(0, 2)).toEqual(remaining);
-    for (const id of drawn.slice(2)) expect(discarded).toContain(id);
     expect(p.discard).toEqual([]);
     expect(p.deck).toHaveLength(5);
-    expect([...p.deck, ...drawn.slice(2)].sort((a, b) => a - b)).toEqual([...discarded].sort((a, b) => a - b));
+    expect([...p.deck, ...drawn].sort((a, b) => a - b)).toEqual(all);
     const reshuffles = state.log.filter((e) => e.type === "discard_reshuffled");
-    expect(reshuffles).toEqual([expect.objectContaining({ player: 0, size: 8 })]);
+    expect(reshuffles).toEqual([expect.objectContaining({ player: 0, size: 10 })]);
   });
 
-  it("R-6.3: das Nachmischen nutzt den Partie-Zufall (Reihenfolge hängt vom Seed ab)", () => {
+  it("R-12.6: die verbliebenen Deckkarten werden mitgemischt (nicht zuerst gezogen)", () => {
+    // Über mehrere Seeds landen die 2 alten Deckkarten nicht immer in der Hand.
+    let oldCardsLeftInDeck = false;
+    for (let seed = 1; seed <= 10; seed++) {
+      const state = undrawnGame(seed);
+      const p = getPlayer(state, 0);
+      p.discard = p.deck.splice(2);
+      const old = [...p.deck];
+      drawCards(state, 0, 5);
+      if (old.some((id) => p.deck.includes(id))) oldCardsLeftInDeck = true;
+    }
+    expect(oldCardsLeftInDeck).toBe(true);
+  });
+
+  it("R-12.6: das Mischen nutzt den Partie-Zufall (Reihenfolge hängt vom Seed ab)", () => {
     const orders = new Set<string>();
     for (let seed = 1; seed <= 8; seed++) {
-      const state = newGame(seed);
+      const state = undrawnGame(seed);
       const p = getPlayer(state, 0);
       p.discard = [...p.deck].sort((a, b) => a - b);
       p.deck = [];
@@ -62,8 +95,8 @@ describe("R-6.3: Ziehen", () => {
     expect(orders.size).toBeGreaterThan(1);
   });
 
-  it("R-6.3: sind Deck und Ablagestapel leer, wird nicht weiter gezogen", () => {
-    const state = newGame();
+  it("R-12.6: reicht auch das nicht, werden alle vorhandenen Karten gezogen", () => {
+    const state = undrawnGame();
     const p = getPlayer(state, 1);
     p.discard = p.deck.splice(7); // 7 im Deck, 3 im Ablagestapel
     const drawn = drawCards(state, 1, 12);
@@ -79,33 +112,36 @@ describe("R-6.3: Ziehen", () => {
     ]);
   });
 
-  it("R-6.3: leerer Ablagestapel bei leerem Deck löst kein Nachmischen aus", () => {
-    const state = newGame();
-    drawCards(state, 3, 10);
-    drawCards(state, 3, 1);
+  it("R-12.6: leerer Ablagestapel löst kein Mischen aus", () => {
+    const state = undrawnGame();
+    drawCards(state, 3, 8);
+    drawCards(state, 3, 5);
+    expect(getPlayer(state, 3).hand).toHaveLength(10);
     expect(state.log.some((e) => e.type === "discard_reshuffled")).toBe(false);
   });
 
-  it("R-6.3: ausgeschiedene Spieler ziehen nicht", () => {
-    const state = newGame();
+  it("R-12.6: ausgeschiedene Spieler ziehen nicht", () => {
+    const state = undrawnGame();
     getPlayer(state, 3).eliminated = true;
-    drawForRound(state, config);
+    drawEndOfRound(state, config);
+    drawStartingHands(state, config);
     expect(getPlayer(state, 3).hand).toEqual([]);
-    expect(getPlayer(state, 0).hand).toHaveLength(5);
+    expect(getPlayer(state, 0).hand).toHaveLength(10);
   });
 
-  it("R-6.3/R-19.3: gezogene Karten sind ein privates Ereignis, die Anzahl ist öffentlich", () => {
-    const state = newGame();
+  it("R-19.3: gezogene Karten sind ein privates Ereignis, die Anzahl ist öffentlich", () => {
+    const state = undrawnGame();
     drawCards(state, 2, 3);
     const priv = state.log.filter((e) => e.type === "cards_drawn");
     const pub = state.log.filter((e) => e.type === "cards_drawn_count");
-    expect(priv).toEqual([expect.objectContaining({ player: 2, visibleTo: [2], cardInstanceIds: getPlayer(state, 2).hand })]);
-    expect(pub).toEqual([expect.objectContaining({ player: 2, count: 3 })]);
-    expect(pub[0]?.visibleTo).toBeUndefined();
+    const own = priv.filter((e) => e.player === 2);
+    expect(own.at(-1)).toEqual(expect.objectContaining({ player: 2, visibleTo: [2], cardInstanceIds: getPlayer(state, 2).hand }));
+    expect(pub.at(-1)).toEqual(expect.objectContaining({ player: 2, count: 3 }));
+    expect(pub.at(-1)?.visibleTo).toBeUndefined();
   });
 
-  it("R-6.3: ungültige Anzahl wird abgelehnt", () => {
-    const state = newGame();
+  it("R-12.6: ungültige Anzahl wird abgelehnt", () => {
+    const state = undrawnGame();
     expect(() => drawCards(state, 0, -1)).toThrow(RangeError);
     expect(() => drawCards(state, 0, 1.5)).toThrow(RangeError);
     expect(drawCards(state, 0, 0)).toEqual([]);
@@ -115,8 +151,8 @@ describe("R-6.3: Ziehen", () => {
     const run = () => {
       const s = newGame(99);
       for (let i = 0; i < 4; i++) {
-        drawForRound(s, config);
         for (const p of s.players) p.discard.push(...p.hand.splice(0));
+        drawEndOfRound(s, config);
       }
       return JSON.stringify(s.log);
     };
@@ -142,7 +178,7 @@ describe("R-14.8: Läutern", () => {
   });
 
   it("R-14.8: Wahl aus Deck und Ablagestapel gültig, Hand, ausgespielte und fremde Karten nicht", () => {
-    const state = newGame();
+    const state = undrawnGame();
     drawCards(state, 0, 5);
     const p = getPlayer(state, 0);
     const [d1, d2] = p.deck as [number, number];
@@ -170,7 +206,7 @@ describe("R-14.8: Läutern", () => {
   });
 
   it("R-14.8: Entfernen ändert die Reihenfolge der übrigen Deckkarten nicht und mischt nicht", () => {
-    const state = newGame();
+    const state = undrawnGame();
     const p = getPlayer(state, 0);
     const deckBefore = [...p.deck];
     const [, second, , fourth] = deckBefore as [number, number, number, number];
@@ -195,7 +231,7 @@ describe("R-14.8: Läutern", () => {
   });
 
   it("R-14.8: nicht mehr vorhandene Karten werden übersprungen, ohne Ereignis wenn nichts entfernt wird", () => {
-    const state = newGame();
+    const state = undrawnGame();
     drawCards(state, 0, 1);
     const p = getPlayer(state, 0);
     const drawn = p.hand[0] as number;
@@ -207,8 +243,8 @@ describe("R-14.8: Läutern", () => {
 
 describe("R-18.2a: Sicht auf das eigene Deck", () => {
   it("R-18.2a: Inhalt des eigenen Decks vollständig, aber unabhängig von der Reihenfolge", () => {
-    const a = newGame(1);
-    const b = newGame(2);
+    const a = undrawnGame(1);
+    const b = undrawnGame(2);
     const p = getPlayer(a, 0);
     const contents = ownDeckContents(a, 0);
     expect(contents.map((c) => c.cardInstanceId).sort((x, y) => x - y)).toEqual([...p.deck].sort((x, y) => x - y));

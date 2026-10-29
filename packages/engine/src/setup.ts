@@ -3,7 +3,7 @@
  */
 import type { ConfigData, GameData } from "./data";
 import type { CardData } from "./dataTypes";
-import { shuffleDeck } from "./deck";
+import { drawStartingHands, shuffleDeck } from "./deck";
 import { createRngState } from "./rng";
 import {
   type CardInstanceId,
@@ -167,6 +167,8 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
 
   // Erst alle Decks anlegen, dann in Spielerreihenfolge mischen.
   for (const index of PLAYER_INDICES) shuffleDeck(state, index as PlayerIndex);
+  // R-4.6: Starthand nach dem Mischen.
+  drawStartingHands(state, config);
 
   state.phase = "roundStart";
   emit(state, { type: "phase_started", phase: "roundStart" });

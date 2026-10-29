@@ -21,7 +21,8 @@ import {
 } from "./actions";
 import type { GameData } from "./data";
 import { healUnit, moveUnit, playUnit } from "./board";
-import { drawForRound } from "./deck";
+import { drawEndOfRound } from "./deck";
+import { grantRoundXp, levelUpLeaders } from "./leader";
 import {
   buyCard,
   depositRoundGold,
@@ -186,7 +187,7 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         enterPhase(state, "cleanup");
         break;
       case "cleanup":
-        runCleanup(state);
+        runCleanup(state, data);
         enterPhase(state, "victoryCheck");
         break;
       case "victoryCheck":
@@ -212,15 +213,14 @@ function isGameOver(state: GameState): boolean {
 }
 
 /**
- * R-6: Rundenbeginn in der Reihenfolge R-6.1 Zinsen, Ziehen, R-6.4 Ressourcen.
+ * R-6: Rundenbeginn in der Reihenfolge R-6.1 Zinsen, R-6.6 Anführer-Aufstieg, R-6.4 Ressourcen.
  * R-6.2: Der Rundenvorrat beginnt bei 0; das stellt die Einzahlung am Rundenende sicher (R-12.5).
- * Vorläufig wird noch zu Rundenbeginn gezogen; Starthand (R-4.6) und Nachziehen am Rundenende
- * (R-12.6) folgen in P1b.
+ * R-6.3: Zu Rundenbeginn wird nicht gezogen; die Hand stammt aus R-4.6 bzw. R-12.6.
  */
 function runRoundStart(state: GameState, data: GameData): void {
   payInterest(state, data.config);
-  // R-17a.1 („pro Runde“-Effekte) folgt in E10.
-  drawForRound(state, data.config);
+  // R-17a.1 („pro Runde“-Effekte) folgt in E10, R-6.5 (Genesung durch Reserve) in E7b.
+  levelUpLeaders(state, data.config);
   playResources(state, data);
 }
 
@@ -282,10 +282,10 @@ function executePlanningAction(
 }
 
 /**
- * R-12 Rundenende: R-12.1 (Hand und ausgespielte Ressourcen), R-12.2 (Tokens), R-12.5 (Gold in die
- * Schatzkammer). Anführer-XP (R-12.3) und Nachziehen (R-12.6) folgen in P1b, Schilde und Buffs (R-12.4) in E10/E11.
+ * R-12 Rundenende: R-12.1 (Hand und ausgespielte Ressourcen), R-12.2 (Tokens), R-12.3 (Anführer-XP),
+ * R-12.5 (Gold in die Schatzkammer), R-12.6 (Nachziehen). Schilde und Buffs (R-12.4) folgen in E10/E11.
  */
-function runCleanup(state: GameState): void {
+function runCleanup(state: GameState, data: GameData): void {
   for (const p of state.players) {
     if (p.eliminated) continue;
     if (p.hand.length > 0 || p.played.length > 0) {
@@ -301,7 +301,9 @@ function runCleanup(state: GameState): void {
     delete state.units[unit.id];
     emit(state, { type: "token_removed", player: unit.owner, unitId: unit.id });
   }
+  grantRoundXp(state, data.config);
   depositRoundGold(state);
+  drawEndOfRound(state, data.config);
 }
 
 function structuredCopy<T>(value: T): T {

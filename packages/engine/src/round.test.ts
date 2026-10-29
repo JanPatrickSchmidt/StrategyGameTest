@@ -75,8 +75,14 @@ describe("R-5: Rundenablauf", () => {
   it("R-5: ausgeschiedene Spieler werden nicht erwartet und ziehen nicht", () => {
     const state = newGame();
     getPlayer(state, 1).eliminated = true;
+    const logStart = state.log.length;
     expect(advance(state, data)).toEqual({ waitingFor: "planning", players: [0, 2, 3] });
-    expect(getPlayer(state, 1).hand).toEqual([]);
+    submitAllEmpty(state);
+    advance(state, data);
+    const later = state.log.slice(logStart);
+    expect(later.some((e) => e.type === "cards_drawn" && e.player === 1)).toBe(false);
+    expect(later.some((e) => e.type === "cards_drawn" && e.player === 0)).toBe(true);
+    expect(later.some((e) => e.type === "leader_xp_gained" && e.player === 1)).toBe(false);
     expect(submitPlanning(state, 1, EMPTY)).toEqual({ ok: false, reason: "playerEliminated" });
   });
 
@@ -91,30 +97,49 @@ describe("R-5: Rundenablauf", () => {
   });
 });
 
-describe("R-6.3/R-12.1: Karten im Rundenlauf", () => {
-  it("R-6.3: zu Rundenbeginn werden 5 Karten gezogen (Ressourcen davon liegen nach R-6.4 im Spielbereich)", () => {
+describe("R-6.3/R-12: Karten im Rundenlauf", () => {
+  it("R-6.3: zu Rundenbeginn wird nicht gezogen, die Hand stammt aus dem Aufbau (R-4.6)", () => {
     const state = newGame();
+    const hands = state.players.map((p) => [...p.hand]);
     advance(state, data);
-    for (const p of state.players) expect(p.hand.length + p.played.length).toBe(data.config.handSize);
+    for (const p of state.players) expect([...p.hand, ...p.played].sort((a, b) => a - b)).toEqual([...(hands[p.index] ?? [])].sort((a, b) => a - b));
+    expect(state.log.some((e) => e.type === "cards_drawn" && e.phase === "roundStart")).toBe(false);
   });
 
-  it("R-12.1: beim Aufräumen gehen alle Handkarten auf den Ablagestapel; Runde 3 mischt nach", () => {
+  it("R-12.1/R-12.6: am Rundenende wird abgelegt und nachgezogen; Mischen erst, wenn das Deck nicht reicht", () => {
     const state = newGame();
     advance(state, data);
-    const hand1 = [...getPlayer(state, 0).hand, ...getPlayer(state, 0).played];
-    submitAllEmpty(state);
-    advance(state, data); // Rundenende, Runde 2 beginnt und zieht
     const p = getPlayer(state, 0);
+    const hand1 = [...p.hand, ...p.played];
+    const deck1 = [...p.deck];
+    submitAllEmpty(state);
+    advance(state, data); // Rundenende Runde 1: ablegen, 5 nachziehen (Deck hat genau 5, kein Mischen)
     expect(p.discard).toEqual(hand1);
-    expect(p.hand.length + p.played.length).toBe(5);
+    expect([...p.hand, ...p.played].sort((a, b) => a - b)).toEqual([...deck1].sort((a, b) => a - b));
     expect(p.deck).toEqual([]);
     expect(state.log.some((e) => e.type === "hand_discarded" && e.player === 0 && e.round === 1)).toBe(true);
-    // Runde 2 durchspielen: Runde 3 muss den Ablagestapel nachmischen.
+    expect(state.log.filter((e) => e.type === "cards_drawn" && e.player === 0 && e.round === 1 && e.phase === "cleanup")).toHaveLength(1);
+    expect(state.log.some((e) => e.type === "discard_reshuffled" && e.round === 1)).toBe(false);
+    // Rundenende Runde 2: Deck leer → Deck und Ablagestapel (10 Karten) werden gemischt.
     submitAllEmpty(state);
     advance(state, data);
     expect(p.hand.length + p.played.length).toBe(5);
-    expect(p.deck.length + p.hand.length + p.played.length + p.discard.length).toBe(10);
-    expect(state.log.some((e) => e.type === "discard_reshuffled" && e.round === 3)).toBe(true);
+    expect(p.discard).toEqual([]);
+    expect(p.deck.length + p.hand.length + p.played.length).toBe(10);
+    expect(state.log.filter((e) => e.type === "discard_reshuffled" && e.player === 0)).toEqual([
+      expect.objectContaining({ round: 2, phase: "cleanup", size: 10 }),
+    ]);
+  });
+
+  it("R-12.6: Bonuskarte der Mitte (R-10.4) wird beim Nachziehen am Rundenende mitgezogen", () => {
+    const state = newGame();
+    advance(state, data);
+    getPlayer(state, 2).nextRound.cards = 1;
+    submitAllEmpty(state);
+    advance(state, data);
+    const p = getPlayer(state, 2);
+    expect(p.hand.length + p.played.length).toBe(6);
+    expect(p.nextRound.cards).toBe(0);
   });
 
   it("R-12.2: Tokens werden beim Aufräumen entfernt", () => {

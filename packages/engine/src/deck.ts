@@ -1,5 +1,5 @@
 /**
- * Deck, Mischen, Ziehen und Läutern (R-4.2, R-6.3, R-14.8, R-18.2a).
+ * Deck, Mischen, Ziehen und Läutern (R-4.2, R-4.6, R-12.6, R-14.8, R-18.2a).
  */
 import type { RejectionReason } from "./actions";
 import type { ConfigData } from "./data";
@@ -15,8 +15,11 @@ export function shuffleDeck(state: GameState, player: PlayerIndex): void {
 }
 
 /**
- * R-6.3: Zieht bis zu `count` Karten. Ist das Deck leer, wird der Ablagestapel gemischt
- * und wird zum Deck. Sind beide leer, wird nicht weiter gezogen.
+ * R-12.6: Zieht bis zu `count` Karten von oben vom Deck. Enthält das Deck weniger Karten, als zu
+ * ziehen sind, werden vorher Deck und Ablagestapel zusammen gemischt und bilden das neue Deck
+ * (Ereignis `discard_reshuffled`, `size` = Größe des neuen Decks). Reicht auch das nicht, werden
+ * alle vorhandenen Karten gezogen (`draw_stopped`). Ist der Ablagestapel leer, wird nicht gemischt:
+ * dann werden ohnehin alle Deckkarten gezogen. Gilt auch für die Starthand (R-4.6).
  * Gibt die gezogenen Karteninstanzen zurück.
  */
 export function drawCards(state: GameState, player: PlayerIndex, count: number): CardInstanceId[] {
@@ -24,19 +27,14 @@ export function drawCards(state: GameState, player: PlayerIndex, count: number):
     throw new RangeError(`drawCards: Anzahl muss eine nicht-negative ganze Zahl sein, war ${count}`);
   }
   const p = getPlayer(state, player);
-  const drawn: CardInstanceId[] = [];
-  while (drawn.length < count) {
-    if (p.deck.length === 0) {
-      if (p.discard.length === 0) break;
-      p.deck = p.discard;
-      p.discard = [];
-      shuffleInPlace(state.rng, p.deck);
-      emit(state, { type: "discard_reshuffled", player, size: p.deck.length });
-    }
-    const card = p.deck.shift() as CardInstanceId;
-    p.hand.push(card);
-    drawn.push(card);
+  if (p.deck.length < count && p.discard.length > 0) {
+    p.deck = [...p.deck, ...p.discard];
+    p.discard = [];
+    shuffleInPlace(state.rng, p.deck);
+    emit(state, { type: "discard_reshuffled", player, size: p.deck.length });
   }
+  const drawn = p.deck.splice(0, count);
+  p.hand.push(...drawn);
   if (drawn.length > 0) {
     emit(state, { type: "cards_drawn", player, cardInstanceIds: [...drawn] }, [player]);
     emit(state, { type: "cards_drawn_count", player, count: drawn.length });
@@ -47,21 +45,29 @@ export function drawCards(state: GameState, player: PlayerIndex, count: number):
   return drawn;
 }
 
-/** R-6.3: Anzahl Karten, die ein Spieler zu Rundenbeginn zieht. */
-export function roundDrawCount(config: ConfigData, bonusCards: number): number {
+/** R-12.6: Anzahl Karten beim Nachziehen am Rundenende (Handgröße plus fällige Bonuskarten, R-10.4). */
+export function endOfRoundDrawCount(config: ConfigData, bonusCards: number): number {
   return config.handSize + bonusCards;
 }
 
+/** R-4.6: Starthand – nach dem Mischen zieht jeder Spieler `handSize` Karten, in Spielerreihenfolge. */
+export function drawStartingHands(state: GameState, config: ConfigData): void {
+  for (const p of state.players) {
+    if (p.eliminated) continue;
+    drawCards(state, p.index, config.handSize);
+  }
+}
+
 /**
- * R-6.3: Rundenbeginn-Ziehen für alle aktiven Spieler in Spielerreihenfolge.
+ * R-12.6: Nachziehen am Rundenende für alle aktiven Spieler in Spielerreihenfolge.
  * Fällige Bonuskarten (Mitte-Belohnung R-10.4) werden mitgezogen und verbraucht.
  */
-export function drawForRound(state: GameState, config: ConfigData): void {
+export function drawEndOfRound(state: GameState, config: ConfigData): void {
   for (const p of state.players) {
     if (p.eliminated) continue;
     const bonus = p.nextRound.cards;
     p.nextRound.cards = 0;
-    drawCards(state, p.index, roundDrawCount(config, bonus));
+    drawCards(state, p.index, endOfRoundDrawCount(config, bonus));
   }
 }
 

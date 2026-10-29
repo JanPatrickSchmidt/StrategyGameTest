@@ -18,7 +18,23 @@ const data = loadGameData();
 const config = data.config;
 const newGame = (seed = 7): GameState => createGame(data, defaultLeaders(data), seed);
 
-/** Legt neue Karteninstanzen oben auf das Deck eines Spielers (in dieser Reihenfolge). */
+/**
+ * Ersetzt die Hand eines Spielers (vor der ersten Runde, R-4.6) durch neue Karteninstanzen in dieser
+ * Reihenfolge; die bisherige Starthand kommt zurück oben aufs Deck.
+ */
+function setHand(state: GameState, player: PlayerIndex, cardIds: string[]): CardInstanceId[] {
+  const p = getPlayer(state, player);
+  const ids = cardIds.map((cardId) => {
+    const id = state.nextCardInstanceId++;
+    state.cards[id] = { id, cardId, owner: player };
+    return id;
+  });
+  p.deck = [...p.hand, ...p.deck];
+  p.hand = ids;
+  return ids;
+}
+
+/** Legt neue Karteninstanzen oben auf das Deck (für das Nachziehen am Rundenende, R-12.6). */
 function stackDeck(state: GameState, player: PlayerIndex, cardIds: string[]): CardInstanceId[] {
   const p = getPlayer(state, player);
   const ids = cardIds.map((cardId) => {
@@ -94,7 +110,7 @@ describe("R-6.1: Zinsen", () => {
 describe("R-6.2: Rundenvorrat", () => {
   it("R-6.2: der Rundenvorrat beginnt bei 0, nur Ressourcen füllen ihn", () => {
     const state = newGame();
-    stackDeck(state, 0, ["recruit", "recruit", "recruit", "recruit", "recruit"]);
+    setHand(state, 0, ["recruit", "recruit", "recruit", "recruit", "recruit"]);
     advance(state, data);
     expect(getPlayer(state, 0).roundGold).toBe(0);
   });
@@ -102,7 +118,8 @@ describe("R-6.2: Rundenvorrat", () => {
   it("R-6.2/R-11.5: übriges Gold liegt in der Schatzkammer, die nächste Runde beginnt wieder bei 0", () => {
     const state = newGame();
     // Runde 1: drei Münzen; Runde 2: nur Rekruten.
-    stackDeck(state, 1, ["coin", "coin", "coin", "recruit", "recruit", "recruit", "recruit", "recruit", "recruit", "recruit"]);
+    setHand(state, 1, ["coin", "coin", "coin", "recruit", "recruit"]);
+    stackDeck(state, 1, ["recruit", "recruit", "recruit", "recruit", "recruit"]);
     advance(state, data);
     const p = getPlayer(state, 1);
     expect(p.roundGold).toBe(3);
@@ -120,7 +137,7 @@ describe("R-6.2: Rundenvorrat", () => {
 describe("R-6.4: Ressourcen", () => {
   it("R-6.4: Ressourcen auf der Hand werden automatisch ausgespielt, Gold in den Rundenvorrat", () => {
     const state = newGame();
-    const [silver, coin, recruit, gold, coin2] = stackDeck(state, 0, ["silver", "coin", "recruit", "gold_bar", "coin"]);
+    const [silver, coin, recruit, gold, coin2] = setHand(state, 0, ["silver", "coin", "recruit", "gold_bar", "coin"]);
     advance(state, data);
     const p = getPlayer(state, 0);
     expect(p.hand).toEqual([recruit]);
@@ -136,7 +153,7 @@ describe("R-6.4: Ressourcen", () => {
 
   it("R-6.4: ohne Ressourcen auf der Hand gibt es kein Gold und kein Ereignis", () => {
     const state = newGame();
-    stackDeck(state, 2, ["recruit", "recruit", "recruit", "recruit", "recruit"]);
+    setHand(state, 2, ["recruit", "recruit", "recruit", "recruit", "recruit"]);
     advance(state, data);
     expect(getPlayer(state, 2).roundGold).toBe(0);
     expect(eventsOf(state, "resources_played").some((e) => e.player === 2)).toBe(false);
@@ -144,7 +161,7 @@ describe("R-6.4: Ressourcen", () => {
 
   it("R-6.4/R-12.1: ausgespielte Ressourcen gehen beim Aufräumen auf den Ablagestapel", () => {
     const state = newGame();
-    const ids = stackDeck(state, 0, ["coin", "coin", "recruit", "silver", "recruit"]);
+    const ids = setHand(state, 0, ["coin", "coin", "recruit", "silver", "recruit"]);
     playRound(state);
     const p = getPlayer(state, 0);
     expect([...p.discard].sort((a, b) => a - b)).toEqual([...ids].sort((a, b) => a - b));
@@ -156,7 +173,7 @@ describe("R-6.4: Ressourcen", () => {
 describe("R-7.6: Entnahme", () => {
   it("R-7.6: verschiebt Gold aus der Schatzkammer in den Rundenvorrat", () => {
     const state = newGame();
-    stackDeck(state, 0, ["recruit", "recruit", "recruit", "recruit", "recruit"]);
+    setHand(state, 0, ["recruit", "recruit", "recruit", "recruit", "recruit"]);
     getPlayer(state, 0).treasury = 5;
     playRound(state, { 0: { play: [{ type: "withdraw", amount: 3 }] } });
     const p = getPlayer(state, 0);
@@ -390,7 +407,7 @@ describe("R-11: Kaufen", () => {
 
   it("R-11.1/R-11.3/R-12.5: Kaufen im Planungsblock, Karte beim Aufdecken, Rest am Rundenende in die Schatzkammer", () => {
     const state = newGame();
-    stackDeck(state, 0, ["coin", "coin", "coin", "coin", "recruit"]);
+    setHand(state, 0, ["coin", "coin", "coin", "coin", "recruit"]);
     playRound(state, { 0: { buy: [{ type: "buy", cardId: "silver" }] } });
     const p = getPlayer(state, 0);
     expect(eventsOf(state, "purchase_paid")).toEqual([
@@ -409,7 +426,7 @@ describe("R-11: Kaufen", () => {
 
   it("R-11.1: Abschnitte laufen in der Reihenfolge play → buy → position, Gold wird sofort abgezogen", () => {
     const state = newGame();
-    stackDeck(state, 0, ["coin", "coin", "coin", "recruit", "recruit"]);
+    setHand(state, 0, ["coin", "coin", "coin", "recruit", "recruit"]);
     advance(state, data);
     const p = getPlayer(state, 0);
     p.treasury = 1;

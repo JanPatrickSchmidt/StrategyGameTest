@@ -72,7 +72,7 @@ export interface LeaderState {
 
 /** Boni, die in der nächsten Runde fällig werden (R-6.2, R-6.3, R-10.3/4/6). */
 export interface NextRoundBonus {
-  /** R-10.4: Bonuskarten beim Ziehen der nächsten Runde. */
+  /** R-10.4: Bonuskarten beim Nachziehen am Rundenende (R-12.6). */
   cards: number;
 }
 
@@ -138,7 +138,12 @@ export type GameEventPayload =
   | { type: "cards_created"; player: PlayerIndex; cardInstanceIds: CardInstanceId[] }
   | { type: "unit_placed"; player: PlayerIndex; unitId: UnitId; sourceId: string; kind: UnitKind; location: UnitLocation }
   | { type: "deck_shuffled"; player: PlayerIndex; size: number }
+  /** R-12.6: Deck und Ablagestapel zusammen gemischt; `size` = Größe des neuen Decks. */
   | { type: "discard_reshuffled"; player: PlayerIndex; size: number }
+  /** R-12.3: Anführer-XP am Rundenende. */
+  | { type: "leader_xp_gained"; player: PlayerIndex; amount: number; xp: number }
+  /** R-6.6: Anführer steigt eine Stufe auf (bei mehreren Stufen ein Ereignis je Stufe). */
+  | { type: "leader_leveled_up"; player: PlayerIndex; level: 2 | 3 | 4; xp: number }
   /** R-14.8: Karten dauerhaft aus dem Spiel entfernt (öffentlich, die Wahl wird beim Aufdecken ohnehin bekannt). */
   | { type: "cards_trashed"; player: PlayerIndex; cards: { cardInstanceId: CardInstanceId; cardId: string; from: "deck" | "discard" }[] }
   /** Privat: welche Karten gezogen wurden. */

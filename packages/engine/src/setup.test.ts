@@ -47,13 +47,12 @@ describe("R-4.2: Startdeck", () => {
       const leaderClass = data.leaders.get(p.leader.leaderId)?.class;
       const starter = [...data.cards.values()].find((c) => c.type === "unit" && c.starterFor === leaderClass);
       expect(starter).toBeDefined();
-      const counts = countBy(cardIdsOf(state, p.deck));
+      const counts = countBy(cardIdsOf(state, [...p.hand, ...p.deck]));
       expect(counts).toEqual({
         coin: config.startingDeck.coin,
         recruit: config.startingDeck.recruit,
         [starter?.id ?? "?"]: config.startingDeck.classStarter,
       });
-      expect(p.hand).toEqual([]);
       expect(p.discard).toEqual([]);
     }
   });
@@ -69,11 +68,11 @@ describe("R-4.2: Startdeck", () => {
 
   it("R-1.2: jede Karteninstanz hat eine eigene ID und gehört ihrem Spieler", () => {
     const state = createGame(data);
-    const all = state.players.flatMap((p) => p.deck);
+    const all = state.players.flatMap((p) => [...p.hand, ...p.deck]);
     expect(new Set(all).size).toBe(all.length);
     expect(Object.keys(state.cards)).toHaveLength(all.length);
     for (const p of state.players) {
-      for (const id of p.deck) expect(state.cards[id]?.owner).toBe(p.index);
+      for (const id of [...p.hand, ...p.deck]) expect(state.cards[id]?.owner).toBe(p.index);
     }
   });
 
@@ -85,15 +84,33 @@ describe("R-4.2: Startdeck", () => {
     for (let seed = 1; seed <= 10; seed++) {
       const state = createGame(data, defaultLeaders(data), seed);
       const p0 = getPlayer(state, 0);
-      const ordered = [...p0.deck].sort((a, b) => a - b);
-      const order = cardIdsOf(state, p0.deck).join(",");
+      const full = [...p0.hand, ...p0.deck];
+      const ordered = [...full].sort((a, b) => a - b);
+      const order = cardIdsOf(state, full).join(",");
       orders.add(order);
-      if (p0.deck.join() !== ordered.join()) anyShuffled = true;
+      if (full.join() !== ordered.join()) anyShuffled = true;
     }
     expect(anyShuffled).toBe(true);
     expect(orders.size).toBeGreaterThan(1);
     const shuffleEvents = createGame(data).log.filter((e) => e.type === "deck_shuffled");
     expect(shuffleEvents.map((e) => (e.type === "deck_shuffled" ? e.player : -1))).toEqual([0, 1, 2, 3]);
+  });
+});
+
+describe("R-4.6: Starthand", () => {
+  it("R-4.6: nach dem Mischen zieht jeder Spieler 5 Karten von oben vom Deck", () => {
+    const state = createGame(data, defaultLeaders(data), 7);
+    for (const p of state.players) {
+      expect(p.hand).toHaveLength(config.handSize);
+      expect(p.deck).toHaveLength(10 - config.handSize);
+      const drawn = state.log.find((e) => e.type === "cards_drawn" && e.player === p.index);
+      expect(drawn).toEqual(expect.objectContaining({ cardInstanceIds: p.hand, visibleTo: [p.index] }));
+    }
+    // Erst wird gemischt, dann gezogen; kein Nachmischen.
+    const types = state.log.map((e) => e.type);
+    expect(types.lastIndexOf("deck_shuffled")).toBeLessThan(types.indexOf("cards_drawn"));
+    expect(types).not.toContain("discard_reshuffled");
+    expect(state.phase).toBe("roundStart");
   });
 });
 
@@ -204,6 +221,6 @@ describe("R-1.8: Determinismus des Aufbaus", () => {
     const b = cloneState(a);
     expect(JSON.stringify(b)).toBe(JSON.stringify(a));
     getPlayer(b, 0).deck.pop();
-    expect(getPlayer(a, 0).deck).toHaveLength(10);
+    expect(getPlayer(a, 0).deck).toHaveLength(10 - config.handSize);
   });
 });
