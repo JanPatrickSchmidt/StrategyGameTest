@@ -176,7 +176,7 @@ Ein Kampf läuft höchstens **300 Ticks** [TUNING]. In jedem Tick werden die leb
 ## R-11 Kaufen
 
 - **R-11.1** Der Abschnitt `buy` ist eine Liste von Käufen. Er wird nach `play` ausgeführt; das Gold wird sofort abgezogen (zuerst Rundenvorrat, dann Schatzkammer), die Karten werden aber erst beim Aufdecken verteilt (R-11.3).
-- **R-11.2 Kaufen** `buy(cardId)`: aus dem Königreich, den Basisstapeln oder dem eigenen Klassen-Pool. Die gekaufte Karte kommt auf den Ablagestapel. Kein Kauflimit.
+- **R-11.2 Kaufen** `buy(cardId)`: aus dem Königreich, den Basisstapeln oder dem eigenen Klassen-Pool. Die gekaufte Karte kommt auf den Ablagestapel. Keine Obergrenze für die Zahl der Käufe pro Runde; pro Stapel gilt das Limit aus R-11.3.
 - **R-11.3 Gleichzeitige Käufe:** Alle Käufe werden beim Aufdecken gleichzeitig ausgewertet. Ein einzelner Spieler kann von einem Stapel höchstens so viele Kopien kaufen, wie der Stapel zu Beginn der Runde enthält. Wollen **mehrere** Spieler zusammen mehr Kopien, als der Stapel enthält, bekommen alle ihre (so begrenzten) Kopien; fehlende Kopien werden erzeugt und der Stapel geht auf 0.
 - **R-11.4 Leerer Stapel:** Aus einem Stapel mit 0 Kopien kann nicht gekauft werden.
 - **R-11.5 Schatzkammer:** Die Schatzkammer hat keine Obergrenze; begrenzt sind nur die Zinsen (R-6.1). **Gold verfällt nie** (R-12.5).

@@ -4,6 +4,7 @@ Getroffene Entscheidungen mit Datum und Begründung. Neueste oben.
 
 | Datum | Entscheidung | Begründung | Von |
 | --- | --- | --- | --- |
+| 2026-10-29 | F18: Keine Obergrenze für die Zahl der Käufe, Limit nur pro Stapel (R-11.3); Satz in R-11.2 angepasst. | Klarstellung, Umsetzung war schon so | Jan |
 | 2026-10-29 | Online-Vorbereitung als letzter Meilenstein M6 (nur lokal, nichts gehostet), falls die Agenten vorher fertig werden. | Bei Jans Rückkehr startklar, Betrieb entscheidet Jan | Jan |
 | 2026-10-28 | F17: Anführer-Fähigkeit wird beim Aufstellen gewählt; Münzen automatisch, aber sichtbar als gespielt angezeigt; Einheiten-Stufenaufstieg (Evolution) am Rundenende. Idee „Sicht abhängig von eigenen Einheiten“ für später notiert. | Ziel hängt von eigener und gegnerischer Stellung ab; Spieler soll verstehen, warum die Hand kleiner ist | Jan |
 | 2026-10-28 | F16 / Rundenablauf: 1. Anführer-Aufstieg, 2. Ausspielen, 3. Kaufen, 4. Aufstellen (alles gleichzeitig und verdeckt, ein Wartepunkt), dann Aufdecken, Vorkampf-Zauber, Kampf, Nachkampf-Zauber, Rundenende mit Nachziehen auf 5 (Mischen von Deck und Ablage, wenn das Deck weniger als die zu ziehenden Karten hat). Spec R-5 bis R-12 umgestellt. | Entzerrt die Oberfläche in klare Schritte; nur ein Wartepunkt pro Runde beschleunigt Partien zu viert | Jan |
