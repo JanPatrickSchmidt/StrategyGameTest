@@ -1,9 +1,11 @@
 /**
  * Brett eines Spielers in der Planung (E7a): Felder, Kapazität, Einheit ausspielen, bewegen, genesen
- * (R-3.1, R-3.3, R-3.5, R-3.6, R-7.1, R-7.2, R-7.5).
+ * (R-3.1, R-3.3, R-3.5, R-3.6, R-7.1, R-7.2, R-7.5), alternative Kosten (R-14.6, E7b) und
+ * Genesung durch Reserve (R-6.5, E7b).
  */
 import type { RejectionReason } from "./actions";
 import type { ConfigData, GameData } from "./data";
+import type { CardData } from "./dataTypes";
 import { payGold } from "./economy";
 import { inBounds } from "./hex";
 import { emit, type GameState, getCard, getPlayer, type PlayerIndex, type Unit, type UnitLocation } from "./state";
@@ -86,10 +88,55 @@ function copyLocation(loc: UnitLocation): UnitLocation {
   }
 }
 
+/** R-14.6: geprüfte Kosten einer Ausspielaktion, noch nicht bezahlt. */
+interface UnitCost {
+  gold: number;
+  life: number;
+  sacrifice: Unit[];
+  altCost: boolean;
+}
+
+/**
+ * R-14.6: prüft die gewählten Kosten. Ohne `useAltCost` zählen die normalen Goldkosten. Mit
+ * `useAltCost` gelten die alternativen Kosten der Karte: `gold` (Standard 0), `bloodToll(n)` und
+ * `sacrifice(n)` mit genau n gewählten eigenen Karten-Einheiten (nicht Anführer, nicht Tokens).
+ * Auslegung (F19, F20): Nach dem Blutzoll muss mindestens 1 Leben bleiben; Opfer dürfen auf dem Brett
+ * oder in der Reserve stehen, auch verwundet.
+ */
+function checkUnitCost(
+  state: GameState,
+  player: PlayerIndex,
+  card: CardData,
+  useAltCost: unknown,
+  sacrifice: unknown,
+): UnitCost | RejectionReason {
+  if (useAltCost !== undefined && typeof useAltCost !== "boolean") return "malformed";
+  if (sacrifice !== undefined && !Array.isArray(sacrifice)) return "malformed";
+  if (useAltCost !== true) {
+    if (sacrifice !== undefined && sacrifice.length > 0) return "malformed";
+    return { gold: card.cost, life: 0, sacrifice: [], altCost: false };
+  }
+  const alt = card.type === "unit" ? card.altCost : undefined;
+  if (!alt) return "noAltCost";
+  const life = alt.bloodToll ?? 0;
+  if (life > 0 && getPlayer(state, player).life <= life) return "notEnoughLife";
+  const wanted = alt.sacrifice ?? 0;
+  const chosen = sacrifice ?? [];
+  if (chosen.length !== wanted) return "wrongSacrificeCount";
+  const victims: Unit[] = [];
+  for (const id of chosen) {
+    const unit = typeof id === "number" ? state.units[id] : undefined;
+    if (!unit || unit.owner !== player || unit.kind !== "card" || victims.includes(unit)) return "invalidSacrifice";
+    victims.push(unit);
+  }
+  return { gold: alt.gold ?? 0, life, sacrifice: victims, altCost: true };
+}
+
 /**
  * R-7.1: Einheit ausspielen. Karte auf der Hand, Einheitenkarte, Zielfeld frei, Kapazität eingehalten,
- * Kosten bezahlt. Alle Prüfungen vor dem Bezahlen, damit eine Ablehnung nichts verändert.
- * Alternative Kosten (R-14.6) folgen in E7b, Kostenboni der Resonanz (R-17.3) in E10.
+ * Kosten bezahlt (normal oder alternativ, R-14.6). Alle Prüfungen vor dem Bezahlen, damit eine
+ * Ablehnung nichts verändert. Geopferte Einheiten machen ihr Feld und ihren Kapazitätsplatz schon für
+ * diese Aktion frei (R-1.9). Kostenboni der Resonanz (R-17.3) folgen in E10.
  */
 export function playUnit(
   state: GameState,
@@ -98,21 +145,42 @@ export function playUnit(
   cardInstanceId: unknown,
   to: unknown,
   useAltCost: unknown,
+  sacrifice?: unknown,
 ): RejectionReason | null {
   const p = getPlayer(state, player);
   if (typeof cardInstanceId !== "number" || !p.hand.includes(cardInstanceId)) return "cardNotInHand";
-  if (useAltCost !== undefined && typeof useAltCost !== "boolean") return "malformed";
-  if (useAltCost === true) return "notImplemented";
   const card = data.cards.get(getCard(state, cardInstanceId).cardId);
   if (!card || card.type !== "unit") return "notAUnitCard";
+  const cost = checkUnitCost(state, player, card, useAltCost, sacrifice);
+  if (typeof cost === "string") return cost;
   if (!isValidLocation(data.config, to)) return "invalidLocation";
-  if (unitAt(state, player, to)) return "cellOccupied";
-  if (countsAgainstCapacity({ kind: "card" }, to) && boardCount(state, player) >= capacityFor(data.config, p.leader.level)) {
+  const occupant = unitAt(state, player, to);
+  if (occupant && !cost.sacrifice.includes(occupant)) return "cellOccupied";
+  const freed = cost.sacrifice.filter((u) => countsAgainstCapacity(u, u.location)).length;
+  if (
+    countsAgainstCapacity({ kind: "card" }, to) &&
+    boardCount(state, player) - freed >= capacityFor(data.config, p.leader.level)
+  ) {
     return "capacityExceeded";
   }
-  const payment = payGold(p, card.cost);
+  const payment = payGold(p, cost.gold);
   if (!payment) return "notEnoughGold";
 
+  if (cost.life > 0) {
+    p.life -= cost.life;
+    emit(state, { type: "life_paid", player, amount: cost.life, life: p.life, cardInstanceId });
+  }
+  for (const victim of cost.sacrifice) {
+    delete state.units[victim.id];
+    p.discard.push(...victim.cardInstanceIds);
+    emit(state, {
+      type: "unit_sacrificed",
+      player,
+      unitId: victim.id,
+      cardInstanceIds: [...victim.cardInstanceIds],
+      from: copyLocation(victim.location),
+    });
+  }
   p.hand = p.hand.filter((id) => id !== cardInstanceId);
   const unit: Unit = {
     id: state.nextUnitId++,
@@ -123,6 +191,7 @@ export function playUnit(
     stars: 1,
     xp: 0,
     wounded: false,
+    restedInReserve: false,
     location: copyLocation(to),
   };
   state.units[unit.id] = unit;
@@ -135,6 +204,7 @@ export function playUnit(
     location: copyLocation(to),
     paidFromRoundGold: payment.fromRoundGold,
     paidFromTreasury: payment.fromTreasury,
+    altCost: cost.altCost,
   });
   return null;
 }
@@ -153,6 +223,7 @@ export function moveUnit(state: GameState, data: GameData, player: PlayerIndex, 
 
   const from = copyLocation(unit.location);
   unit.location = copyLocation(to);
+  unit.restedInReserve = false;
   emit(state, { type: "unit_moved", player, unitId: unit.id, from, to: copyLocation(to) });
   return null;
 }
@@ -174,4 +245,23 @@ export function healUnit(state: GameState, data: GameData, player: PlayerIndex, 
     paidFromTreasury: payment.fromTreasury,
   });
   return null;
+}
+
+/** R-6.5: beim Aufdecken merken, welche Einheiten in der Reserve stehen (nach allen Planungen). */
+export function markReserveRest(state: GameState): void {
+  for (const unit of Object.values(state.units)) unit.restedInReserve = unit.location.zone === "reserve";
+}
+
+/**
+ * R-6.5: Rundenbeginn. Verwundete Einheiten, die seit dem Aufdecken der Vorrunde ununterbrochen in
+ * der Reserve stehen, sind nicht mehr verwundet. Danach wird die Markierung für die neue Runde gelöscht.
+ */
+export function recoverInReserve(state: GameState): void {
+  for (const unit of Object.values(state.units)) {
+    if (unit.wounded && unit.restedInReserve && unit.location.zone === "reserve") {
+      unit.wounded = false;
+      emit(state, { type: "unit_recovered", player: unit.owner, unitId: unit.id });
+    }
+    unit.restedInReserve = false;
+  }
 }

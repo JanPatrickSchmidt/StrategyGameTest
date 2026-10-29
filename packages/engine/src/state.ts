@@ -60,6 +60,11 @@ export interface Unit {
   xp: number;
   wounded: boolean;
   location: UnitLocation;
+  /**
+   * R-6.5: stand die Einheit beim Aufdecken der laufenden Runde in der Reserve? Wird beim Aufdecken
+   * gesetzt, bei jedem späteren Ortswechsel gelöscht und zu Rundenbeginn ausgewertet und zurückgesetzt.
+   */
+  restedInReserve: boolean;
 }
 
 export interface LeaderState {
@@ -188,7 +193,15 @@ export type GameEventPayload =
       location: UnitLocation;
       paidFromRoundGold: number;
       paidFromTreasury: number;
+      /** R-14.6: mit alternativen Kosten bezahlt (Leben und Opfer stehen in eigenen Ereignissen davor). */
+      altCost: boolean;
     }
+  /** R-14.6 `bloodToll`: Leben als Kosten bezahlt. */
+  | { type: "life_paid"; player: PlayerIndex; amount: number; life: number; cardInstanceId: CardInstanceId }
+  /** R-14.6 `sacrifice`: eigene Karten-Einheit geopfert, ihre Karteninstanzen gehen auf den Ablagestapel. */
+  | { type: "unit_sacrificed"; player: PlayerIndex; unitId: UnitId; cardInstanceIds: CardInstanceId[]; from: UnitLocation }
+  /** R-6.5: verwundete Einheit ist nach einer ganzen Runde in der Reserve genesen. */
+  | { type: "unit_recovered"; player: PlayerIndex; unitId: UnitId }
   /** R-7.2 */
   | { type: "unit_moved"; player: PlayerIndex; unitId: UnitId; from: UnitLocation; to: UnitLocation }
   /** R-7.5 */

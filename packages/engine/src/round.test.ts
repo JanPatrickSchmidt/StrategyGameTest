@@ -154,6 +154,7 @@ describe("R-6.3/R-12: Karten im Rundenlauf", () => {
       stars: 1,
       xp: 0,
       wounded: false,
+      restedInReserve: false,
       location: { zone: "right", cell: { col: 0, row: 0 } },
     };
     submitAllEmpty(state);

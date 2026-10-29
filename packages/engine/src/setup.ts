@@ -121,6 +121,7 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
       stars: 1,
       xp: 0,
       wounded: false,
+      restedInReserve: false,
       location: copyLocation(LEADER_START_LOCATION),
     };
     state.units[leaderUnit.id] = leaderUnit;

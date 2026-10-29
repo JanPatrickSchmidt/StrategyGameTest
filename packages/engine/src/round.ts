@@ -20,7 +20,7 @@ import {
   SECTION_ACTIONS,
 } from "./actions";
 import type { GameData } from "./data";
-import { healUnit, moveUnit, playUnit } from "./board";
+import { healUnit, markReserveRest, moveUnit, playUnit, recoverInReserve } from "./board";
 import { drawEndOfRound } from "./deck";
 import { grantRoundXp, levelUpLeaders } from "./leader";
 import {
@@ -213,13 +213,15 @@ function isGameOver(state: GameState): boolean {
 }
 
 /**
- * R-6: Rundenbeginn in der Reihenfolge R-6.1 Zinsen, R-6.6 Anführer-Aufstieg, R-6.4 Ressourcen.
+ * R-6: Rundenbeginn in der Reihenfolge R-6.1 Zinsen, R-6.5 Genesung durch Reserve, R-6.6 Anführer-Aufstieg,
+ * R-6.4 Ressourcen.
  * R-6.2: Der Rundenvorrat beginnt bei 0; das stellt die Einzahlung am Rundenende sicher (R-12.5).
  * R-6.3: Zu Rundenbeginn wird nicht gezogen; die Hand stammt aus R-4.6 bzw. R-12.6.
  */
 function runRoundStart(state: GameState, data: GameData): void {
   payInterest(state, data.config);
-  // R-17a.1 („pro Runde“-Effekte) folgt in E10, R-6.5 (Genesung durch Reserve) in E7b.
+  // R-17a.1 („pro Runde“-Effekte) folgt in E10.
+  recoverInReserve(state);
   levelUpLeaders(state, data.config);
   playResources(state, data);
 }
@@ -249,6 +251,7 @@ function runReveal(state: GameState, data: GameData): void {
     }
   }
   finishPurchases(purchases, state);
+  markReserveRest(state);
   state.pendingPlanning = PLAYER_INDICES.map(() => null);
 }
 
@@ -270,7 +273,7 @@ function executePlanningAction(
     case "withdraw":
       return withdraw(state, player, action.amount);
     case "playUnit":
-      return playUnit(state, data, player, action.cardInstanceId, action.to, action.useAltCost);
+      return playUnit(state, data, player, action.cardInstanceId, action.to, action.useAltCost, action.sacrifice);
     case "moveUnit":
       return moveUnit(state, data, player, action.unitId, action.to);
     case "heal":

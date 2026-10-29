@@ -2,7 +2,7 @@
  * Eingaben der Spieler: eine Planung pro Runde mit den Abschnitten `play`, `buy` und `position`
  * (R-5, R-7, R-7b, R-11).
  * Käufe und Entnahme: `economy.ts` (E6). Ausspielen, Bewegen, Genesen: `board.ts` (E7a).
- * Zauber, Anführer-Fähigkeit, Astwahl und alternative Kosten folgen in E7b/E7c.
+ * Alternative Kosten (R-14.6): `board.ts` (E7b). Zauber, Anführer-Fähigkeit und Astwahl folgen in E7c.
  */
 import type { OffsetCoord } from "./hex";
 import type { CardInstanceId, FrontZoneName, PlayerIndex, UnitId, UnitLocation } from "./state";
@@ -21,7 +21,11 @@ export type ActionTarget =
 
 export type PlanningAction =
   /** R-7.1 */
-  | { type: "playUnit"; cardInstanceId: CardInstanceId; to: UnitLocation; useAltCost?: boolean }
+  /**
+   * R-7.1, R-14.6: `useAltCost` bezahlt mit den alternativen Kosten der Karte; `sacrifice` nennt die
+   * Einheiten, die für `sacrifice(n)` geopfert werden (genau n, nur zusammen mit `useAltCost`).
+   */
+  | { type: "playUnit"; cardInstanceId: CardInstanceId; to: UnitLocation; useAltCost?: boolean; sacrifice?: UnitId[] }
   /** R-7.2 */
   | { type: "moveUnit"; unitId: UnitId; to: UnitLocation }
   /** R-7.3 */
@@ -122,7 +126,15 @@ export const REJECTION_REASONS = [
   "invalidCardChoice",
   /** R-14.8: mehr Karten gewählt als `max`. */
   "tooManyCards",
-  /** Vorübergehend: Ausführung folgt in E7b/E7c. */
+  /** R-14.6: Karte hat keine alternativen Kosten. */
+  "noAltCost",
+  /** R-14.6 `bloodToll`: zu wenig Leben (der Spieler muss danach noch mindestens 1 Leben haben). */
+  "notEnoughLife",
+  /** R-14.6 `sacrifice`: Zahl der gewählten Opfer stimmt nicht mit n überein. */
+  "wrongSacrificeCount",
+  /** R-14.6 `sacrifice`: Opfer doppelt, fremd, unbekannt, Anführer oder Token. */
+  "invalidSacrifice",
+  /** Vorübergehend: Ausführung folgt in E7c. */
   "notImplemented",
 ] as const;
 export type RejectionReason = (typeof REJECTION_REASONS)[number];

@@ -19,6 +19,7 @@ Pflichtfelder: `id`, `name`, `type` (`resource` | `unit` | `spell` | `curse`), `
 - `buyable`: Standard `true`.
 - Ressourcen: `gold`.
 - Einheiten: `race` (oder `null`), `class`, `stats` (`attack`, `hp`, `breakthrough`, `range`, optional `armor`, `attackInterval`, `moveInterval`, `manaMax`), optional `keywords`, `abilities`, `altCost`, `starterFor`.
+- `altCost` (R-14.6): Ersatz für `cost`, gewählt mit `useAltCost` beim Ausspielen. Felder (alle optional, Teile werden zusammen bezahlt): `gold` (Gold statt `cost`, Standard 0), `bloodToll` (Leben; danach muss mindestens 1 Leben bleiben), `sacrifice` (Zahl eigener Karten-Einheiten, die der Spieler in der Aktion unter `sacrifice` angibt; Brett oder Reserve, nicht Anführer, nicht Tokens; ihre Karten gehen auf den Ablagestapel).
 - Zauber: `slot` (`pre` | `post`), `tempo`, `target`, `effects`, optional `condition`.
 
 ## Fähigkeiten

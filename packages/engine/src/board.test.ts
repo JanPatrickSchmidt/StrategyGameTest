@@ -45,6 +45,7 @@ function placeUnit(state: GameState, player: PlayerIndex, location: UnitLocation
     stars: 1,
     xp: 0,
     wounded: false,
+    restedInReserve: false,
     location,
     ...extra,
   };
@@ -84,7 +85,7 @@ describe("R-7.1: Einheit ausspielen", () => {
     ]);
   });
 
-  it("R-7.1: Karte nicht auf der Hand, keine Einheitenkarte, alternative Kosten noch nicht umgesetzt", () => {
+  it("R-7.1: Karte nicht auf der Hand, keine Einheitenkarte, kaputte Kostenwahl", () => {
     const state = inPlanning();
     getPlayer(state, 0).roundGold = 10;
     const [spell] = addToHand(state, 0, ["purify"]);
@@ -94,9 +95,8 @@ describe("R-7.1: Einheit ausspielen", () => {
     expect(playUnit(state, data, 0, 9999, front("left", 0, 0), undefined)).toBe("cardNotInHand");
     expect(playUnit(state, data, 0, "1", front("left", 0, 0), undefined)).toBe("cardNotInHand");
     expect(playUnit(state, data, 0, spell, front("left", 0, 0), undefined)).toBe("notAUnitCard");
-    // Alternative Kosten (R-14.6) folgen in E7b.
-    expect(playUnit(state, data, 0, spark, front("left", 0, 0), true)).toBe("notImplemented");
     expect(playUnit(state, data, 0, spark, front("left", 0, 0), "yes")).toBe("malformed");
+    expect(playUnit(state, data, 0, spark, front("left", 0, 0), true, "x")).toBe("malformed");
     expect(getPlayer(state, 0).roundGold).toBe(10);
     expect(eventsOf(state, "unit_played")).toEqual([]);
   });
@@ -304,5 +304,220 @@ describe("R-7.5: Genesen", () => {
     expect(healUnit(state, data, 0, expensive)).toBe("notEnoughGold");
     expect(state.units[expensive]?.wounded).toBe(true);
     expect(p.roundGold).toBe(2);
+  });
+});
+
+describe("R-14.6: Alternative Kosten", () => {
+  it("R-14.6: bloodToll(n) bezahlt n Leben statt Gold", () => {
+    const state = inPlanning();
+    const p = getPlayer(state, 0);
+    p.roundGold = 0;
+    p.treasury = 0;
+    const [spark] = addToHand(state, 0, ["spark_rider"]);
+    expect(playUnit(state, data, 0, spark, front("right", 0, 2), true)).toBeNull();
+    expect(p.life).toBe(config.startingLife - 2);
+    expect(p.hand).not.toContain(spark);
+    expect(eventsOf(state, "life_paid")).toEqual([expect.objectContaining({ player: 0, amount: 2, life: config.startingLife - 2, cardInstanceId: spark })]);
+    expect(eventsOf(state, "unit_played")).toEqual([
+      expect.objectContaining({ cardInstanceId: spark, paidFromRoundGold: 0, paidFromTreasury: 0, altCost: true }),
+    ]);
+  });
+
+  it("R-14.6: ohne useAltCost gelten die normalen Goldkosten, auch bei Karten mit altCost", () => {
+    const state = inPlanning();
+    const p = getPlayer(state, 0);
+    p.roundGold = 2;
+    const [spark] = addToHand(state, 0, ["spark_rider"]);
+    expect(playUnit(state, data, 0, spark, front("right", 0, 2), false)).toBeNull();
+    expect([p.roundGold, p.life]).toEqual([0, config.startingLife]);
+    expect(eventsOf(state, "unit_played")[0]).toEqual(expect.objectContaining({ paidFromRoundGold: 2, altCost: false }));
+    expect(eventsOf(state, "life_paid")).toEqual([]);
+  });
+
+  it("R-14.6: bloodToll nur, wenn danach mindestens 1 Leben bleibt (F19)", () => {
+    const state = inPlanning();
+    const p = getPlayer(state, 0);
+    p.life = 2;
+    const [spark] = addToHand(state, 0, ["spark_rider"]);
+    expect(playUnit(state, data, 0, spark, front("right", 0, 2), true)).toBe("notEnoughLife");
+    expect([p.life, p.hand.includes(spark as number)]).toEqual([2, true]);
+    p.life = 3;
+    expect(playUnit(state, data, 0, spark, front("right", 0, 2), true)).toBeNull();
+    expect(p.life).toBe(1);
+  });
+
+  it("R-14.6: Karte ohne altCost wird mit useAltCost abgelehnt", () => {
+    const state = inPlanning();
+    getPlayer(state, 0).roundGold = 5;
+    const [recruit] = addToHand(state, 0, ["recruit"]);
+    expect(playUnit(state, data, 0, recruit, front("right", 0, 2), true)).toBe("noAltCost");
+    expect(getPlayer(state, 0).roundGold).toBe(5);
+  });
+
+  it("R-14.6: Kombination gold + sacrifice(1): Gold bezahlt, Opfer-Einheit auf den Ablagestapel", () => {
+    const state = inPlanning();
+    const p = getPlayer(state, 0);
+    p.roundGold = 1;
+    p.treasury = 1;
+    const [victimCard, hunter] = addToHand(state, 0, ["mercenary", "bounty_hunter"]);
+    p.roundGold += 2;
+    expect(playUnit(state, data, 0, victimCard, center(0), undefined)).toBeNull();
+    const victim = Object.values(state.units).find((u) => u.cardInstanceIds.includes(victimCard as number))?.id as UnitId;
+    expect(playUnit(state, data, 0, hunter, front("left", 0, 0), true, [victim])).toBeNull();
+    expect([p.roundGold, p.treasury]).toEqual([0, 0]);
+    expect(state.units[victim]).toBeUndefined();
+    expect(p.discard).toContain(victimCard);
+    expect(eventsOf(state, "unit_sacrificed")).toEqual([
+      expect.objectContaining({ player: 0, unitId: victim, cardInstanceIds: [victimCard], from: center(0) }),
+    ]);
+    expect(eventsOf(state, "unit_played").at(-1)).toEqual(
+      expect.objectContaining({ cardInstanceId: hunter, paidFromRoundGold: 1, paidFromTreasury: 1, altCost: true }),
+    );
+    // Opfer vor dem Ausspielen im Protokoll.
+    const types = state.log.map((e) => e.type);
+    expect(types.lastIndexOf("unit_sacrificed")).toBeLessThan(types.lastIndexOf("unit_played"));
+  });
+
+  it("R-14.6: Gold-Anteil der alternativen Kosten muss bezahlbar sein, sonst wird nichts geopfert", () => {
+    const state = inPlanning();
+    const p = getPlayer(state, 0);
+    p.roundGold = 1;
+    p.treasury = 0;
+    const victim = placeUnit(state, 0, center(0), { cardInstanceIds: addToHand(state, 0, ["recruit"]) });
+    p.hand = [];
+    const [hunter] = addToHand(state, 0, ["bounty_hunter"]);
+    expect(playUnit(state, data, 0, hunter, front("left", 0, 0), true, [victim])).toBe("notEnoughGold");
+    expect(state.units[victim]).toBeDefined();
+    expect(eventsOf(state, "unit_sacrificed")).toEqual([]);
+  });
+
+  it("R-14.6: sacrifice nur eigene Karten-Einheiten, nicht Anführer, nicht Tokens, genau n, keine doppelten", () => {
+    const state = inPlanning();
+    getPlayer(state, 0).roundGold = 10;
+    const own = placeUnit(state, 0, center(0));
+    const other = placeUnit(state, 0, center(1));
+    const foreign = placeUnit(state, 1, center(0));
+    const token = placeUnit(state, 0, front("left", 1, 0), { kind: "token", sourceId: "goblin_token" });
+    const leader = leaderId(state, 0);
+    const [hunter] = addToHand(state, 0, ["bounty_hunter"]);
+    const play = (ids: unknown): unknown => playUnit(state, data, 0, hunter, front("left", 0, 0), true, ids);
+    expect(play(undefined)).toBe("wrongSacrificeCount");
+    expect(play([])).toBe("wrongSacrificeCount");
+    expect(play([own, other])).toBe("wrongSacrificeCount");
+    expect(play([own, own])).toBe("wrongSacrificeCount");
+    expect(play([leader])).toBe("invalidSacrifice");
+    expect(play([token])).toBe("invalidSacrifice");
+    expect(play([foreign])).toBe("invalidSacrifice");
+    expect(play([999])).toBe("invalidSacrifice");
+    expect(play(["1"])).toBe("invalidSacrifice");
+    expect(Object.keys(state.units)).toHaveLength(4 + 4);
+    expect(getPlayer(state, 0).roundGold).toBe(10);
+    // Opfer ohne alternative Kosten sind eine kaputte Eingabe.
+    expect(playUnit(state, data, 0, hunter, front("left", 0, 0), false, [own])).toBe("malformed");
+    expect(playUnit(state, data, 0, hunter, front("left", 0, 0), undefined, [own])).toBe("malformed");
+  });
+
+  it("R-14.6: doppelte Opfer-ID bei sacrifice(2) wird erkannt", () => {
+    const state = inPlanning();
+    const own = placeUnit(state, 0, center(0));
+    const [card] = addToHand(state, 0, ["recruit"]);
+    const twoVictims = { ...data, cards: new Map(data.cards) };
+    const recruit = data.cards.get("recruit");
+    if (!recruit || recruit.type !== "unit") throw new Error("recruit fehlt");
+    twoVictims.cards.set("recruit", { ...recruit, altCost: { sacrifice: 2 } });
+    expect(playUnit(state, twoVictims, 0, card, front("left", 0, 0), true, [own, own])).toBe("invalidSacrifice");
+  });
+
+  it("R-14.6/R-3.6/R-1.9: das Opfer macht Feld und Kapazitätsplatz schon für diese Aktion frei", () => {
+    const state = inPlanning();
+    getPlayer(state, 0).roundGold = 10;
+    const ids: UnitId[] = [];
+    for (let i = 0; i < config.boardCapacity; i++) ids.push(placeUnit(state, 0, center(i)));
+    const [hunter] = addToHand(state, 0, ["bounty_hunter"]);
+    expect(playUnit(state, data, 0, hunter, front("left", 0, 0), true, [ids[4]])).toBeNull();
+    expect(boardCount(state, 0)).toBe(config.boardCapacity);
+    const [hunter2] = addToHand(state, 0, ["bounty_hunter"]);
+    expect(playUnit(state, data, 0, hunter2, center(0), true, [ids[0]])).toBeNull();
+    expect(Object.values(state.units).find((u) => u.cardInstanceIds.includes(hunter2 as number))?.location).toEqual(center(0));
+  });
+
+  it("R-14.6: Opfer aus der Reserve und verwundete Einheiten sind erlaubt (F20)", () => {
+    const state = inPlanning();
+    getPlayer(state, 0).roundGold = 10;
+    const benched = placeUnit(state, 0, reserve(0), { wounded: true });
+    const [hunter] = addToHand(state, 0, ["bounty_hunter"]);
+    expect(playUnit(state, data, 0, hunter, front("left", 0, 0), true, [benched])).toBeNull();
+    expect(state.units[benched]).toBeUndefined();
+  });
+
+  it("R-14.6/R-7.1: in der Rundenmaschine mit useAltCost und sacrifice", () => {
+    const state = inPlanning();
+    const p = getPlayer(state, 0);
+    p.roundGold = 0;
+    p.treasury = 2;
+    const victim = placeUnit(state, 0, center(0));
+    const [spark, hunter] = addToHand(state, 0, ["spark_rider", "bounty_hunter"]);
+    const actions: PlanningAction[] = [
+      { type: "playUnit", cardInstanceId: spark as number, to: front("right", 0, 2), useAltCost: true },
+      { type: "playUnit", cardInstanceId: hunter as number, to: front("right", 1, 2), useAltCost: true, sacrifice: [victim] },
+    ];
+    for (const pl of PLAYER_INDICES) submitPlanning(state, pl, pl === 0 ? { play: actions } : {});
+    advance(state, data);
+    expect(eventsOf(state, "action_rejected").filter((e) => e.player === 0)).toEqual([]);
+    expect(eventsOf(state, "unit_played").filter((e) => e.player === 0).map((e) => e.altCost)).toEqual([true, true]);
+    expect(p.life).toBe(config.startingLife - 2);
+    expect(state.units[victim]).toBeUndefined();
+  });
+});
+
+describe("R-6.5: Genesung durch Reserve", () => {
+  /** Spielt eine Runde, in der Spieler 0 die angegebenen Aufstell-Aktionen plant. */
+  function playRound(state: GameState, position: PlanningAction[] = []): void {
+    for (const pl of PLAYER_INDICES) submitPlanning(state, pl, pl === 0 ? { position } : {});
+    advance(state, data);
+  }
+
+  it("R-6.5: verwundete Einheit, die die ganze Vorrunde in der Reserve stand, ist zu Rundenbeginn genesen", () => {
+    const state = inPlanning();
+    const unit = placeUnit(state, 0, reserve(0), { wounded: true });
+    playRound(state);
+    expect(state.round).toBe(2);
+    expect(state.units[unit]?.wounded).toBe(false);
+    expect(eventsOf(state, "unit_recovered")).toEqual([expect.objectContaining({ player: 0, unitId: unit, round: 2, phase: "roundStart" })]);
+  });
+
+  it("R-6.5: in der Planung in die Reserve gestellt zählt als ganze Runde (Stand nach dem Aufdecken, F21)", () => {
+    const state = inPlanning();
+    const unit = placeUnit(state, 0, center(0), { wounded: true });
+    playRound(state, [{ type: "moveUnit", unitId: unit, to: reserve(1) }]);
+    expect(state.units[unit]?.wounded).toBe(false);
+  });
+
+  it("R-6.5: nicht in der Reserve oder wieder herausbewegt → bleibt verwundet", () => {
+    const state = inPlanning();
+    const onBoard = placeUnit(state, 0, center(0), { wounded: true });
+    const benched = placeUnit(state, 0, reserve(0), { wounded: true });
+    playRound(state, [{ type: "moveUnit", unitId: benched, to: center(1) }]);
+    expect(state.units[onBoard]?.wounded).toBe(true);
+    expect(state.units[benched]?.wounded).toBe(true);
+    expect(eventsOf(state, "unit_recovered")).toEqual([]);
+  });
+
+  it("R-6.5: Markierung wird bei einem Ortswechsel nach dem Aufdecken gelöscht", () => {
+    const state = inPlanning();
+    const unit = placeUnit(state, 0, reserve(0), { wounded: true, restedInReserve: true });
+    expect(moveUnit(state, data, 0, unit, reserve(2))).toBeNull();
+    expect(state.units[unit]?.restedInReserve).toBe(false);
+  });
+
+  it("R-6.5: gesunde Einheiten erzeugen kein Ereignis; Genesung vor dem Anführer-Aufstieg", () => {
+    const state = inPlanning();
+    placeUnit(state, 0, reserve(0));
+    const wounded = placeUnit(state, 1, reserve(0), { wounded: true });
+    getPlayer(state, 1).leader.xp = 2;
+    playRound(state);
+    expect(eventsOf(state, "unit_recovered").map((e) => e.unitId)).toEqual([wounded]);
+    const types = state.log.map((e) => e.type);
+    expect(types.indexOf("unit_recovered")).toBeLessThan(types.indexOf("leader_leveled_up"));
   });
 });
