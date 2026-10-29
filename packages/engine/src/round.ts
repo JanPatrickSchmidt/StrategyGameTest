@@ -175,6 +175,8 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         enterPhase(state, "combat");
         break;
       case "combat":
+        // R-6.5: wer jetzt in der Reserve steht, verbringt den Kampf dort.
+        markReserveRest(state);
         // R-9 folgt in E8/E9.
         enterPhase(state, "combatResolution");
         break;
@@ -251,7 +253,6 @@ function runReveal(state: GameState, data: GameData): void {
     }
   }
   finishPurchases(purchases, state);
-  markReserveRest(state);
   state.pendingPlanning = PLAYER_INDICES.map(() => null);
 }
 

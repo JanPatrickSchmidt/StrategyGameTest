@@ -4,6 +4,7 @@ Getroffene Entscheidungen mit Datum und Begründung. Neueste oben.
 
 | Datum | Entscheidung | Begründung | Von |
 | --- | --- | --- | --- |
+| 2026-10-29 | F19: Blutzoll nur, wenn danach mindestens 1 Leben bleibt. F20: Opfer dürfen auch aus der Reserve kommen und verwundet sein. F21: Genesung durch Reserve, wenn die Einheit einen ganzen Kampf in der Reserve verbracht hat (Stichzeitpunkt Kampfbeginn statt Aufdecken). Spec R-6.5 und R-14.6 angepasst. | F19/F20 entsprachen der Standardlösung; F21 verschiebt den Stichzeitpunkt auf den Kampf | Jan |
 | 2026-10-29 | F18: Keine Obergrenze für die Zahl der Käufe, Limit nur pro Stapel (R-11.3); Satz in R-11.2 angepasst. | Klarstellung, Umsetzung war schon so | Jan |
 | 2026-10-29 | Online-Vorbereitung als letzter Meilenstein M6 (nur lokal, nichts gehostet), falls die Agenten vorher fertig werden. | Bei Jans Rückkehr startklar, Betrieb entscheidet Jan | Jan |
 | 2026-10-28 | F17: Anführer-Fähigkeit wird beim Aufstellen gewählt; Münzen automatisch, aber sichtbar als gespielt angezeigt; Einheiten-Stufenaufstieg (Evolution) am Rundenende. Idee „Sicht abhängig von eigenen Einheiten“ für später notiert. | Ziel hängt von eigener und gegnerischer Stellung ab; Spieler soll verstehen, warum die Hand kleiner ist | Jan |

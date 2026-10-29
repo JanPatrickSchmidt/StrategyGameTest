@@ -100,8 +100,8 @@ interface UnitCost {
  * R-14.6: prüft die gewählten Kosten. Ohne `useAltCost` zählen die normalen Goldkosten. Mit
  * `useAltCost` gelten die alternativen Kosten der Karte: `gold` (Standard 0), `bloodToll(n)` und
  * `sacrifice(n)` mit genau n gewählten eigenen Karten-Einheiten (nicht Anführer, nicht Tokens).
- * Auslegung (F19, F20): Nach dem Blutzoll muss mindestens 1 Leben bleiben; Opfer dürfen auf dem Brett
- * oder in der Reserve stehen, auch verwundet.
+ * Von Jan entschieden (F19, F20): Nach dem Blutzoll muss mindestens 1 Leben bleiben; Opfer dürfen auf
+ * dem Brett oder in der Reserve stehen, auch verwundet.
  */
 function checkUnitCost(
   state: GameState,
@@ -247,14 +247,14 @@ export function healUnit(state: GameState, data: GameData, player: PlayerIndex, 
   return null;
 }
 
-/** R-6.5: beim Aufdecken merken, welche Einheiten in der Reserve stehen (nach allen Planungen). */
+/** R-6.5 (F21): zu Beginn der Kampfphase merken, welche Einheiten in der Reserve stehen. */
 export function markReserveRest(state: GameState): void {
   for (const unit of Object.values(state.units)) unit.restedInReserve = unit.location.zone === "reserve";
 }
 
 /**
- * R-6.5: Rundenbeginn. Verwundete Einheiten, die seit dem Aufdecken der Vorrunde ununterbrochen in
- * der Reserve stehen, sind nicht mehr verwundet. Danach wird die Markierung für die neue Runde gelöscht.
+ * R-6.5: Rundenbeginn. Verwundete Einheiten, die seit dem Kampfbeginn der Vorrunde ununterbrochen in
+ * der Reserve stehen (also einen ganzen Kampf dort verbracht haben, F21), sind nicht mehr verwundet. Danach wird die Markierung für die neue Runde gelöscht.
  */
 export function recoverInReserve(state: GameState): void {
   for (const unit of Object.values(state.units)) {

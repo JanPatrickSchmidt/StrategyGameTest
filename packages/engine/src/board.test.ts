@@ -486,7 +486,7 @@ describe("R-6.5: Genesung durch Reserve", () => {
     expect(eventsOf(state, "unit_recovered")).toEqual([expect.objectContaining({ player: 0, unitId: unit, round: 2, phase: "roundStart" })]);
   });
 
-  it("R-6.5: in der Planung in die Reserve gestellt zählt als ganze Runde (Stand nach dem Aufdecken, F21)", () => {
+  it("R-6.5: in der Planung in die Reserve gestellt und den Kampf dort verbracht → genesen (F21)", () => {
     const state = inPlanning();
     const unit = placeUnit(state, 0, center(0), { wounded: true });
     playRound(state, [{ type: "moveUnit", unitId: unit, to: reserve(1) }]);
@@ -503,7 +503,27 @@ describe("R-6.5: Genesung durch Reserve", () => {
     expect(eventsOf(state, "unit_recovered")).toEqual([]);
   });
 
-  it("R-6.5: Markierung wird bei einem Ortswechsel nach dem Aufdecken gelöscht", () => {
+  it("R-6.5: maßgeblich ist der Kampf: vor dem Kampf in die Reserve → genesen, erst nach dem Kampf → nicht (F21)", () => {
+    const before = inPlanning();
+    for (const pl of PLAYER_INDICES) submitPlanning(before, pl, {});
+    before.phase = "preCombatSpells";
+    const early = placeUnit(before, 0, reserve(0), { wounded: true });
+    advance(before, data);
+    expect(before.units[early]?.wounded).toBe(false);
+
+    const after = inPlanning();
+    for (const pl of PLAYER_INDICES) submitPlanning(after, pl, {});
+    after.phase = "postCombatSpells";
+    const late = placeUnit(after, 0, reserve(0), { wounded: true });
+    advance(after, data);
+    expect(after.units[late]?.wounded).toBe(true);
+    // Eine weitere Runde mit Kampf in der Reserve genügt dann.
+    for (const pl of PLAYER_INDICES) submitPlanning(after, pl, {});
+    advance(after, data);
+    expect(after.units[late]?.wounded).toBe(false);
+  });
+
+  it("R-6.5: Markierung wird bei einem Ortswechsel nach Kampfbeginn gelöscht", () => {
     const state = inPlanning();
     const unit = placeUnit(state, 0, reserve(0), { wounded: true, restedInReserve: true });
     expect(moveUnit(state, data, 0, unit, reserve(2))).toBeNull();

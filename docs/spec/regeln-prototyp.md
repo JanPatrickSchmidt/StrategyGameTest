@@ -79,7 +79,7 @@ Ein Spieler reicht pro Runde genau **eine** Planung ein, mit drei Abschnitten (`
 - **R-6.2 Rundengold:** Jeder Spieler hat einen Gold-Vorrat für die Runde, der bei 0 beginnt. Gold verfällt nie: Was am Ende einer Runde übrig ist, geht in die Schatzkammer (R-12.5).
 - **R-6.3 Hand:** Die Hand wurde am Ende der Vorrunde gezogen (R-12.6); in Runde 1 beim Partie-Aufbau (R-4.6).
 - **R-6.4 Ressourcen:** Alle Ressourcenkarten auf der Hand werden zu Beginn des Ausspielens automatisch ausgespielt; ihr Gold geht in den Rundenvorrat. Sie gehen beim Rundenende auf den Ablagestapel.
-- **R-6.5 Genesung durch Reserve:** Verwundete Einheiten, die die gesamte Vorrunde in der Reserve verbracht haben, sind nicht mehr verwundet.
+- **R-6.5 Genesung durch Reserve:** Verwundete Einheiten, die einen ganzen Kampf in der Reserve verbracht haben, sind zu Beginn der nächsten Runde nicht mehr verwundet. Maßgeblich: Die Einheit steht zu Beginn der Kampfphase der Vorrunde in der Reserve und wechselt danach bis zum Rundenbeginn nicht mehr den Ort.
 - **R-6.6 Anführer-Aufstieg:** Hat der Anführer in der Vorrunde genug XP für eine neue Stufe gesammelt (R-16.1), steigt er jetzt auf. Erreicht er Stufe 2, wählt der Spieler in dieser Planung seinen Ast (R-7.7).
 
 ## R-7 Ausspielen
@@ -205,7 +205,7 @@ Ein Kampf läuft höchstens **300 Ticks** [TUNING]. In jedem Tick werden die leb
 - **R-14.3 Schild:** Absorbiert Schaden, bevor Lebenspunkte sinken. Mehrere Schilde addieren sich. Verfällt beim Aufräumen.
 - **R-14.4 Verwunden:** Die Einheit nimmt an keinem Kampf teil, bis sie genesen ist (R-7.5 oder R-6.5). Verwundete Einheiten zählen gegen die Kapazität. Wird eine Einheit im Kampf von einem Effekt mit `wound` besiegt, ist sie nach dem Kampf verwundet.
 - **R-14.5 Vernichten:** Die Einheit verlässt das Brett; ihre Karteninstanzen gehen auf den Ablagestapel. Ein vernichteter Anführer ist erst in der übernächsten Planung wieder verfügbar (Startfeld R-4.4 oder ein beliebiges freies Feld).
-- **R-14.6 Alternative Kosten:** Karten mit `altCost` können stattdessen so bezahlt werden. `bloodToll(n)`: n Leben. `sacrifice(n)`: n eigene Karten-Einheiten (nicht Anführer, nicht Tokens) vom Brett auf den Ablagestapel.
+- **R-14.6 Alternative Kosten:** Karten mit `altCost` können stattdessen so bezahlt werden. `bloodToll(n)`: n Leben; erlaubt nur, wenn danach noch mindestens 1 Leben bleibt. `sacrifice(n)`: n vom Spieler gewählte eigene Karten-Einheiten (nicht Anführer, nicht Tokens) vom Brett oder aus der Reserve, auch verwundete, auf den Ablagestapel. Feld und Kapazitätsplatz des Opfers sind sofort frei.
 - **R-14.7 Flüche:** Effekte mit `giveCurse` legen eine Fluch-Karte aus dem Fluch-Stapel auf den Ablagestapel des Ziels. Ist der Stapel leer, passiert nichts.
 - **R-14.8 Läutern:** entfernt Karten dauerhaft aus dem Spiel. Gewählt werden bis zu `max` eigene Karteninstanzen aus **Deck oder Ablagestapel** (nicht von der Hand, nicht aus den in dieser Runde ausgespielten Karten). Die Wahl erfolgt in der Planung beim Legen des Zaubers; das Entfernen ändert die Reihenfolge der übrigen Deckkarten nicht. Gemischt wird nur beim Nachziehen (R-12.6).
 

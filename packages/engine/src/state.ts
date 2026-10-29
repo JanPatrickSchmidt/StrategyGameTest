@@ -61,8 +61,8 @@ export interface Unit {
   wounded: boolean;
   location: UnitLocation;
   /**
-   * R-6.5: stand die Einheit beim Aufdecken der laufenden Runde in der Reserve? Wird beim Aufdecken
-   * gesetzt, bei jedem späteren Ortswechsel gelöscht und zu Rundenbeginn ausgewertet und zurückgesetzt.
+   * R-6.5: stand die Einheit während des Kampfes der laufenden Runde in der Reserve? Wird zu Beginn der
+   * Kampfphase gesetzt, bei jedem späteren Ortswechsel gelöscht und zu Rundenbeginn ausgewertet und zurückgesetzt.
    */
   restedInReserve: boolean;
 }
