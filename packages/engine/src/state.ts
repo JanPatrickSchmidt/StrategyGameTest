@@ -274,6 +274,15 @@ export type GameEventPayload =
       survivors: UnitId[];
       winnerBreakthrough: number;
     }
+  /** R-9.1, R-9.7: Ergebnis des Mittelkampfs (auch ohne Simulation); `holder` = Halter der Mitte. */
+  | {
+      type: "center_resolved";
+      arena: string;
+      players: PlayerIndex[];
+      outcome: CenterResult["outcome"];
+      holder: PlayerIndex | null;
+      survivors: UnitId[];
+    }
   /** R-7.5 */
   | { type: "unit_healed"; player: PlayerIndex; unitId: UnitId; paidFromRoundGold: number; paidFromTreasury: number };
 
@@ -302,6 +311,25 @@ export interface FrontResult {
   winnerBreakthrough: number;
 }
 
+/**
+ * Ergebnis des Mittelkampfs der laufenden Runde (R-9.1, R-9.7), Grundlage der Mitte-Belohnung (R-10.4, E12).
+ * `combat` = simuliert, `uncontested` = nur ein Spieler hatte Teilnehmer, `noFight` = keiner.
+ */
+export interface CenterResult {
+  round: number;
+  arena: string;
+  /** Spieler mit Teilnehmern, aufsteigend. */
+  players: PlayerIndex[];
+  outcome: "combat" | "uncontested" | "noFight";
+  /** Einziger Spieler mit lebenden Einheiten am Kampfende, sonst `null` (kein Halter). */
+  holder: PlayerIndex | null;
+  ticks: number;
+  /** Teilnehmer nach R-9.1, nach ID aufsteigend. */
+  participants: UnitId[];
+  /** Überlebende aller Spieler (ohne Simulation alle Teilnehmer), nach ID aufsteigend. */
+  survivors: UnitId[];
+}
+
 export interface GameState {
   seed: number;
   rng: RngState;
@@ -319,6 +347,8 @@ export interface GameState {
   nextUnitId: UnitId;
   /** Ergebnisse der Frontkämpfe der zuletzt gespielten Kampfphase (R-9, für E12). */
   frontResults: FrontResult[];
+  /** Ergebnis des Mittelkampfs der zuletzt gespielten Kampfphase (R-9, für E12); `null` vor dem ersten Kampf. */
+  centerResult: CenterResult | null;
   /** Ereignisprotokoll (R-19), in Entstehungsreihenfolge. */
   log: GameEvent[];
 }

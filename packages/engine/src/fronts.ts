@@ -146,19 +146,29 @@ export function runFront(state: GameState, data: GameData, pairing: FrontPairing
   return result;
 }
 
-/**
- * R-9 für alle Fronten einer Runde: erst alle Kämpfe auf demselben Ausgangszustand, dann
- * R-1.4/R-9.6: Tokens, die an einem Frontkampf teilgenommen haben, verschwinden.
- */
-export function runFrontCombats(state: GameState, data: GameData): FrontResult[] {
-  const results = frontPairings(state).map((pairing) => runFront(state, data, pairing));
-  state.frontResults = results;
-  const fought = new Set<UnitId>(results.flatMap((r) => r.participants));
-  for (const id of [...fought].sort((a, b) => a - b)) {
+/** R-9: alle Frontkämpfe einer Runde auf demselben Ausgangszustand, ohne den Zustand zu verändern. */
+export function runFronts(state: GameState, data: GameData): FrontResult[] {
+  return frontPairings(state).map((pairing) => runFront(state, data, pairing));
+}
+
+/** R-1.4, R-9.6: Tokens, die an einem Kampf teilgenommen haben, verschwinden (nach allen Kämpfen). */
+export function removeFoughtTokens(state: GameState, participants: readonly UnitId[]): void {
+  for (const id of [...new Set(participants)].sort((a, b) => a - b)) {
     const unit = state.units[id];
     if (!unit || unit.kind !== "token") continue;
     delete state.units[id];
     emit(state, { type: "token_removed", player: unit.owner, unitId: id });
   }
+}
+
+/**
+ * R-9 für alle Fronten einer Runde: erst alle Kämpfe auf demselben Ausgangszustand, dann
+ * R-1.4/R-9.6: Tokens, die an einem Frontkampf teilgenommen haben, verschwinden.
+ * Die Rundenmaschine nutzt `runCombatPhase` (`center.ts`), das zusätzlich die Mitte kämpfen lässt.
+ */
+export function runFrontCombats(state: GameState, data: GameData): FrontResult[] {
+  const results = runFronts(state, data);
+  state.frontResults = results;
+  removeFoughtTokens(state, results.flatMap((r) => r.participants));
   return results;
 }
