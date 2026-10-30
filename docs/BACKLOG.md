@@ -27,7 +27,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
   - [x] **E7a Brett: Ausspielen, Bewegen, Genesen** (2026-10-28) – R-7.1 (ohne alternative Kosten), R-7.2, R-7.5, R-7.10, Kapazität R-3.6, Felder und Reserve R-3.1/R-3.3/R-3.5. Abnahme: Tests zu allen genannten Regeln.
   - [x] **E7b Alternative Kosten und Genesung durch Reserve** (2026-10-29) – R-14.6 (`bloodToll`, `sacrifice`, Kombination mit Gold), R-6.5. Abnahme: Tests zu beiden Regeln.
   - [x] **E7c Zauber legen, Anführer-Fähigkeit, Astwahl** (2026-10-29) – R-7.3 (Slots, Kosten sofort, Ziel nach R-14.2 prüfen), R-7.4, R-7.7. Abnahme: Tests zu allen genannten Regeln.
-  - [ ] **E7d Verschmelzen und Sternfaktor** – R-7.8, R-15.1 bis R-15.3. Abnahme: Tests zu allen genannten Regeln, inklusive Verkettung.
+  - [x] **E7d Verschmelzen und Sternfaktor** (2026-10-30) – R-7.8, R-15.1 bis R-15.3. Abnahme: Tests zu allen genannten Regeln, inklusive Verkettung.
 - [x] **P0 Anpassung an Jans Antworten F12–F15** (2026-10-28)
   - Schatzkammer ohne Obergrenze, Gold verfällt nie, Rundenvorrat beginnt bei 0, kein Überlauf mehr (R-6.1, R-6.2, R-10.3, R-11.5); `treasuryMax` aus `config.json` und Code entfernen, Zinsdeckel bleibt `interestMax`.
   - Kauflimit pro Spieler auf den Stapelstand zu Beginn der Kaufphase, zusätzliche Kopien nur bei mehreren Käufern (R-11.3).

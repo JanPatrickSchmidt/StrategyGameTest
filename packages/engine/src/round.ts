@@ -23,6 +23,7 @@ import type { GameData } from "./data";
 import { healUnit, markReserveRest, moveUnit, playUnit, recoverInReserve } from "./board";
 import { drawEndOfRound } from "./deck";
 import { autoChooseBranch, chooseBranch, grantRoundXp, levelUpLeaders, resetLeaderAbilities, setLeaderAbility } from "./leader";
+import { mergeUnits } from "./merge";
 import { discardSetSpells, setSpell } from "./spells";
 import {
   buyCard,
@@ -250,6 +251,8 @@ function runReveal(state: GameState, data: GameData): void {
           const name = typeof type === "string" ? type : String(type);
           emit(state, { type: "action_rejected", player: p, section, index, action: name, reason });
         }
+        // R-7.8: Verschmelzen nach jeder Aktion, also schon beim Ausspielen.
+        mergeUnits(state, p);
       });
       // R-7.7: ohne Wahl der erste Ast, direkt nach dem Ausspielen.
       if (section === "play") autoChooseBranch(state, data, p);

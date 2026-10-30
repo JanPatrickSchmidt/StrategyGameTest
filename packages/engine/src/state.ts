@@ -238,6 +238,21 @@ export type GameEventPayload =
   | { type: "leader_ability_set"; player: PlayerIndex; target: ActionTarget }
   /** R-7.7: Ast gewählt; `auto` = ohne Wahl der erste Ast. */
   | { type: "branch_chosen"; player: PlayerIndex; branchId: string; auto: boolean }
+  /**
+   * R-15.1: drei gleiche Einheiten verschmolzen. `unitId` ist die verbleibende Einheit (die mit den meisten XP,
+   * F25), `mergedUnitIds` alle drei beteiligten Einheiten einschließlich `unitId`.
+   */
+  | {
+      type: "units_merged";
+      player: PlayerIndex;
+      unitId: UnitId;
+      mergedUnitIds: UnitId[];
+      sourceId: string;
+      stars: 2 | 3;
+      xp: number;
+      wounded: boolean;
+      location: UnitLocation;
+    }
   /** R-7.5 */
   | { type: "unit_healed"; player: PlayerIndex; unitId: UnitId; paidFromRoundGold: number; paidFromTreasury: number };
 
