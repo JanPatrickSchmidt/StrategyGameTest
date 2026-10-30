@@ -15,3 +15,4 @@ export * from "./targets";
 export * from "./spells";
 export * from "./merge";
 export * from "./combat";
+export * from "./fronts";

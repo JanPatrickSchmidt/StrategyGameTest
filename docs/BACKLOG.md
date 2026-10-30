@@ -45,7 +45,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
   - Abnahme: Tests zu allen genannten Regeln; ein Determinismus-Test.
   - Aufgeteilt (2026-10-30):
   - [x] **E8a Kampfsimulation (reine Funktion)** (2026-10-30) – Modul `combat.ts`: Kämpfer aus Kartendaten (R-9.2), Tick-Ablauf mit `firstStrike`, Betäubung und Mana (R-9.3), Zielwahl mit Kriegern, Zielwechsel und Schurken-Sprung (R-9.4), Schaden mit Schild und Panzer (R-9.5), Tod (R-9.6), Kampfende (R-9.7), Kampf-Ereignisse; Haken für Mana-Fähigkeiten und Tod, die E10 mit Effekten füllt. Abnahme: Tests zu allen genannten Regeln; Determinismus-Test.
-  - [ ] **E8b Frontkämpfe in der Rundenmaschine** – Kampfphase: Paarungen nach R-2.3/R-2.5, Teilnehmer nach R-9.1 (nicht verwundet, Anführer mit R-16.3), Abbildung auf die Frontarena (R-3.2), leere Front und Kampf ohne Teilnehmer ohne Simulation, Kampf-Ereignisse im Ereignisprotokoll, Ergebnis je Paarung für E12, Tokens verschwinden nach dem Kampf (R-1.4, R-9.6). Abnahme: Tests zu allen genannten Regeln; Determinismus-Test über eine Runde mit Kampf.
+  - [x] **E8b Frontkämpfe in der Rundenmaschine** – Kampfphase: Paarungen nach R-2.3/R-2.5, Teilnehmer nach R-9.1 (nicht verwundet, Anführer mit R-16.3), Abbildung auf die Frontarena (R-3.2), leere Front und Kampf ohne Teilnehmer ohne Simulation, Kampf-Ereignisse im Ereignisprotokoll, Ergebnis je Paarung für E12, Tokens verschwinden nach dem Kampf (R-1.4, R-9.6). Abnahme: Tests zu allen genannten Regeln; Determinismus-Test über eine Runde mit Kampf.
 - [ ] **E9 Kampf: Mittelarena**
   - Free-for-all-Zielwahl, Halter-Bestimmung.
   - Abnahme: Tests zu R-9.1, R-9.7 für die Mitte.

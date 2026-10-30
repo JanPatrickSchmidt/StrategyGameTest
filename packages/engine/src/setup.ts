@@ -102,6 +102,7 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
     pendingPlanning: PLAYER_INDICES.map(() => null),
     nextCardInstanceId: 1,
     nextUnitId: 1,
+    frontResults: [],
     log: [],
   };
   emit(state, { type: "game_created", seed, leaders: [...leaders] });

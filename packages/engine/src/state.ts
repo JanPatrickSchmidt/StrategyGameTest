@@ -6,6 +6,7 @@
 import type { ActionTarget, Planning, PlanningSection, RejectionReason } from "./actions";
 import type { OffsetCoord } from "./hex";
 import type { RngState } from "./rng";
+import type { CombatEvent } from "./combat";
 
 /** R-1.1: genau 4 Spieler, Index 0–3. */
 export type PlayerIndex = 0 | 1 | 2 | 3;
@@ -253,11 +254,53 @@ export type GameEventPayload =
       wounded: boolean;
       location: UnitLocation;
     }
+  /** R-9.1: simulierter Kampf beginnt; `cell` = Startfeld in Arena-Koordinaten (R-3.2). */
+  | {
+      type: "combat_started";
+      arena: string;
+      players: PlayerIndex[];
+      fighters: { unitId: UnitId; player: PlayerIndex; sourceId: string; cell: OffsetCoord }[];
+    }
+  /** R-9.3 bis R-9.7: Ereignisse der Tick-Simulation mit Arena-Kennung. */
+  | (CombatEvent & { arena: string })
+  /** R-9.1, R-9.7: Ergebnis einer Front-Paarung (auch ohne Simulation). */
+  | {
+      type: "front_resolved";
+      arena: string;
+      first: PlayerIndex;
+      second: PlayerIndex;
+      outcome: FrontResult["outcome"];
+      winner: PlayerIndex | null;
+      survivors: UnitId[];
+      winnerBreakthrough: number;
+    }
   /** R-7.5 */
   | { type: "unit_healed"; player: PlayerIndex; unitId: UnitId; paidFromRoundGold: number; paidFromTreasury: number };
 
 export type GameEvent = EventBase & GameEventPayload;
 
+
+/**
+ * Ergebnis einer Front-Paarung der laufenden Runde (R-9.1, R-9.7), Grundlage der Kampfauswertung (R-10, E12).
+ * `combat` = simuliert, `emptyFront` = nur eine Seite hatte Teilnehmer (R-10.2), `noFight` = keine.
+ */
+export interface FrontResult {
+  round: number;
+  /** z. B. `front:0-1`: Zone `right` von `first` gegen Zone `left` von `second` (R-2.3). */
+  arena: string;
+  first: PlayerIndex;
+  second: PlayerIndex;
+  outcome: "combat" | "emptyFront" | "noFight";
+  /** `null` = Unentschieden. */
+  winner: PlayerIndex | null;
+  ticks: number;
+  /** Teilnehmer beider Seiten nach R-9.1, nach ID aufsteigend. */
+  participants: UnitId[];
+  /** Überlebende beider Seiten (bei leerer Front alle Einheiten des Siegers), nach ID aufsteigend. */
+  survivors: UnitId[];
+  /** R-10.1/R-10.2: Summe `breakthrough` der überlebenden Einheiten des Siegers (Tokens zählen), sonst 0. */
+  winnerBreakthrough: number;
+}
 
 export interface GameState {
   seed: number;
@@ -274,6 +317,8 @@ export interface GameState {
   pendingPlanning: (Planning | null)[];
   nextCardInstanceId: CardInstanceId;
   nextUnitId: UnitId;
+  /** Ergebnisse der Frontkämpfe der zuletzt gespielten Kampfphase (R-9, für E12). */
+  frontResults: FrontResult[];
   /** Ereignisprotokoll (R-19), in Entstehungsreihenfolge. */
   log: GameEvent[];
 }

@@ -23,6 +23,7 @@ import type { GameData } from "./data";
 import { healUnit, markReserveRest, moveUnit, playUnit, recoverInReserve } from "./board";
 import { drawEndOfRound } from "./deck";
 import { autoChooseBranch, chooseBranch, grantRoundXp, levelUpLeaders, resetLeaderAbilities, setLeaderAbility } from "./leader";
+import { runFrontCombats } from "./fronts";
 import { mergeUnits } from "./merge";
 import { discardSetSpells, setSpell } from "./spells";
 import {
@@ -179,7 +180,8 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
       case "combat":
         // R-6.5: wer jetzt in der Reserve steht, verbringt den Kampf dort.
         markReserveRest(state);
-        // R-9 folgt in E8/E9.
+        // R-9: Frontkämpfe (E8b); die Mitte folgt in E9.
+        runFrontCombats(state, data);
         enterPhase(state, "combatResolution");
         break;
       case "combatResolution":
