@@ -40,9 +40,12 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
   - Abnahme: Tests zu allen geänderten Regeln; bestehende Tests auf den neuen Ablauf umgestellt (nicht abgeschwächt).
   - [x] **P1a Planungsblock und Käufe** (2026-10-28) – eine Planung pro Runde mit `play` → `buy` → `position`, erlaubte Aktionen je Abschnitt, Käufe im Abschnitt `buy` (Gold sofort, Karten beim Aufdecken gleichzeitig verteilt), `submitPurchases` und Kaufphase entfernt, Einzahlung am Rundenende (R-5, R-7, R-7b, R-11, R-12.5). Abnahme: Tests zu allen genannten Regeln.
   - [x] **P1b Ziehen und Anführer-Aufstieg im neuen Ablauf** (2026-10-29) – Starthand beim Aufbau (R-4.6), kein Ziehen zu Rundenbeginn mehr (R-6.3), Nachziehen am Rundenende mit Mischen, wenn das Deck weniger Karten hat als zu ziehen sind (R-12.6), Anführer +2 XP am Rundenende (R-12.3) und Aufstieg zu Rundenbeginn (R-6.6). Abnahme: Tests zu allen genannten Regeln; bestehende Tests umgestellt (nicht abgeschwächt).
-- [ ] **E8 Kampf: Frontarena**
+- **E8 Kampf: Frontarena**
   - Tick-Simulation (R-9.0 bis R-9.7) für Frontkämpfe, Zielwahl inkl. Krieger und Schurken, Bewegung, Angriff, Panzer, Schild, Tod, Ende.
   - Abnahme: Tests zu allen genannten Regeln; ein Determinismus-Test.
+  - Aufgeteilt (2026-10-30):
+  - [x] **E8a Kampfsimulation (reine Funktion)** (2026-10-30) – Modul `combat.ts`: Kämpfer aus Kartendaten (R-9.2), Tick-Ablauf mit `firstStrike`, Betäubung und Mana (R-9.3), Zielwahl mit Kriegern, Zielwechsel und Schurken-Sprung (R-9.4), Schaden mit Schild und Panzer (R-9.5), Tod (R-9.6), Kampfende (R-9.7), Kampf-Ereignisse; Haken für Mana-Fähigkeiten und Tod, die E10 mit Effekten füllt. Abnahme: Tests zu allen genannten Regeln; Determinismus-Test.
+  - [ ] **E8b Frontkämpfe in der Rundenmaschine** – Kampfphase: Paarungen nach R-2.3/R-2.5, Teilnehmer nach R-9.1 (nicht verwundet, Anführer mit R-16.3), Abbildung auf die Frontarena (R-3.2), leere Front und Kampf ohne Teilnehmer ohne Simulation, Kampf-Ereignisse im Ereignisprotokoll, Ergebnis je Paarung für E12, Tokens verschwinden nach dem Kampf (R-1.4, R-9.6). Abnahme: Tests zu allen genannten Regeln; Determinismus-Test über eine Runde mit Kampf.
 - [ ] **E9 Kampf: Mittelarena**
   - Free-for-all-Zielwahl, Halter-Bestimmung.
   - Abnahme: Tests zu R-9.1, R-9.7 für die Mitte.

@@ -14,3 +14,4 @@ export * from "./seating";
 export * from "./targets";
 export * from "./spells";
 export * from "./merge";
+export * from "./combat";
