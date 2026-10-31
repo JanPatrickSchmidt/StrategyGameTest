@@ -2,15 +2,18 @@
   "name": "strategy-game",
   "private": true,
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p packages/engine --noEmit"
+    "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/sandbox --noEmit",
+    "build:sandbox": "node apps/sandbox/build.mjs"
   },
   "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.2",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0",
-    "@types/node": "^22.0.0"
+    "vitest": "^2.1.0"
   }
 }

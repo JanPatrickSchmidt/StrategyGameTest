@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kampf-Sandbox – StrategyGameTest</title>
+<style>
+  :root {
+    --bg: #f4f1ea; --panel: #fffdf8; --ink: #2a2723; --muted: #7a7268; --line: #ddd5c8;
+    --a: #2f6fb5; --a-soft: #dce8f5; --b: #c0473a; --b-soft: #f6dfdb; --accent: #3a3530;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 12px; }
+  h1 { font-size: 1.25rem; margin: 4px 0 2px; }
+  .hint { color: var(--muted); font-size: 0.85rem; margin: 0 0 10px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .row + .row { margin-top: 8px; }
+  button, select, input { font: inherit; border-radius: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink);
+    padding: 8px 10px; min-height: 40px; }
+  button { cursor: pointer; }
+  button:disabled { opacity: 0.4; cursor: default; }
+  button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
+  select#unit-select { flex: 1 1 200px; min-width: 0; }
+  input#round { width: 4.5em; }
+  label.inline { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  #unit-info, #counts { color: var(--muted); font-size: 0.85rem; }
+  #arena svg { width: 100%; height: auto; display: block; max-height: 62vh; touch-action: manipulation; user-select: none; }
+  .cell { stroke: #fff; stroke-width: 2; cursor: pointer; }
+  .cell.side-a { fill: var(--a-soft); }
+  .cell.side-b { fill: var(--b-soft); }
+  body:not(.fighting) .cell:hover { filter: brightness(0.95); }
+  .unit { transition: transform 160ms linear; cursor: pointer; }
+  .unit .body { stroke: #fff; stroke-width: 2; }
+  .unit.side-a .body { fill: var(--a); }
+  .unit.side-b .body { fill: var(--b); }
+  .unit.leader .body { stroke: #e7b93c; stroke-width: 3.5; }
+  .unit.stunned .body { stroke: #9b59b6; stroke-dasharray: 4 3; stroke-width: 3; }
+  .unit.dead { opacity: 0; pointer-events: none; transition: opacity 300ms, transform 160ms linear; }
+  .unit text { text-anchor: middle; fill: #fff; pointer-events: none; font-weight: 700; }
+  .unit .label { font-size: 12px; }
+  .unit .stars { font-size: 9px; fill: #ffe9a8; }
+  .unit .hp-bg { fill: rgba(0,0,0,0.25); }
+  .unit .hp { fill: #3fae5a; }
+  .unit .mana { fill: #5b8def; }
+  .fx { pointer-events: none; }
+  .attack { stroke-width: 2.5; stroke-linecap: round; opacity: 0.8; }
+  .attack.side-a { stroke: var(--a); }
+  .attack.side-b { stroke: var(--b); }
+  .dmg { font-size: 12px; font-weight: 800; fill: #111; paint-order: stroke; stroke: #fff; stroke-width: 3px; text-anchor: middle; }
+  .legend { display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--muted); margin: 4px 2px 0; }
+  .legend .a { color: var(--a); font-weight: 600; } .legend .b { color: var(--b); font-weight: 600; }
+  .setup-only { } .fight-only { display: none; }
+  body.fighting .setup-only { display: none; }
+  body.fighting .fight-only { display: block; }
+  #tick { font-variant-numeric: tabular-nums; font-weight: 600; margin-left: auto; }
+  #result { background: #fff7e0; border-color: #e7cf8a; }
+  #result strong { display: block; margin-bottom: 2px; }
+  #log { max-height: 240px; overflow-y: auto; font-size: 0.82rem; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+  .log-tick { color: var(--muted); margin-top: 4px; }
+  .log-death { color: var(--b); font-weight: 600; }
+  table#fighters { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  #fighters th { text-align: left; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--line); padding: 3px 4px; }
+  #fighters td { padding: 3px 4px; border-bottom: 1px solid #f0ebe2; }
+  #fighters tr.side-a td:first-child { color: var(--a); font-weight: 700; }
+  #fighters tr.side-b td:first-child { color: var(--b); font-weight: 700; }
+  #fighters tr.dead { color: var(--muted); text-decoration: line-through; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details p, details li { font-size: 0.88rem; }
+  #flash { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--accent); color: #fff;
+    padding: 8px 14px; border-radius: 20px; opacity: 0; transition: opacity 200ms; pointer-events: none; }
+  #flash.show { opacity: 0.95; }
+  #error { background: #fde2e2; border-color: #e99; color: #8a1f1f; }
+  @media (max-width: 420px) {
+    main { padding: 8px; }
+    button, select, input { padding: 7px 8px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <h1>Kampf-Sandbox</h1>
+  <p class="hint">Frontarena (R-3.2) mit der echten Spiel-Engine. Kampfwerte, Sterne, Zielwahl, Bewegung, Panzer und Zeitlimit wirken; Fähigkeiten, Rassen-Resonanz und Zauber noch nicht.</p>
+  <div id="error" class="panel" hidden></div>
+
+  <div class="panel setup-only">
+    <div class="row">
+      <select id="unit-select" aria-label="Einheit"></select>
+      <button id="star-1" type="button">★1</button>
+      <button id="star-2" type="button">★2</button>
+      <button id="star-3" type="button">★3</button>
+    </div>
+    <div class="row"><span id="unit-info"></span></div>
+    <div class="row">
+      <button id="mode-place" type="button">Setzen</button>
+      <button id="mode-remove" type="button">Entfernen</button>
+      <button id="btn-mirror" type="button" title="Seite A gespiegelt auf Seite B kopieren">A → B spiegeln</button>
+      <button id="btn-example" type="button">Beispiel</button>
+      <button id="btn-clear" type="button">Leeren</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div id="arena"></div>
+    <div class="legend"><span class="a">▲ Seite A (Zeilen 0–2)</span><span class="b">Seite B (Zeilen 3–5) ▼</span></div>
+    <div class="row setup-only" style="margin-top:8px">
+      <span id="counts"></span>
+    </div>
+  </div>
+
+  <div class="panel setup-only">
+    <div class="row">
+      <button id="btn-start" class="primary" type="button">Kampf starten</button>
+      <button id="btn-share" type="button">Link kopieren</button>
+    </div>
+  </div>
+
+  <div class="panel fight-only">
+    <div class="row">
+      <button id="btn-play" class="primary" type="button">▶ Abspielen</button>
+      <button id="btn-step" type="button">+1 Tick</button>
+      <button id="btn-step10" type="button">+10</button>
+      <button id="btn-end" type="button">Bis zum Ende</button>
+    </div>
+    <div class="row">
+      <label class="inline">Tempo
+        <select id="speed">
+          <option value="0.25">0,25×</option>
+          <option value="0.5" selected>0,5×</option>
+          <option value="1">1×</option>
+          <option value="2">2×</option>
+          <option value="5">5×</option>
+          <option value="20">20×</option>
+        </select>
+      </label>
+      <button id="btn-restart" type="button">Neu starten</button>
+      <button id="btn-back" type="button">◀ Aufstellung</button>
+      <span id="tick"></span>
+    </div>
+  </div>
+
+  <div id="result" class="panel" hidden></div>
+  <div class="panel fight-only">
+    <label class="inline">Runde für den Grundschaden (R-10.5) <input id="round" type="number" min="1" max="30" value="1" inputmode="numeric"></label>
+  </div>
+
+  <div class="panel fight-only"><table id="fighters"></table></div>
+  <div class="panel fight-only"><div id="log" aria-live="polite"></div></div>
+
+  <details class="panel">
+    <summary>Anleitung</summary>
+    <ol>
+      <li>Einheit und Sterne oben wählen, dann auf ein Feld tippen. Obere drei Reihen = Seite A (blau), untere drei = Seite B (rot). Gleiche Einheit noch einmal antippen entfernt sie.</li>
+      <li>„A → B spiegeln“ kopiert die Aufstellung von Seite A gedreht auf Seite B, praktisch für faire Vergleiche.</li>
+      <li>„Kampf starten“, dann abspielen oder Tick für Tick weiterschalten. Rand gold = Anführer, gestrichelt lila = betäubt, grüner Balken = Leben, blauer Balken = Mana.</li>
+      <li>Am Ende stehen Sieger, Überlebende und der Durchbruch-Schaden (R-10.1). Die Runde bestimmt den Grundschaden.</li>
+      <li>„Link kopieren“ speichert die Aufstellung im Link, z. B. um Jan oder einem Agenten einen Fall zu zeigen.</li>
+    </ol>
+    <p>Bekannte Grenzen: Fähigkeiten (z. B. Mana-Fähigkeiten, Kampfbeginn, Tod) lösen zwar aus, wirken aber erst mit Aufgabe E10. Anführer kämpfen mit ihren Grundwerten (ohne Stufe-3-Bonus).</p>
+  </details>
+</main>
+<div id="flash"></div>
+<!-- SCRIPT -->
+</body>
+</html>

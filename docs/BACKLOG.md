@@ -49,7 +49,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
 - [x] **E9 Kampf: Mittelarena** (2026-10-30)
   - Free-for-all-Zielwahl, Halter-Bestimmung.
   - Abnahme: Tests zu R-9.1, R-9.7 für die Mitte.
-- [ ] **D1 Kampf-Sandbox zum Ausprobieren**
+- [x] **D1 Kampf-Sandbox zum Ausprobieren** (2026-10-31)
   - Eine einzelne, eigenständige HTML-Datei, veröffentlicht unter `docs/play/sandbox.html` (Engine gebündelt, keine Server-Abhängigkeit; Quellcode in `apps/sandbox`). GitHub Pages ist aktiv (Branch `main`, Ordner `/docs`), die Datei ist damit unter https://janpatrickschmidt.github.io/StrategyGameTest/play/sandbox.html erreichbar und muss auch am Handy bedienbar sein: Frontarena anzeigen (2D von oben reicht), Einheiten aus dem Mini-Set für beide Seiten auf Felder setzen, Kampf starten, Ablauf schrittweise oder animiert abspielen, Ergebnis und Durchbruch-Schaden anzeigen.
   - Zweck: Jan kann das Kampfsystem früh selbst ausprobieren und Feedback geben, bevor der 3D-Client existiert.
   - Abnahme: Datei öffnet sich im Browser ohne Fehler, auch auf schmalen Bildschirmen; in `docs/STATUS.md` unter „Zum Ausprobieren“ mit Link und kurzer Anleitung eingetragen.
