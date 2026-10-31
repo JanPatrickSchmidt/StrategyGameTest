@@ -19,3 +19,4 @@ export * from "./fronts";
 export * from "./center";
 export * from "./effects";
 export * from "./marks";
+export * from "./resonance";

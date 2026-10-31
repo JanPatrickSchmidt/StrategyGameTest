@@ -13,6 +13,7 @@ import { applyCombatAftermath } from "./aftermath";
 import { type DeferredEffect, effectHooks } from "./effects";
 import { fighterForUnit, removeFoughtTokens, runFronts } from "./fronts";
 import { announceCombatMarks, clearCombatMarks } from "./marks";
+import { announceResonance, resonanceSummonAdjuster } from "./resonance";
 import { centerPositionToArena, type Seat } from "./hex";
 import { type CenterResult, emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit } from "./state";
 
@@ -60,7 +61,7 @@ export function runCenter(state: GameState, data: GameData, deferredOut: Deferre
       players: [...players],
       fighters: inits.map((f) => ({ unitId: f.id, player: f.team as PlayerIndex, sourceId: f.sourceId, cell: { ...f.pos } })),
     });
-    const fx = effectHooks(data);
+    const fx = effectHooks(data, { adjustSummon: resonanceSummonAdjuster(state, data) });
     const combat = simulateCombat(data.config, data.config.arenas.centerArena, inits, fx.hooks, state.nextUnitId);
     deferredOut.push(...fx.deferred);
     state.nextUnitId = combat.nextSummonId;
@@ -95,6 +96,8 @@ export function runCombatPhase(state: GameState, data: GameData): { fronts: Fron
   const fighting = Object.values(state.units)
     .filter((u) => !u.wounded && u.location.zone !== "reserve" && !getPlayer(state, u.owner).eliminated)
     .sort((a, b) => a.id - b.id);
+  // R-17.2: Resonanz nach dem Brett zu Beginn der Kampfphase (nach dem Aufdecken) gilt in allen Kämpfen.
+  announceResonance(state, data, fighting);
   announceCombatMarks(state, data, fighting);
   const frontRuns = runFronts(state, data);
   const centerDeferred: DeferredEffect[] = [];

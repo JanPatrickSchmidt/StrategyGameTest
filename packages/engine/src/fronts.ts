@@ -9,9 +9,9 @@
 import { type FighterInit, fighterFromData, simulateCombat } from "./combat";
 import type { GameData } from "./data";
 import { applyCombatAftermath } from "./aftermath";
-import type { Stat } from "./dataTypes";
 import { type DeferredEffect, effectHooks } from "./effects";
 import { markedStartManaPercent } from "./marks";
+import { activeResonance, addStartManaPercent, addStatBonuses, applyResonanceStats, resonanceBonus, resonanceSummonAdjuster } from "./resonance";
 import { frontArenaSize, type FrontSide, frontToArena, type OffsetCoord } from "./hex";
 import { activeRing, neighborsOf } from "./seating";
 import { emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit, type UnitId } from "./state";
@@ -56,7 +56,8 @@ export function frontParticipants(state: GameState, pairing: FrontPairing): { fi
 /**
  * R-9.2 plus R-16.3: Kampfwerte einer Einheit. Ab Anführer-Stufe 3 steigen `attack` und `hp` der
  * Anführer-Kampfeinheit um `config.leader.level3StatBonus` (Zuschlag abgerundet). Dauerhafte Buffs
- * (`unit.permanentBuffs`, E10b) kommen danach als fester Zuschlag hinzu (F31).
+ * (`unit.permanentBuffs`, E10b) kommen danach als fester Zuschlag hinzu (F31), dann die Rassen-Resonanz
+ * (R-17.2, E10c1) und zuletzt Start-Mana aus Markierungen und Resonanz.
  */
 export function fighterForUnit(state: GameState, data: GameData, unit: Unit, pos: OffsetCoord): FighterInit {
   const init = fighterFromData(data, {
@@ -72,31 +73,12 @@ export function fighterForUnit(state: GameState, data: GameData, unit: Unit, pos
     const raise = (v: number): number => v + Math.floor(v * bonus + 1e-9);
     init.stats = { ...init.stats, attack: raise(init.stats.attack), hp: raise(init.stats.hp) };
   }
-  if (unit.permanentBuffs) {
-    const c = data.config.combat;
-    const base: Record<Stat, number> = {
-      attack: init.stats.attack,
-      hp: init.stats.hp,
-      breakthrough: init.stats.breakthrough,
-      range: init.stats.range,
-      armor: init.stats.armor ?? 0,
-      attackInterval: init.stats.attackInterval ?? c.defaultAttackInterval,
-      moveInterval: init.stats.moveInterval ?? c.defaultMoveInterval,
-      manaMax: init.stats.manaMax ?? c.defaultManaMax,
-    };
-    const stats = { ...init.stats };
-    for (const [stat, amount] of Object.entries(unit.permanentBuffs) as [Stat, number][]) {
-      const min = stat === "hp" || stat === "attackInterval" || stat === "moveInterval" || stat === "manaMax" || stat === "range" ? 1 : 0;
-      stats[stat] = Math.max(min, base[stat] + amount);
-    }
-    init.stats = stats;
-  }
-  // R-17a.2: Start-Mana aus Markierungen dieser Runde (Prozent von `manaMax`, abgerundet).
-  const percent = markedStartManaPercent(state, data, unit);
-  if (percent > 0) {
-    const manaMax = init.stats.manaMax ?? data.config.combat.defaultManaMax;
-    init.startMana = (init.startMana ?? 0) + Math.floor((manaMax * percent) / 100 + 1e-9);
-  }
+  if (unit.permanentBuffs) init.stats = addStatBonuses(data.config, init.stats, unit.permanentBuffs);
+  // R-17.2: Rassen-Resonanz nach dem Brett zu Beginn der Kampfphase (Werte, Schlüsselwörter, Start-Mana).
+  const bonus = resonanceBonus(activeResonance(state, data, unit.owner), init.race);
+  applyResonanceStats(data.config, init, bonus);
+  // R-17a.2 und R-17.2: Start-Mana aus Markierungen und Resonanz (Prozente addiert, von `manaMax` abgerundet).
+  addStartManaPercent(data.config, init, markedStartManaPercent(state, data, unit) + bonus.startManaPercent);
   return init;
 }
 
@@ -149,7 +131,7 @@ export function runFront(state: GameState, data: GameData, pairing: FrontPairing
       players: [pairing.first, pairing.second],
       fighters: inits.map((f) => ({ unitId: f.id, player: f.team as PlayerIndex, sourceId: f.sourceId, cell: { ...f.pos } })),
     });
-    const fx = effectHooks(data);
+    const fx = effectHooks(data, { adjustSummon: resonanceSummonAdjuster(state, data) });
     const combat = simulateCombat(data.config, frontArenaSize(zone), inits, fx.hooks, state.nextUnitId);
     deferredOut.push(...fx.deferred);
     // Im Kampf erzeugte Tokens belegen IDs, die danach keine andere Einheit mehr bekommt.

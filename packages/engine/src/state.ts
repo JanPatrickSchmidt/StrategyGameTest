@@ -311,6 +311,8 @@ export type GameEventPayload =
   | { type: "round_mark_set"; player: PlayerIndex; mark: RoundMark }
   /** R-17a.2: Markierung wirkt (`unitIds` = betroffene Einheiten bei `startMana`, sonst leer). */
   | { type: "round_mark_applied"; player: PlayerIndex; mark: RoundMark; unitIds: UnitId[] }
+  /** R-17.2: erreichte Resonanzstufe einer Rasse für die Kämpfe dieser Runde (`unitIds` = betroffene Teilnehmer). */
+  | { type: "resonance_active"; player: PlayerIndex; race: string; count: number; tier: number; unitIds: UnitId[] }
   /** R-17a.2: Markierung gelöscht (nach dem Wirken oder weil ihre Runde vorbei ist). */
   | { type: "round_mark_cleared"; player: PlayerIndex; mark: RoundMark }
   /** R-7.5 */

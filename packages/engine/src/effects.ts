@@ -52,9 +52,15 @@ export interface EffectHooks {
 }
 
 /** Haken für `createCombat`/`simulateCombat`, die alle Kampf-Fähigkeiten auswerten. */
-export function effectHooks(data: GameData): EffectHooks {
+/** Optionen für `effectHooks`. */
+export interface EffectHookOptions {
+  /** Passt im Kampf erzeugte Tokens an, bevor sie entstehen (z. B. Rassen-Resonanz, R-17.2). */
+  adjustSummon?: (init: Omit<FighterInit, "id" | "pos">) => void;
+}
+
+export function effectHooks(data: GameData, options: EffectHookOptions = {}): EffectHooks {
   const deferred: DeferredEffect[] = [];
-  const run = (sim: CombatSim, f: Fighter, trigger: Trigger): void => runTrigger(data, sim, f, trigger, deferred);
+  const run = (sim: CombatSim, f: Fighter, trigger: Trigger): void => runTrigger(data, sim, f, trigger, deferred, options);
   const hooks: CombatHooks = {
     onCombatStart: (sim, f) => run(sim, f, "onCombatStart"),
     onManaFull: (sim, f) => run(sim, f, "onManaFull"),
@@ -71,10 +77,17 @@ export function effectHooks(data: GameData): EffectHooks {
   return { hooks, deferred };
 }
 
-function runTrigger(data: GameData, sim: CombatSim, f: Fighter, trigger: Trigger, deferred: DeferredEffect[]): void {
+function runTrigger(
+  data: GameData,
+  sim: CombatSim,
+  f: Fighter,
+  trigger: Trigger,
+  deferred: DeferredEffect[],
+  options: EffectHookOptions,
+): void {
   for (const ability of f.abilities) {
     if (ability.trigger !== trigger || !conditionHolds(ability)) continue;
-    for (const effect of ability.effects) applyEffect(data, sim, f, trigger, effect, deferred);
+    for (const effect of ability.effects) applyEffect(data, sim, f, trigger, effect, deferred, options);
   }
 }
 
@@ -170,6 +183,7 @@ function applyEffect(
   trigger: Trigger,
   effect: Effect,
   deferred: DeferredEffect[],
+  options: EffectHookOptions,
 ): void {
   const defer = (targets?: Fighter[]): void => {
     const entry: DeferredEffect = { tick: sim.tick, unit: f.id, team: f.team, sourceId: f.sourceId, trigger, effect };
@@ -214,7 +228,7 @@ function applyEffect(
       for (const t of resolveUnitTargets(sim, f, effect.target)) grantFighterKeyword(sim, f, t, effect.keyword);
       return;
     case "summon":
-      summon(data, sim, f, effect);
+      summon(data, sim, f, effect, options);
       return;
     default:
       // Wirkt außerhalb der Kampfsimulation (E10b, E11).
@@ -226,7 +240,13 @@ function applyEffect(
  * `summon` im Kampf: `adjacentFree` = freie Nachbarfelder der Einheit, kleinstes `(row, col)` zuerst.
  * Ohne freies Feld entsteht kein Token. Andere Platzierungen nutzen Zauber (E11).
  */
-function summon(data: GameData, sim: CombatSim, f: Fighter, effect: Extract<Effect, { op: "summon" }>): void {
+function summon(
+  data: GameData,
+  sim: CombatSim,
+  f: Fighter,
+  effect: Extract<Effect, { op: "summon" }>,
+  options: EffectHookOptions,
+): void {
   if (effect.where !== "adjacentFree") return;
   for (let i = 0; i < effect.count; i++) {
     const cell = neighbors(f.pos, sim.size)
@@ -243,6 +263,7 @@ function summon(data: GameData, sim: CombatSim, f: Fighter, effect: Extract<Effe
     });
     const { id: _id, pos: _pos, ...rest } = init;
     if (effect.statOverride) rest.stats = { ...rest.stats, ...effect.statOverride };
+    options.adjustSummon?.(rest);
     spawnFighter(sim, f, rest, cell);
   }
 }
