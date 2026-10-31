@@ -11,6 +11,7 @@ import type { GameData } from "./data";
 import { applyCombatAftermath } from "./aftermath";
 import type { Stat } from "./dataTypes";
 import { type DeferredEffect, effectHooks } from "./effects";
+import { markedStartManaPercent } from "./marks";
 import { frontArenaSize, type FrontSide, frontToArena, type OffsetCoord } from "./hex";
 import { activeRing, neighborsOf } from "./seating";
 import { emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit, type UnitId } from "./state";
@@ -89,6 +90,12 @@ export function fighterForUnit(state: GameState, data: GameData, unit: Unit, pos
       stats[stat] = Math.max(min, base[stat] + amount);
     }
     init.stats = stats;
+  }
+  // R-17a.2: Start-Mana aus Markierungen dieser Runde (Prozent von `manaMax`, abgerundet).
+  const percent = markedStartManaPercent(state, data, unit);
+  if (percent > 0) {
+    const manaMax = init.stats.manaMax ?? data.config.combat.defaultManaMax;
+    init.startMana = (init.startMana ?? 0) + Math.floor((manaMax * percent) / 100 + 1e-9);
   }
   return init;
 }

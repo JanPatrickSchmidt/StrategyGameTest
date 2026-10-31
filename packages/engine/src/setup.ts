@@ -146,6 +146,7 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
       lossStreak: 0,
       centerStreak: 0,
       nextRound: { cards: 0 },
+      roundMarks: [],
       eliminated: false,
       placement: null,
     };

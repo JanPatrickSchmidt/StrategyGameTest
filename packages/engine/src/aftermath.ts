@@ -14,13 +14,13 @@ import type { GameData } from "./data";
 import type { Ability, Amount, Condition, Effect, PlayerTarget, Trigger } from "./dataTypes";
 import type { DeferredEffect } from "./effects";
 import { gainGoldAfterPlanning, gainGoldDuringPlanning } from "./economy";
+import { addRoundMark, priorityForRound } from "./marks";
 import {
   emit,
   type CenterResult,
   type FrontResult,
   type GameState,
   getPlayer,
-  PLAYER_INDICES,
   type PlayerIndex,
   type Unit,
   type UnitId,
@@ -38,11 +38,7 @@ export interface StateEffectContext {
   duringPlanning: boolean;
 }
 
-/** R-1.7: Prioritätsreihenfolge in Runde r (hier dupliziert, um keinen Import-Kreis mit `round.ts` zu bilden). */
-function priority(round: number): PlayerIndex[] {
-  const start = (round - 1) % PLAYER_INDICES.length;
-  return PLAYER_INDICES.map((_, i) => ((start + i) % PLAYER_INDICES.length) as PlayerIndex);
-}
+const priority = priorityForRound;
 
 function abilitiesOf(data: GameData, unit: Unit): readonly Ability[] {
   if (unit.kind === "leader") return data.leaders.get(unit.sourceId)?.abilities ?? [];
@@ -122,18 +118,31 @@ export function gainLeaderXp(state: GameState, player: PlayerIndex, amount: numb
 /**
  * Wendet einen Baustein auf den Spielzustand an, der außerhalb der Kampfsimulation wirkt. `amount` überschreibt
  * den Wert aus den Daten (z. B. der im Kampf berechnete Wert). Bausteine ohne Wirkung außerhalb des Kampfes
- * (Kampf-Bausteine, Resonanz-Bausteine E10c, Zauber-Bausteine E11, `gainGold` mit `when: "nextRound"`) tun hier nichts.
+ * (Kampf-Bausteine, Resonanz-Bausteine E10c, Zauber-Bausteine E11) tun hier nichts. Effekte „nächste Runde“
+ * werden als Markierung gespeichert (R-17a.2, `marks.ts`).
  */
 export function applyStateEffect(state: GameState, data: GameData, effect: Effect, ctx: StateEffectContext, amount?: number): void {
   if (getPlayer(state, ctx.player).eliminated) return;
   switch (effect.op) {
     case "gainGold": {
-      if (effect.when === "nextRound") return; // R-17a.2: Markierungen folgen mit E10b2.
       const value = amount ?? fixedAmount(effect.amount);
       if (value <= 0) return;
+      // R-17a.2: „nächste Runde“ bzw. „zu Rundenbeginn“ außerhalb des Rundenbeginns → Markierung.
+      if (effect.when === "nextRound" || (effect.when === "roundStart" && !ctx.duringPlanning)) {
+        addRoundMark(state, ctx.player, { kind: "gold", round: state.round + 1, amount: value, to: effect.to ?? "pool" });
+        return;
+      }
       // R-10.3: nach der Planung immer in die Schatzkammer; zu Rundenbeginn nach `to` (Standard: Rundenvorrat).
       if (ctx.duringPlanning && (effect.to ?? "pool") === "pool") gainGoldDuringPlanning(state, ctx.player, value);
       else gainGoldAfterPlanning(state, ctx.player, value);
+      return;
+    }
+    case "startManaPercent": {
+      // R-17a.2: Start-Mana „nächste Runde“ (Funkenschmiede) als Markierung; `now` wirkt im Kampf (E10c).
+      if (effect.when !== "nextRound") return;
+      const value = amount ?? fixedAmount(effect.amount);
+      if (value <= 0) return;
+      addRoundMark(state, ctx.player, { kind: "startMana", round: state.round + 1, percent: value, target: effect.target, classId: effect.class ?? null });
       return;
     }
     case "gainLeaderXp":

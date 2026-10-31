@@ -12,6 +12,7 @@ import type { GameData } from "./data";
 import { applyCombatAftermath } from "./aftermath";
 import { type DeferredEffect, effectHooks } from "./effects";
 import { fighterForUnit, removeFoughtTokens, runFronts } from "./fronts";
+import { announceCombatMarks, clearCombatMarks } from "./marks";
 import { centerPositionToArena, type Seat } from "./hex";
 import { type CenterResult, emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit } from "./state";
 
@@ -90,6 +91,11 @@ export function runCenter(state: GameState, data: GameData, deferredOut: Deferre
  * und zuletzt verschwinden alle Tokens, die an einem dieser Kämpfe teilgenommen haben (R-1.4, R-9.6).
  */
 export function runCombatPhase(state: GameState, data: GameData): { fronts: FrontResult[]; center: CenterResult } {
+  // R-17a.2: Start-Mana-Markierungen dieser Runde wirken in allen Kämpfen (melden, dann kämpfen, dann löschen).
+  const fighting = Object.values(state.units)
+    .filter((u) => !u.wounded && u.location.zone !== "reserve" && !getPlayer(state, u.owner).eliminated)
+    .sort((a, b) => a.id - b.id);
+  announceCombatMarks(state, data, fighting);
   const frontRuns = runFronts(state, data);
   const centerDeferred: DeferredEffect[] = [];
   const center = runCenter(state, data, centerDeferred);
@@ -98,5 +104,6 @@ export function runCombatPhase(state: GameState, data: GameData): { fronts: Fron
   state.centerResult = center;
   applyCombatAftermath(state, data, { fronts: frontRuns, center: { result: center, deferred: centerDeferred } });
   removeFoughtTokens(state, [...fronts.flatMap((r) => r.participants), ...center.participants]);
+  clearCombatMarks(state);
   return { fronts, center };
 }

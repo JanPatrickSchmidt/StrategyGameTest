@@ -25,6 +25,7 @@ import { drawEndOfRound } from "./deck";
 import { autoChooseBranch, chooseBranch, grantRoundXp, levelUpLeaders, resetLeaderAbilities, setLeaderAbility } from "./leader";
 import { runCombatPhase } from "./center";
 import { runRoundStartEffects } from "./aftermath";
+import { applyRoundStartMarks } from "./marks";
 import { mergeUnits } from "./merge";
 import { discardSetSpells, setSpell } from "./spells";
 import {
@@ -228,6 +229,8 @@ function isGameOver(state: GameState): boolean {
 function runRoundStart(state: GameState, data: GameData): void {
   // R-6.1/R-17a.1: „pro Runde“-Effekte vor den Zinsen (F31), Gold in den Rundenvorrat bzw. die Schatzkammer.
   runRoundStartEffects(state, data);
+  // R-17a.2: Markierungen „nächste Runde“ (Gold) direkt danach, ebenfalls vor den Zinsen (F32).
+  applyRoundStartMarks(state);
   payInterest(state, data.config);
   recoverInReserve(state);
   levelUpLeaders(state, data.config);

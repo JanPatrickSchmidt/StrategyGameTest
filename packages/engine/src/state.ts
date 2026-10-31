@@ -7,7 +7,7 @@ import type { ActionTarget, Planning, PlanningSection, RejectionReason } from ".
 import type { OffsetCoord } from "./hex";
 import type { RngState } from "./rng";
 import type { CombatEvent } from "./combat";
-import type { Stat, Trigger } from "./dataTypes";
+import type { GoldDestination, Stat, Trigger, UnitTarget } from "./dataTypes";
 
 /** R-1.1: genau 4 Spieler, Index 0–3. */
 export type PlayerIndex = 0 | 1 | 2 | 3;
@@ -88,6 +88,14 @@ export interface NextRoundBonus {
   cards: number;
 }
 
+/**
+ * R-17a.2: Markierung für einen Effekt „nächste Runde“. `round` = Runde, in der sie wirkt; danach wird sie
+ * gelöscht. `gold` wirkt beim Rundenbeginn, `startMana` beim Kampfbeginn (in allen Kämpfen dieser Runde).
+ */
+export type RoundMark =
+  | { kind: "gold"; round: number; amount: number; to: GoldDestination }
+  | { kind: "startMana"; round: number; percent: number; target: UnitTarget; classId: string | null };
+
 /** R-7.3: gelegter Zauber; die Karte hat die Hand verlassen und liegt bis zur Auflösung im Slot (R-8.6). */
 export interface SetSpell {
   cardInstanceId: CardInstanceId;
@@ -125,6 +133,8 @@ export interface PlayerState {
   lossStreak: number;
   centerStreak: number;
   nextRound: NextRoundBonus;
+  /** R-17a.2: offene Markierungen „nächste Runde“ in der Reihenfolge ihres Entstehens. */
+  roundMarks: RoundMark[];
   eliminated: boolean;
   /** Platzierung, sobald feststehend (1 = beste). */
   placement: number | null;
@@ -297,6 +307,12 @@ export type GameEventPayload =
   | { type: "gold_stolen"; player: PlayerIndex; from: PlayerIndex; amount: number; treasury: number; fromTreasury: number; sourceUnitId: UnitId | null }
   /** Fähigkeit einer Einheit außerhalb des Kampfes ausgelöst (`onFrontWin`, `onRoundStart`, vorgemerkte Kampf-Effekte). */
   | { type: "ability_triggered"; player: PlayerIndex; unitId: UnitId; sourceId: string; trigger: Trigger; arena: string | null }
+  /** R-17a.2: Markierung „nächste Runde“ gespeichert. */
+  | { type: "round_mark_set"; player: PlayerIndex; mark: RoundMark }
+  /** R-17a.2: Markierung wirkt (`unitIds` = betroffene Einheiten bei `startMana`, sonst leer). */
+  | { type: "round_mark_applied"; player: PlayerIndex; mark: RoundMark; unitIds: UnitId[] }
+  /** R-17a.2: Markierung gelöscht (nach dem Wirken oder weil ihre Runde vorbei ist). */
+  | { type: "round_mark_cleared"; player: PlayerIndex; mark: RoundMark }
   /** R-7.5 */
   | { type: "unit_healed"; player: PlayerIndex; unitId: UnitId; paidFromRoundGold: number; paidFromTreasury: number };
 
