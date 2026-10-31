@@ -9,6 +9,7 @@
  */
 import { type FighterInit, simulateCombat } from "./combat";
 import type { GameData } from "./data";
+import { effectHooks } from "./effects";
 import { fighterForUnit, removeFoughtTokens, runFronts } from "./fronts";
 import { centerPositionToArena, type Seat } from "./hex";
 import { type CenterResult, emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit } from "./state";
@@ -54,7 +55,8 @@ export function runCenter(state: GameState, data: GameData): CenterResult {
       players: [...players],
       fighters: inits.map((f) => ({ unitId: f.id, player: f.team as PlayerIndex, sourceId: f.sourceId, cell: { ...f.pos } })),
     });
-    const combat = simulateCombat(data.config, data.config.arenas.centerArena, inits);
+    const combat = simulateCombat(data.config, data.config.arenas.centerArena, inits, effectHooks(data).hooks, state.nextUnitId);
+    state.nextUnitId = combat.nextSummonId;
     for (const event of combat.events) emit(state, { ...event, arena: CENTER_ARENA_ID });
     // R-9.7: Halter ist der einzige Spieler mit lebenden Einheiten; nach Tick 300 mit mehreren oder ohne: keiner.
     result = {

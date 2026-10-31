@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { loadGameData, simulateCombat } from "@game/engine";
+import { effectHooks, loadGameData, simulateCombat } from "@game/engine";
 import {
   baseDamage,
   buildFighters,
@@ -108,7 +108,7 @@ describe("D1 Kampf-Sandbox: Kampf und Ergebnis", () => {
     finishSandbox(run);
     expect(isFinished(run)).toBe(true);
     const outcome = sandboxOutcome(data, run, 1);
-    const direct = simulateCombat(data.config, sandboxArenaSize(data), buildFighters(data, units));
+    const direct = simulateCombat(data.config, sandboxArenaSize(data), buildFighters(data, units), effectHooks(data).hooks);
     expect(outcome.winner).toBe(direct.winner);
     expect(outcome.ticks).toBe(direct.ticks);
     expect(outcome.survivors).toEqual(direct.survivors);
@@ -117,6 +117,16 @@ describe("D1 Kampf-Sandbox: Kampf und Ergebnis", () => {
       .reduce((s, f) => s + f.breakthrough, 0);
     expect(outcome.breakthrough).toBe(survivorBreakthrough);
     expect(outcome.damage).toBe(survivorBreakthrough + 1);
+  });
+
+  it("R-9.0: Fähigkeiten wirken in der Sandbox (Kesselflicker ruft ein Token, Bannerträger stärkt)", () => {
+    const units = setup(unit("tinker", 2, 2), unit("banner_bearer", 1, 0), unit("archmage", 2, 4));
+    const run = startSandbox(data, units);
+    finishSandbox(run);
+    expect(run.sim.events.some((e) => e.type === "combat_unit_summoned")).toBe(true);
+    expect(run.sim.events.some((e) => e.type === "combat_buffed")).toBe(true);
+    expect(sandboxCatalog(data).find((e) => e.sourceId === "tinker")?.combatAbility).toBe(true);
+    expect(sandboxCatalog(data).find((e) => e.sourceId === "fence")?.combatAbility).toBe(false);
   });
 
   it("schrittweise abgespielt ergibt denselben Kampf wie am Stück (Determinismus)", () => {

@@ -18,7 +18,9 @@ import {
   livingFighters,
   type OffsetCoord,
   type UnitStats,
+  COMBAT_TRIGGERS,
   createCombat,
+  effectHooks,
   stepCombat,
 } from "@game/engine";
 
@@ -45,8 +47,10 @@ export interface CatalogEntry {
   className: string;
   raceName: string | null;
   stats: UnitStats;
-  /** Hat die Einheit eine Fähigkeit? Fähigkeiten wirken erst mit E10. */
+  /** Hat die Einheit eine Fähigkeit? */
   hasAbility: boolean;
+  /** Wirkt eine ihrer Fähigkeiten im Kampf (E10a)? Andere (z. B. bei Frontsieg, Rundenbeginn) nur im Spiel. */
+  combatAbility: boolean;
 }
 
 /** Alle Einheiten, die man in der Sandbox aufstellen kann: Einheitenkarten, Tokens und Anführer. */
@@ -66,6 +70,7 @@ export function sandboxCatalog(data: GameData): CatalogEntry[] {
       raceName: raceName(card.race),
       stats: card.stats,
       hasAbility: (card.abilities ?? []).length > 0,
+      combatAbility: (card.abilities ?? []).some((a) => COMBAT_TRIGGERS.includes(a.trigger)),
     });
   }
   for (const leader of data.leaders.values()) {
@@ -79,6 +84,7 @@ export function sandboxCatalog(data: GameData): CatalogEntry[] {
       raceName: raceName(leader.race),
       stats: leader.stats,
       hasAbility: leader.abilities.length > 0,
+      combatAbility: leader.abilities.some((a) => COMBAT_TRIGGERS.includes(a.trigger)),
     });
   }
   const kindOrder: Record<SandboxKind, number> = { leader: 0, card: 1, token: 2 };
@@ -160,7 +166,8 @@ export function startSandbox(data: GameData, units: readonly SandboxUnit[]): San
   const fighters = buildFighters(data, units);
   const teams = new Set(fighters.map((f) => f.team));
   const kind: SandboxOutcomeKind = teams.size === 0 ? "noFight" : teams.size === 1 ? "emptyFront" : "combat";
-  const sim = createCombat(data.config, sandboxArenaSize(data), fighters);
+  // E10a: Fähigkeiten wirken im Kampf (Kampfbeginn, Mana, Tod, Bezwingen, Tod eines Verbündeten).
+  const sim = createCombat(data.config, sandboxArenaSize(data), fighters, effectHooks(data).hooks);
   return { kind, sim, fighters };
 }
 

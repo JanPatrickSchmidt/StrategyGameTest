@@ -2,7 +2,18 @@
  * Oberfläche der Kampf-Sandbox (D1). Nur Darstellung und Bedienung; die Logik steckt in `sandbox.ts`
  * und in der Engine.
  */
-import { type CombatEvent, type Fighter, type GameData, loadGameData, type OffsetCoord } from "@game/engine";
+import { type CombatEvent, type Fighter, type GameData, loadGameData, type OffsetCoord, type Stat } from "@game/engine";
+
+const STAT_NAMES: Record<Stat, string> = {
+  attack: "Angriff",
+  hp: "Leben",
+  breakthrough: "Durchbruch",
+  range: "Reichweite",
+  armor: "Panzer",
+  attackInterval: "Angriffsintervall",
+  moveInterval: "Bewegungsintervall",
+  manaMax: "Mana-Maximum",
+};
 import {
   type CatalogEntry,
   decodeSetup,
@@ -346,7 +357,7 @@ class SandboxApp {
       `Durchbruch ${st.breakthrough}`,
     ];
     if (st.armor) parts.push(`Panzer ${st.armor}`);
-    if (e.hasAbility) parts.push("Fähigkeit wirkt noch nicht");
+    if (e.hasAbility) parts.push(e.combatAbility ? "Fähigkeit wirkt im Kampf" : "Fähigkeit wirkt nur im Spiel, nicht hier");
     byId("unit-info").textContent = parts.join(" · ");
     const a = this.units.filter((u) => sideOfCell(this.data, u.pos) === 0).length;
     const b = this.units.length - a;
@@ -371,7 +382,7 @@ class SandboxApp {
     } else {
       const starsById = new Map(this.units.map((u, i) => [i + 1, u.kind === "leader" ? 1 : u.stars]));
       for (const f of this.run.sim.fighters) {
-        const e = this.entryFor(f.id <= this.units.length ? this.units[f.id - 1]!.kind : "card", f.sourceId);
+        const e = this.entryFor(f.summoned ? "token" : f.id <= this.units.length ? this.units[f.id - 1]!.kind : "card", f.sourceId);
         shown.push({ key: `f${f.id}`, team: f.team, pos: f.pos, label: abbreviation(e?.name ?? f.sourceId), stars: starsById.get(f.id) ?? 1, hp: f.hp, maxHp: f.maxHp, mana: f.hasManaAbility ? f.mana / f.manaMax : null, alive: f.alive, stunned: f.stun > 0, leader: e?.kind === "leader" });
       }
     }
@@ -472,13 +483,25 @@ class SandboxApp {
       case "combat_attack":
         return `${n(e.unit)} greift ${n(e.target)} an`;
       case "combat_ability":
-        return `${n(e.unit)} wirkt seine Fähigkeit (noch ohne Wirkung)`;
+        return `✦ ${n(e.unit)} wirkt seine Fähigkeit`;
       case "combat_damage": {
         const extra = e.absorbed > 0 ? `, ${e.absorbed} abgefangen` : "";
         return `  → ${n(e.target)} verliert ${e.hpLoss} Leben${extra} (noch ${Math.max(0, e.hp)})`;
       }
       case "combat_unit_stunned":
         return `${n(e.unit)} ist ${e.ticks} Ticks betäubt`;
+      case "combat_healed":
+        return `  → ${n(e.target)} wird um ${e.amount} geheilt (jetzt ${e.hp})`;
+      case "combat_shielded":
+        return `  → ${n(e.target)} erhält ${e.amount} Schild (jetzt ${e.shield})`;
+      case "combat_buffed":
+        return `  → ${n(e.target)}: ${STAT_NAMES[e.stat]} ${e.amount > 0 ? "+" : ""}${e.amount} (jetzt ${e.value})`;
+      case "combat_mana_gained":
+        return `  → ${n(e.target)} erhält ${e.amount} Mana`;
+      case "combat_keyword_granted":
+        return `  → ${n(e.target)} erhält ${e.keyword}`;
+      case "combat_unit_summoned":
+        return `✦ ${n(e.summoner)} ruft ${n(e.unit)} herbei`;
       case "combat_unit_died":
         return `✖ ${n(e.unit)} stirbt`;
       case "combat_ended":

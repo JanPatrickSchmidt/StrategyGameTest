@@ -39,6 +39,8 @@ Pflichtfelder: `id`, `name`, `type` (`resource` | `unit` | `spell` | `curse`), `
 | `onFrontWin` | die Seite dieser Einheit gewinnt ihren Frontkampf (Einheit hat teilgenommen) |
 | `onRoundStart` | R-17a.1 |
 
+**Auswertung im Kampf** (`src/effects.ts`, `effectHooks`): `onCombatStart` (vor Tick 1, aufsteigende ID; im Kampfbeginn erzeugte Tokens haben keinen eigenen Kampfbeginn), `onManaFull`, `onDeath`, `onKill` (nur gegnerisches Opfer), `onAllyDeath` (lebende Verbündete derselben Arena). Beim Tod gilt die Reihenfolge: sterbende Einheit, Bezwinger, Verbündete nach ID (F30). Im Kampf wirken `damage` (Fähigkeitsschaden, durch Schild und Panzer), `heal`, `shield`, `buff` (alle Dauern sofort; `permanent` wird zusätzlich vorgemerkt), `stun`, `gainMana` (nur Einheiten mit Mana-Fähigkeit), `summon` mit `adjacentFree` und `grantKeyword`. Alle anderen Bausteine werden als `DeferredEffect` vorgemerkt (Anwendung mit E10b). Fähigkeiten mit `condition` lösen im Kampf nicht aus.
+
 ### Bedingungen (`condition.kind`)
 `inReserve`, `wonFrontThisRound`.
 
@@ -82,6 +84,8 @@ Erlaubte Werte weiterer Parameter:
 Als Text: `self`, `currentTarget`, `currentTargetAndNeighbors`, `weakestAlly` (wenigste aktuelle LP), `adjacentAllies`, `allAllies`, `alliesInArena`, `zoneAllies`, `raceUnits`, `ownClassUnits`, `hexEnemies`, `hexNeighborEnemies`, `hexAndNeighborEnemies`, `hexAlly`, `chosenUnits`.
 Als Objekt: `{ "kind": "nearestEnemies", "count": n }`, `{ "kind": "alliesInRange", "range": r }`.
 Spieler: `frontOpponent`, `frontOpponentTreasury`, `targetPlayer`.
+
+Im Kampf (F30): Ziele werden vor dem Anwenden festgelegt und nach ID aufsteigend abgearbeitet. „Verbündete“ (`weakestAlly`, `allAllies`, `alliesInArena`, `alliesInRange`) schließen die Einheit selbst ein, `adjacentAllies` nicht. `currentTargetAndNeighbors` = aktuelles Ziel plus dessen gegnerische Nachbarn. `nearestEnemies`: Hex-Abstand, dann wenigste Lebenspunkte, dann kleinste ID. `distinctOwnRaces`: verschiedene Rassen der lebenden eigenen Kämpfer der Arena (inkl. Anführer und Tokens). `selfAttackTimes`: aktueller Angriff × `factor`. Feld-, Zonen- und gewählte Ziele gibt es nur bei Zaubern und Anführer-Fähigkeiten (E11).
 
 ### Ziel-Angaben bei Zaubern und Anführer-Fähigkeiten
 `{ "kind": "hex" | "zone" | "player" | "ownCards" | "moveUnits" | "none", … }`. Parameter: `hex`: `arenas`, optional `mustBeFree`; `zone`: `arenas`; `player`: `allowed` (`neighbors`); `ownCards`: `max`, `from` (Liste aus `deck` \| `discard`, mindestens ein Eintrag; R-14.8: nie Hand oder ausgespielte Karten); `moveUnits`: `count`, `destination` (`ownFreeHex` \| `participatingFreeHex`, R-16.6). `arenas`: `participating` (eigene Fronten und Mitte, R-14.2) oder `own` (nur eigene Zonen).

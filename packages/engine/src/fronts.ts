@@ -8,6 +8,7 @@
  */
 import { type FighterInit, fighterFromData, simulateCombat } from "./combat";
 import type { GameData } from "./data";
+import { effectHooks } from "./effects";
 import { frontArenaSize, type FrontSide, frontToArena, type OffsetCoord } from "./hex";
 import { activeRing, neighborsOf } from "./seating";
 import { emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit, type UnitId } from "./state";
@@ -116,7 +117,9 @@ export function runFront(state: GameState, data: GameData, pairing: FrontPairing
       players: [pairing.first, pairing.second],
       fighters: inits.map((f) => ({ unitId: f.id, player: f.team as PlayerIndex, sourceId: f.sourceId, cell: { ...f.pos } })),
     });
-    const combat = simulateCombat(data.config, frontArenaSize(zone), inits);
+    const combat = simulateCombat(data.config, frontArenaSize(zone), inits, effectHooks(data).hooks, state.nextUnitId);
+    // Im Kampf erzeugte Tokens belegen IDs, die danach keine andere Einheit mehr bekommt.
+    state.nextUnitId = combat.nextSummonId;
     for (const event of combat.events) emit(state, { ...event, arena });
     const winner = combat.winner === null ? null : (combat.winner as PlayerIndex);
     const survivorSet = new Set<UnitId>(combat.survivors);

@@ -53,9 +53,12 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
   - Eine einzelne, eigenständige HTML-Datei, veröffentlicht unter `docs/play/sandbox.html` (Engine gebündelt, keine Server-Abhängigkeit; Quellcode in `apps/sandbox`). GitHub Pages ist aktiv (Branch `main`, Ordner `/docs`), die Datei ist damit unter https://janpatrickschmidt.github.io/StrategyGameTest/play/sandbox.html erreichbar und muss auch am Handy bedienbar sein: Frontarena anzeigen (2D von oben reicht), Einheiten aus dem Mini-Set für beide Seiten auf Felder setzen, Kampf starten, Ablauf schrittweise oder animiert abspielen, Ergebnis und Durchbruch-Schaden anzeigen.
   - Zweck: Jan kann das Kampfsystem früh selbst ausprobieren und Feedback geben, bevor der 3D-Client existiert.
   - Abnahme: Datei öffnet sich im Browser ohne Fehler, auch auf schmalen Bildschirmen; in `docs/STATUS.md` unter „Zum Ausprobieren“ mit Link und kurzer Anleitung eingetragen.
-- [ ] **E10 Effekt-System**
+- [ ] **E10 Effekt-System** (aufgeteilt in E10a–E10c)
   - Auslöser und Bausteine laut `data/README.md`, alle Karten und Rassen des Mini-Sets wirken wie beschrieben.
   - Abnahme: Mindestens ein Test pro Karte mit Fähigkeit und pro Resonanzstufe.
+  - [x] **E10a Fähigkeiten im Kampf** (2026-10-31) – Modul `effects.ts`: Auslöser `onCombatStart`, `onManaFull`, `onDeath`, `onKill`, `onAllyDeath` für Karten, Tokens und Anführer; Bausteine `damage`, `heal`, `shield`, `buff`, `stun`, `gainMana`, `summon` (`adjacentFree`), `grantKeyword`; Kampf-Ziele und berechnete Werte; Tokens aus dem Kampf mit eigenen IDs; in Fronten, Mitte und Sandbox angeschlossen. Wirkungen über den Kampf hinaus werden vorgemerkt. Abnahme: ein Test je Karte und Anführer mit Kampf-Fähigkeit; Determinismus-Test.
+  - [ ] **E10b Wirkungen außerhalb des Kampfes** – vorgemerkte Kampf-Effekte anwenden (`gainGold` R-10.3, `gainLeaderXp`, dauerhafte Buffs am Spielzustand), `onFrontWin` (Fluchweber, Meisterdieb: `giveCurse` R-14.7, `stealGold`), `onRoundStart` mit `inReserve` (Hehler, R-17a.1), Markierungen „nächste Runde“ (R-17a.2). Abnahme: ein Test je betroffener Karte.
+  - [ ] **E10c Rassen-Resonanz** – Zählung nach R-17.1, Boni je Stufe in allen Kämpfen der Runde (R-17.2), Kostenbonus (R-17.3), Rundenwirkungen und Bonuszinsen (R-17.4), Bonus-XP (R-17.5), `unwoundable`. Abnahme: ein Test pro Resonanzstufe jeder Rasse.
 - [ ] **E11 Zauber und Anführer**
   - Aufdecken, Anführer-Fähigkeiten nach Kategorien (R-8.2), Zauber nach Tempo und Prioritätsreihenfolge (R-8.3, R-8.4), Verpuffen (R-8.5), Anführer-Stufen und Äste (R-16).
   - Abnahme: Tests zu allen genannten Regeln, jeder Ast jedes Anführers auf jeder Stufe.

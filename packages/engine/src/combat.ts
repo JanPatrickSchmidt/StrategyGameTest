@@ -3,14 +3,14 @@
  *
  * Reine, deterministische Tick-Simulation für eine Arena. Sie kennt nur Kämpfer, Felder und die
  * Kampfwerte aus `config.json`; Anbindung an den Spielzustand (Paarungen, Teilnehmer, Ereignisprotokoll)
- * folgt mit E8b, Fähigkeiten-Effekte mit E10 über die Haken (`CombatHooks`).
+ * folgt mit E8b, Fähigkeiten-Effekte über die Haken (`CombatHooks`, gefüllt von `effects.ts`).
  *
  * Seiten heißen hier „Teams“ (Zahl, z. B. der Spieler-Index), damit dieselbe Simulation später auch die
  * Mittelarena mit bis zu vier Teams abdeckt.
  */
 
 import type { ConfigData, GameData } from "./data";
-import type { Ability, CombatBehavior, Keyword, UnitStats } from "./dataTypes";
+import type { Ability, CombatBehavior, Keyword, Stat, UnitStats } from "./dataTypes";
 import {
   compareRowCol,
   coordEquals,
@@ -34,6 +34,10 @@ export interface FighterInit {
   pos: OffsetCoord;
   stats: UnitStats;
   keywords?: readonly Keyword[];
+  /** Rasse (Karte bzw. Anführer), für Effekte wie `distinctOwnRaces`. */
+  race?: string | null;
+  /** Fähigkeiten aus den Daten; ausgewertet von den Haken (`effects.ts`). */
+  abilities?: readonly Ability[];
   /** Hat die Einheit eine Fähigkeit mit Auslöser `onManaFull`? Nur dann sammelt sie Mana (R-9.2, R-9.5). */
   hasManaAbility: boolean;
   startMana?: number;
@@ -61,6 +65,12 @@ export interface Fighter {
   mana: number;
   shield: number;
   firstStrike: boolean;
+  /** Schlüsselwörter inkl. im Kampf verliehener (`grantKeyword`). */
+  keywords: Keyword[];
+  readonly race: string | null;
+  readonly abilities: readonly Ability[];
+  /** Im Kampf erzeugtes Token (`summon`), keine Einheit des Spielzustands. */
+  readonly summoned: boolean;
   /** Verbleibende Betäubungs-Ticks (R-9.3 Schritt 1). */
   stun: number;
   attackCooldown: number;
@@ -88,6 +98,20 @@ export type CombatEvent =
       hp: number;
     }
   | { type: "combat_unit_stunned"; tick: number; unit: UnitId; ticks: number }
+  | { type: "combat_healed"; tick: number; source: UnitId | null; target: UnitId; amount: number; hp: number }
+  | { type: "combat_shielded"; tick: number; source: UnitId | null; target: UnitId; amount: number; shield: number }
+  | { type: "combat_buffed"; tick: number; source: UnitId | null; target: UnitId; stat: Stat; amount: number; value: number }
+  | { type: "combat_mana_gained"; tick: number; source: UnitId | null; target: UnitId; amount: number; mana: number }
+  | { type: "combat_keyword_granted"; tick: number; source: UnitId | null; target: UnitId; keyword: Keyword }
+  | {
+      type: "combat_unit_summoned";
+      tick: number;
+      unit: UnitId;
+      team: number;
+      sourceId: string;
+      cell: OffsetCoord;
+      summoner: UnitId | null;
+    }
   | { type: "combat_unit_died"; tick: number; unit: UnitId; killer: UnitId | null }
   | { type: "combat_ended"; tick: number; winner: number | null; survivors: UnitId[] };
 
@@ -111,6 +135,8 @@ export interface CombatSim {
   readonly fighters: Fighter[];
   readonly hooks: CombatHooks;
   tick: number;
+  /** ID für das nächste im Kampf erzeugte Token (`spawnFighter`). */
+  nextSummonId: UnitId;
   /** Ist der Kampfbeginn (Tick 0) schon abgehandelt? */
   started: boolean;
   ended: boolean;
@@ -127,6 +153,8 @@ export interface CombatResult {
   survivors: UnitId[];
   fighters: Fighter[];
   events: CombatEvent[];
+  /** Erste noch nicht vergebene ID nach im Kampf erzeugten Tokens. */
+  nextSummonId: UnitId;
 }
 
 // ---------------------------------------------------------------------------
@@ -153,12 +181,14 @@ export function fighterFromData(data: GameData, src: FighterSource): FighterInit
   let classId: string;
   let keywords: readonly Keyword[] = [];
   let abilities: readonly Ability[] = [];
+  let race: string | null = null;
   if (src.kind === "leader") {
     const leader = data.leaders.get(src.sourceId);
     if (!leader) throw new RangeError(`Unbekannter Anführer: ${src.sourceId}`);
     stats = { ...leader.stats };
     classId = leader.class;
     abilities = leader.abilities;
+    race = leader.race;
   } else {
     const card = data.cards.get(src.sourceId);
     if (!card || card.type !== "unit") throw new RangeError(`Keine Einheitenkarte: ${src.sourceId}`);
@@ -166,6 +196,7 @@ export function fighterFromData(data: GameData, src: FighterSource): FighterInit
     classId = card.class;
     keywords = card.keywords ?? [];
     abilities = card.abilities ?? [];
+    race = card.race;
   }
   const cls = data.classes.get(classId);
   if (!cls) throw new RangeError(`Unbekannte Klasse: ${classId}`);
@@ -177,6 +208,8 @@ export function fighterFromData(data: GameData, src: FighterSource): FighterInit
     pos: { col: src.pos.col, row: src.pos.row },
     stats,
     keywords,
+    race,
+    abilities,
     hasManaAbility: abilities.some((a) => a.trigger === "onManaFull"),
   };
   if (src.startMana !== undefined) init.startMana = src.startMana;
@@ -193,10 +226,10 @@ export function createCombat(
   size: GridSize,
   inits: readonly FighterInit[],
   hooks: CombatHooks = {},
+  firstSummonId?: UnitId,
 ): CombatSim {
   const ids = new Set<UnitId>();
   const cells = new Set<string>();
-  const c = config.combat;
   const fighters: Fighter[] = [];
   for (const init of inits) {
     if (ids.has(init.id)) throw new RangeError(`Kämpfer-ID ${init.id} doppelt`);
@@ -205,36 +238,58 @@ export function createCombat(
     if (cells.has(key)) throw new RangeError(`Feld ${key} doppelt belegt`);
     ids.add(init.id);
     cells.add(key);
-    const s = init.stats;
-    const manaMax = s.manaMax ?? c.defaultManaMax;
-    fighters.push({
-      id: init.id,
-      team: init.team,
-      sourceId: init.sourceId,
-      behavior: init.behavior,
-      pos: { col: init.pos.col, row: init.pos.row },
-      alive: true,
-      attack: s.attack,
-      maxHp: s.hp,
-      hp: s.hp,
-      range: s.range,
-      breakthrough: s.breakthrough,
-      armor: s.armor ?? 0,
-      attackInterval: s.attackInterval ?? c.defaultAttackInterval,
-      moveInterval: s.moveInterval ?? c.defaultMoveInterval,
-      hasManaAbility: init.hasManaAbility,
-      manaMax,
-      mana: init.hasManaAbility ? Math.min(manaMax, init.startMana ?? 0) : 0,
-      shield: init.shield ?? 0,
-      firstStrike: (init.keywords ?? []).includes("firstStrike"),
-      stun: 0,
-      attackCooldown: 0,
-      moveCooldown: 0,
-      targetId: null,
-    });
+    fighters.push(buildFighter(config, init, false));
   }
   fighters.sort((a, b) => a.id - b.id);
-  return { config, size, fighters, hooks, tick: 0, started: false, ended: false, winner: null, events: [] };
+  const maxId = fighters.reduce((m, f) => Math.max(m, f.id), 0);
+  return {
+    config,
+    size,
+    fighters,
+    hooks,
+    tick: 0,
+    nextSummonId: Math.max(firstSummonId ?? 0, maxId + 1),
+    started: false,
+    ended: false,
+    winner: null,
+    events: [],
+  };
+}
+
+function buildFighter(config: ConfigData, init: FighterInit, summoned: boolean): Fighter {
+  const c = config.combat;
+  const s = init.stats;
+  const manaMax = s.manaMax ?? c.defaultManaMax;
+  const keywords = [...(init.keywords ?? [])];
+  return {
+    id: init.id,
+    team: init.team,
+    sourceId: init.sourceId,
+    behavior: init.behavior,
+    pos: { col: init.pos.col, row: init.pos.row },
+    alive: true,
+    attack: s.attack,
+    maxHp: s.hp,
+    hp: s.hp,
+    range: s.range,
+    breakthrough: s.breakthrough,
+    armor: s.armor ?? 0,
+    attackInterval: s.attackInterval ?? c.defaultAttackInterval,
+    moveInterval: s.moveInterval ?? c.defaultMoveInterval,
+    hasManaAbility: init.hasManaAbility,
+    manaMax,
+    mana: init.hasManaAbility ? Math.min(manaMax, init.startMana ?? 0) : 0,
+    shield: init.shield ?? 0,
+    firstStrike: keywords.includes("firstStrike"),
+    keywords,
+    race: init.race ?? null,
+    abilities: init.abilities ?? [],
+    summoned,
+    stun: 0,
+    attackCooldown: 0,
+    moveCooldown: 0,
+    targetId: null,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -330,9 +385,11 @@ function finish(sim: CombatSim, winner: number | null): void {
   });
 }
 
-function gainMana(fighter: Fighter, amount: number): void {
-  if (!fighter.hasManaAbility || !fighter.alive) return;
+function gainMana(fighter: Fighter, amount: number): number {
+  if (!fighter.hasManaAbility || !fighter.alive) return 0;
+  const before = fighter.mana;
   fighter.mana = Math.min(fighter.manaMax, fighter.mana + amount);
+  return fighter.mana - before;
 }
 
 // ---------------------------------------------------------------------------
@@ -387,6 +444,95 @@ export function stunFighter(sim: CombatSim, target: Fighter, ticks: number): voi
   sim.events.push({ type: "combat_unit_stunned", tick: sim.tick, unit: target.id, ticks });
 }
 
+/** Lebenspunkte zurück, höchstens bis zum Maximum. */
+export function healFighter(sim: CombatSim, source: Fighter | null, target: Fighter, amount: number): void {
+  if (!target.alive || amount <= 0) return;
+  const healed = Math.min(amount, target.maxHp - target.hp);
+  if (healed <= 0) return;
+  target.hp += healed;
+  sim.events.push({ type: "combat_healed", tick: sim.tick, source: source ? source.id : null, target: target.id, amount: healed, hp: target.hp });
+}
+
+/** R-14.3: Schilde addieren sich. */
+export function shieldFighter(sim: CombatSim, source: Fighter | null, target: Fighter, amount: number): void {
+  if (!target.alive || amount <= 0) return;
+  target.shield += amount;
+  sim.events.push({ type: "combat_shielded", tick: sim.tick, source: source ? source.id : null, target: target.id, amount, shield: target.shield });
+}
+
+/** Mana durch Effekte; nur Einheiten mit Mana-Fähigkeit sammeln Mana (R-9.2). */
+export function addMana(sim: CombatSim, source: Fighter | null, target: Fighter, amount: number): void {
+  if (amount <= 0) return;
+  const gained = gainMana(target, amount);
+  if (gained <= 0) return;
+  sim.events.push({ type: "combat_mana_gained", tick: sim.tick, source: source ? source.id : null, target: target.id, amount: gained, mana: target.mana });
+}
+
+/**
+ * Kampfwert erhöhen. `hp` erhöht Maximum und aktuelle Lebenspunkte; Intervalle sinken nie unter 1,
+ * Werte nie unter 0.
+ */
+export function buffFighter(sim: CombatSim, source: Fighter | null, target: Fighter, stat: Stat, amount: number): void {
+  if (!target.alive || amount === 0) return;
+  let value: number;
+  switch (stat) {
+    case "hp":
+      target.maxHp = Math.max(1, target.maxHp + amount);
+      target.hp = Math.min(target.maxHp, Math.max(1, target.hp + amount));
+      value = target.maxHp;
+      break;
+    case "attackInterval":
+    case "moveInterval":
+      target[stat] = Math.max(1, target[stat] + amount);
+      value = target[stat];
+      break;
+    case "manaMax":
+      target.manaMax = Math.max(1, target.manaMax + amount);
+      target.mana = Math.min(target.mana, target.manaMax);
+      value = target.manaMax;
+      break;
+    default:
+      target[stat] = Math.max(0, target[stat] + amount);
+      value = target[stat];
+  }
+  sim.events.push({ type: "combat_buffed", tick: sim.tick, source: source ? source.id : null, target: target.id, stat, amount, value });
+}
+
+/** Schlüsselwort für den Rest des Kampfes verleihen. */
+export function grantFighterKeyword(sim: CombatSim, source: Fighter | null, target: Fighter, keyword: Keyword): void {
+  if (!target.alive || target.keywords.includes(keyword)) return;
+  target.keywords.push(keyword);
+  if (keyword === "firstStrike") target.firstStrike = true;
+  sim.events.push({ type: "combat_keyword_granted", tick: sim.tick, source: source ? source.id : null, target: target.id, keyword });
+}
+
+/**
+ * Erzeugt im Kampf ein Token (`summon`) auf einem freien Feld. Es bekommt die nächste freie ID und
+ * handelt danach normal; R-9.0 gilt für Tokens, die vor dem Kampfbeginn schon auf dem Brett standen.
+ */
+export function spawnFighter(
+  sim: CombatSim,
+  summoner: Fighter | null,
+  init: Omit<FighterInit, "id" | "pos">,
+  pos: OffsetCoord,
+): Fighter | null {
+  if (!isCellFree(sim, pos)) return null;
+  const fighter = buildFighter(sim.config, { ...init, id: sim.nextSummonId, pos }, true);
+  sim.nextSummonId += 1;
+  sim.fighters.push(fighter);
+  sim.fighters.sort((a, b) => a.id - b.id);
+  sim.events.push({
+    type: "combat_unit_summoned",
+    tick: sim.tick,
+    unit: fighter.id,
+    team: fighter.team,
+    sourceId: fighter.sourceId,
+    cell: copy(pos),
+    summoner: summoner ? summoner.id : null,
+  });
+  return fighter;
+}
+
 // ---------------------------------------------------------------------------
 // Kampfbeginn (R-9.0) und Schurken-Sprung (R-9.4)
 // ---------------------------------------------------------------------------
@@ -417,7 +563,8 @@ function backlineJump(sim: CombatSim, rogue: Fighter): void {
 function combatStart(sim: CombatSim): void {
   sim.tick = 0;
   if (checkEnd(sim)) return;
-  for (const f of sim.fighters) {
+  // Im Kampfbeginn erzeugte Tokens haben keinen eigenen Kampfbeginn (Liste vorher festhalten).
+  for (const f of [...sim.fighters]) {
     if (!f.alive) continue;
     sim.hooks.onCombatStart?.(sim, f);
     if (f.alive && f.behavior === "backlineJump") backlineJump(sim, f);
@@ -516,6 +663,7 @@ export function combatResult(sim: CombatSim): CombatResult {
     survivors: livingFighters(sim).map((f) => f.id),
     fighters: sim.fighters,
     events: sim.events,
+    nextSummonId: sim.nextSummonId,
   };
 }
 
@@ -525,8 +673,9 @@ export function simulateCombat(
   size: GridSize,
   inits: readonly FighterInit[],
   hooks: CombatHooks = {},
+  firstSummonId?: UnitId,
 ): CombatResult {
-  const sim = createCombat(config, size, inits, hooks);
+  const sim = createCombat(config, size, inits, hooks, firstSummonId);
   while (stepCombat(sim)) {
     // weiter bis zum Kampfende
   }
