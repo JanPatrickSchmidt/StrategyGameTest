@@ -86,6 +86,14 @@ export function mergeUnits(state: GameState, player: PlayerIndex): UnitId[] {
     keeper.xp = all.reduce((sum, u) => sum + u.xp, 0);
     keeper.wounded = all.every((u) => u.wounded);
     keeper.cardInstanceIds = all.flatMap((u) => u.cardInstanceIds);
+    // Dauerhafte Buffs aller drei bleiben erhalten (addiert, R-1.9, F31).
+    const buffs: NonNullable<Unit["permanentBuffs"]> = {};
+    for (const u of all) {
+      for (const [stat, amount] of Object.entries(u.permanentBuffs ?? {}) as [keyof typeof buffs, number][]) {
+        buffs[stat] = (buffs[stat] ?? 0) + amount;
+      }
+    }
+    if (Object.keys(buffs).length > 0) keeper.permanentBuffs = buffs;
     for (const other of others) delete state.units[other.id];
     emit(state, {
       type: "units_merged",

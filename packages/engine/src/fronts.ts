@@ -8,7 +8,9 @@
  */
 import { type FighterInit, fighterFromData, simulateCombat } from "./combat";
 import type { GameData } from "./data";
-import { effectHooks } from "./effects";
+import { applyCombatAftermath } from "./aftermath";
+import type { Stat } from "./dataTypes";
+import { type DeferredEffect, effectHooks } from "./effects";
 import { frontArenaSize, type FrontSide, frontToArena, type OffsetCoord } from "./hex";
 import { activeRing, neighborsOf } from "./seating";
 import { emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit, type UnitId } from "./state";
@@ -52,7 +54,8 @@ export function frontParticipants(state: GameState, pairing: FrontPairing): { fi
 
 /**
  * R-9.2 plus R-16.3: Kampfwerte einer Einheit. Ab Anführer-Stufe 3 steigen `attack` und `hp` der
- * Anführer-Kampfeinheit um `config.leader.level3StatBonus` (Zuschlag abgerundet).
+ * Anführer-Kampfeinheit um `config.leader.level3StatBonus` (Zuschlag abgerundet). Dauerhafte Buffs
+ * (`unit.permanentBuffs`, E10b) kommen danach als fester Zuschlag hinzu (F31).
  */
 export function fighterForUnit(state: GameState, data: GameData, unit: Unit, pos: OffsetCoord): FighterInit {
   const init = fighterFromData(data, {
@@ -68,6 +71,25 @@ export function fighterForUnit(state: GameState, data: GameData, unit: Unit, pos
     const raise = (v: number): number => v + Math.floor(v * bonus + 1e-9);
     init.stats = { ...init.stats, attack: raise(init.stats.attack), hp: raise(init.stats.hp) };
   }
+  if (unit.permanentBuffs) {
+    const c = data.config.combat;
+    const base: Record<Stat, number> = {
+      attack: init.stats.attack,
+      hp: init.stats.hp,
+      breakthrough: init.stats.breakthrough,
+      range: init.stats.range,
+      armor: init.stats.armor ?? 0,
+      attackInterval: init.stats.attackInterval ?? c.defaultAttackInterval,
+      moveInterval: init.stats.moveInterval ?? c.defaultMoveInterval,
+      manaMax: init.stats.manaMax ?? c.defaultManaMax,
+    };
+    const stats = { ...init.stats };
+    for (const [stat, amount] of Object.entries(unit.permanentBuffs) as [Stat, number][]) {
+      const min = stat === "hp" || stat === "attackInterval" || stat === "moveInterval" || stat === "manaMax" || stat === "range" ? 1 : 0;
+      stats[stat] = Math.max(min, base[stat] + amount);
+    }
+    init.stats = stats;
+  }
   return init;
 }
 
@@ -78,8 +100,11 @@ function frontCell(unit: Unit): OffsetCoord {
   return unit.location.cell;
 }
 
-/** Führt einen Frontkampf aus und protokolliert ihn (R-9.1, R-9.7). Verändert keine Einheiten. */
-export function runFront(state: GameState, data: GameData, pairing: FrontPairing): FrontResult {
+/**
+ * Führt einen Frontkampf aus und protokolliert ihn (R-9.1, R-9.7). Verändert keine Einheiten. Im Kampf
+ * vorgemerkte Effekte (`DeferredEffect`) landen in `deferredOut`, angewendet werden sie in `aftermath.ts`.
+ */
+export function runFront(state: GameState, data: GameData, pairing: FrontPairing, deferredOut: DeferredEffect[] = []): FrontResult {
   const arena = frontArenaId(pairing);
   const zone = data.config.arenas.frontZone;
   const { first, second } = frontParticipants(state, pairing);
@@ -117,7 +142,9 @@ export function runFront(state: GameState, data: GameData, pairing: FrontPairing
       players: [pairing.first, pairing.second],
       fighters: inits.map((f) => ({ unitId: f.id, player: f.team as PlayerIndex, sourceId: f.sourceId, cell: { ...f.pos } })),
     });
-    const combat = simulateCombat(data.config, frontArenaSize(zone), inits, effectHooks(data).hooks, state.nextUnitId);
+    const fx = effectHooks(data);
+    const combat = simulateCombat(data.config, frontArenaSize(zone), inits, fx.hooks, state.nextUnitId);
+    deferredOut.push(...fx.deferred);
     // Im Kampf erzeugte Tokens belegen IDs, die danach keine andere Einheit mehr bekommt.
     state.nextUnitId = combat.nextSummonId;
     for (const event of combat.events) emit(state, { ...event, arena });
@@ -149,9 +176,15 @@ export function runFront(state: GameState, data: GameData, pairing: FrontPairing
   return result;
 }
 
-/** R-9: alle Frontkämpfe einer Runde auf demselben Ausgangszustand, ohne den Zustand zu verändern. */
-export function runFronts(state: GameState, data: GameData): FrontResult[] {
-  return frontPairings(state).map((pairing) => runFront(state, data, pairing));
+/**
+ * R-9: alle Frontkämpfe einer Runde auf demselben Ausgangszustand, ohne den Zustand zu verändern.
+ * Liefert je Paarung das Ergebnis und die vorgemerkten Effekte.
+ */
+export function runFronts(state: GameState, data: GameData): { result: FrontResult; deferred: DeferredEffect[] }[] {
+  return frontPairings(state).map((pairing) => {
+    const deferred: DeferredEffect[] = [];
+    return { result: runFront(state, data, pairing, deferred), deferred };
+  });
 }
 
 /** R-1.4, R-9.6: Tokens, die an einem Kampf teilgenommen haben, verschwinden (nach allen Kämpfen). */
@@ -165,13 +198,15 @@ export function removeFoughtTokens(state: GameState, participants: readonly Unit
 }
 
 /**
- * R-9 für alle Fronten einer Runde: erst alle Kämpfe auf demselben Ausgangszustand, dann
- * R-1.4/R-9.6: Tokens, die an einem Frontkampf teilgenommen haben, verschwinden.
+ * R-9 für alle Fronten einer Runde: erst alle Kämpfe auf demselben Ausgangszustand, dann die Wirkungen
+ * außerhalb des Kampfes (E10b), dann R-1.4/R-9.6: Tokens, die an einem Frontkampf teilgenommen haben, verschwinden.
  * Die Rundenmaschine nutzt `runCombatPhase` (`center.ts`), das zusätzlich die Mitte kämpfen lässt.
  */
 export function runFrontCombats(state: GameState, data: GameData): FrontResult[] {
-  const results = runFronts(state, data);
+  const fronts = runFronts(state, data);
+  const results = fronts.map((f) => f.result);
   state.frontResults = results;
+  applyCombatAftermath(state, data, { fronts, center: null });
   removeFoughtTokens(state, results.flatMap((r) => r.participants));
   return results;
 }

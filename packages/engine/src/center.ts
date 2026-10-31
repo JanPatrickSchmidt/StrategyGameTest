@@ -9,7 +9,8 @@
  */
 import { type FighterInit, simulateCombat } from "./combat";
 import type { GameData } from "./data";
-import { effectHooks } from "./effects";
+import { applyCombatAftermath } from "./aftermath";
+import { type DeferredEffect, effectHooks } from "./effects";
 import { fighterForUnit, removeFoughtTokens, runFronts } from "./fronts";
 import { centerPositionToArena, type Seat } from "./hex";
 import { type CenterResult, emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit } from "./state";
@@ -34,8 +35,11 @@ function centerCell(data: GameData, unit: Unit) {
   return centerPositionToArena(unit.owner as Seat, unit.location.position, centerArena, centerStartSlots);
 }
 
-/** Führt den Mittelkampf aus und protokolliert ihn (R-9.1, R-9.7). Verändert keine Einheiten. */
-export function runCenter(state: GameState, data: GameData): CenterResult {
+/**
+ * Führt den Mittelkampf aus und protokolliert ihn (R-9.1, R-9.7). Verändert keine Einheiten; vorgemerkte
+ * Effekte landen in `deferredOut`.
+ */
+export function runCenter(state: GameState, data: GameData, deferredOut: DeferredEffect[] = []): CenterResult {
   const units = centerParticipants(state);
   const players = [...new Set(units.map((u) => u.owner))].sort((a, b) => a - b);
   const base = { round: state.round, arena: CENTER_ARENA_ID, players, participants: units.map((u) => u.id) };
@@ -55,7 +59,9 @@ export function runCenter(state: GameState, data: GameData): CenterResult {
       players: [...players],
       fighters: inits.map((f) => ({ unitId: f.id, player: f.team as PlayerIndex, sourceId: f.sourceId, cell: { ...f.pos } })),
     });
-    const combat = simulateCombat(data.config, data.config.arenas.centerArena, inits, effectHooks(data).hooks, state.nextUnitId);
+    const fx = effectHooks(data);
+    const combat = simulateCombat(data.config, data.config.arenas.centerArena, inits, fx.hooks, state.nextUnitId);
+    deferredOut.push(...fx.deferred);
     state.nextUnitId = combat.nextSummonId;
     for (const event of combat.events) emit(state, { ...event, arena: CENTER_ARENA_ID });
     // R-9.7: Halter ist der einzige Spieler mit lebenden Einheiten; nach Tick 300 mit mehreren oder ohne: keiner.
@@ -80,14 +86,17 @@ export function runCenter(state: GameState, data: GameData): CenterResult {
 
 /**
  * R-9: Kampfphase einer Runde. Alle Frontkämpfe und der Mittelkampf laufen auf demselben
- * Ausgangszustand; danach verschwinden alle Tokens, die an einem dieser Kämpfe teilgenommen haben
- * (R-1.4, R-9.6).
+ * Ausgangszustand; danach wirken die vorgemerkten Kampf-Effekte und `onFrontWin` (E10b, `aftermath.ts`),
+ * und zuletzt verschwinden alle Tokens, die an einem dieser Kämpfe teilgenommen haben (R-1.4, R-9.6).
  */
 export function runCombatPhase(state: GameState, data: GameData): { fronts: FrontResult[]; center: CenterResult } {
-  const fronts = runFronts(state, data);
-  const center = runCenter(state, data);
+  const frontRuns = runFronts(state, data);
+  const centerDeferred: DeferredEffect[] = [];
+  const center = runCenter(state, data, centerDeferred);
+  const fronts = frontRuns.map((f) => f.result);
   state.frontResults = fronts;
   state.centerResult = center;
+  applyCombatAftermath(state, data, { fronts: frontRuns, center: { result: center, deferred: centerDeferred } });
   removeFoughtTokens(state, [...fronts.flatMap((r) => r.participants), ...center.participants]);
   return { fronts, center };
 }

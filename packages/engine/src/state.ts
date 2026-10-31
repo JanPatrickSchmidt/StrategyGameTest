@@ -7,6 +7,7 @@ import type { ActionTarget, Planning, PlanningSection, RejectionReason } from ".
 import type { OffsetCoord } from "./hex";
 import type { RngState } from "./rng";
 import type { CombatEvent } from "./combat";
+import type { Stat, Trigger } from "./dataTypes";
 
 /** R-1.1: genau 4 Spieler, Index 0–3. */
 export type PlayerIndex = 0 | 1 | 2 | 3;
@@ -66,6 +67,11 @@ export interface Unit {
    * Kampfphase gesetzt, bei jedem späteren Ortswechsel gelöscht und zu Rundenbeginn ausgewertet und zurückgesetzt.
    */
   restedInReserve: boolean;
+  /**
+   * Dauerhafte Buffs aus Effekten mit `duration: "permanent"` (z. B. Champion der Arena), als fester Zuschlag
+   * auf die Kampfwerte nach dem Sternfaktor. Fehlt = keine.
+   */
+  permanentBuffs?: Partial<Record<Stat, number>>;
 }
 
 export interface LeaderState {
@@ -283,6 +289,14 @@ export type GameEventPayload =
       holder: PlayerIndex | null;
       survivors: UnitId[];
     }
+  /** Dauerhafter Buff nach dem Kampf; `total` = gesamter dauerhafter Zuschlag dieses Werts. */
+  | { type: "unit_buffed_permanently"; player: PlayerIndex; unitId: UnitId; stat: Stat; amount: number; total: number; sourceUnitId: UnitId }
+  /** R-14.7: Fluch aus dem Fluch-Stapel auf den Ablagestapel von `to`; `player` = Spieler, dessen Effekt ihn gibt. */
+  | { type: "curse_given"; player: PlayerIndex; to: PlayerIndex; cardId: string; cardInstanceId: CardInstanceId; sourceUnitId: UnitId | null }
+  /** `stealGold`: Gold aus der Schatzkammer von `from` in die Schatzkammer von `player` (R-10.3). */
+  | { type: "gold_stolen"; player: PlayerIndex; from: PlayerIndex; amount: number; treasury: number; fromTreasury: number; sourceUnitId: UnitId | null }
+  /** Fähigkeit einer Einheit außerhalb des Kampfes ausgelöst (`onFrontWin`, `onRoundStart`, vorgemerkte Kampf-Effekte). */
+  | { type: "ability_triggered"; player: PlayerIndex; unitId: UnitId; sourceId: string; trigger: Trigger; arena: string | null }
   /** R-7.5 */
   | { type: "unit_healed"; player: PlayerIndex; unitId: UnitId; paidFromRoundGold: number; paidFromTreasury: number };
 

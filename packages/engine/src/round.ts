@@ -24,6 +24,7 @@ import { healUnit, markReserveRest, moveUnit, playUnit, recoverInReserve } from 
 import { drawEndOfRound } from "./deck";
 import { autoChooseBranch, chooseBranch, grantRoundXp, levelUpLeaders, resetLeaderAbilities, setLeaderAbility } from "./leader";
 import { runCombatPhase } from "./center";
+import { runRoundStartEffects } from "./aftermath";
 import { mergeUnits } from "./merge";
 import { discardSetSpells, setSpell } from "./spells";
 import {
@@ -219,14 +220,15 @@ function isGameOver(state: GameState): boolean {
 }
 
 /**
- * R-6: Rundenbeginn in der Reihenfolge R-6.1 Zinsen, R-6.5 Genesung durch Reserve, R-6.6 Anführer-Aufstieg,
+ * R-6: Rundenbeginn in der Reihenfolge R-17a.1 „pro Runde“-Effekte, R-6.1 Zinsen, R-6.5 Genesung durch Reserve, R-6.6 Anführer-Aufstieg,
  * R-6.4 Ressourcen.
  * R-6.2: Der Rundenvorrat beginnt bei 0; das stellt die Einzahlung am Rundenende sicher (R-12.5).
  * R-6.3: Zu Rundenbeginn wird nicht gezogen; die Hand stammt aus R-4.6 bzw. R-12.6.
  */
 function runRoundStart(state: GameState, data: GameData): void {
+  // R-6.1/R-17a.1: „pro Runde“-Effekte vor den Zinsen (F31), Gold in den Rundenvorrat bzw. die Schatzkammer.
+  runRoundStartEffects(state, data);
   payInterest(state, data.config);
-  // R-17a.1 („pro Runde“-Effekte) folgt in E10.
   recoverInReserve(state);
   levelUpLeaders(state, data.config);
   playResources(state, data);

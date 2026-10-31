@@ -5,7 +5,8 @@
  * Auslöser `onCombatStart`, `onManaFull`, `onDeath`, `onKill`, `onAllyDeath` und die Bausteine, die nur
  * die Simulation betreffen (`damage`, `heal`, `shield`, `buff`, `stun`, `gainMana`, `summon`,
  * `grantKeyword`). Bausteine, die über den Kampf hinaus wirken (z. B. `gainGold`, `gainLeaderXp`) und
- * dauerhafte Buffs werden als `DeferredEffect` gesammelt; die Anwendung auf den Spielzustand folgt mit E10b.
+ * dauerhafte Buffs werden als `DeferredEffect` gesammelt und nach allen Kämpfen der Runde auf den Spielzustand
+ * angewendet (`aftermath.ts`, E10b).
  */
 import {
   addMana,
@@ -30,7 +31,7 @@ import { compareRowCol, hexDistance, neighbors } from "./hex";
 /** Auslöser, die während der Kampfsimulation ausgewertet werden. */
 export const COMBAT_TRIGGERS: readonly Trigger[] = ["onCombatStart", "onManaFull", "onDeath", "onKill", "onAllyDeath"];
 
-/** Ein im Kampf ausgelöster Effekt, der den Spielzustand betrifft (Anwendung mit E10b). */
+/** Ein im Kampf ausgelöster Effekt, der den Spielzustand betrifft (Anwendung in `aftermath.ts`, E10b). */
 export interface DeferredEffect {
   tick: number;
   /** Kämpfer, dessen Fähigkeit ausgelöst hat. */
@@ -41,6 +42,8 @@ export interface DeferredEffect {
   effect: Effect;
   /** Bei dauerhaften Buffs: die betroffenen Kämpfer (im Kampf schon angewendet). */
   targets?: number[];
+  /** Hat der Baustein ein `amount`, steht hier der beim Auslösen berechnete Wert. */
+  amount?: number;
 }
 
 export interface EffectHooks {
@@ -171,6 +174,7 @@ function applyEffect(
   const defer = (targets?: Fighter[]): void => {
     const entry: DeferredEffect = { tick: sim.tick, unit: f.id, team: f.team, sourceId: f.sourceId, trigger, effect };
     if (targets) entry.targets = targets.map((t) => t.id);
+    if ("amount" in effect && effect.amount !== undefined) entry.amount = resolveAmount(sim, f, effect.amount);
     deferred.push(entry);
   };
   switch (effect.op) {
@@ -194,7 +198,7 @@ function applyEffect(
       const amount = resolveAmount(sim, f, effect.amount);
       const targets = resolveUnitTargets(sim, f, effect.target);
       for (const t of targets) buffFighter(sim, f, t, effect.stat, amount);
-      // Dauerhafte Buffs gelten sofort im Kampf und werden für den Spielzustand vorgemerkt (E10b).
+      // Dauerhafte Buffs gelten sofort im Kampf und werden für den Spielzustand vorgemerkt (`aftermath.ts`).
       if (effect.duration === "permanent" && targets.length > 0) defer(targets);
       return;
     }
