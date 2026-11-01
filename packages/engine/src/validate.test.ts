@@ -116,6 +116,25 @@ describe("E2 Datenvalidierung: kaputte Daten werden erkannt", () => {
       expectSingleIssue(issues, "cards.cards", "doppelte ID: coin");
     });
 
+    it("R-4.4: fehlendes Anführer-Startfeld in config.json", () => {
+      const issues = broken((raw) => delete at(raw.config).leaderStart);
+      expectSingleIssue(issues, "config.leaderStart", "Pflichtfeld fehlt");
+    });
+
+    it("R-4.4: Anführer-Startfeld in einer Zone ohne Felder (center) wird erkannt", () => {
+      const issues = broken((raw) => (at(raw.config, "leaderStart").zone = "center"));
+      expectSingleIssue(issues, "config.leaderStart.zone", "unbekannter Wert");
+    });
+
+    it("R-4.4: Anführer-Startfeld außerhalb der Frontzone wird erkannt", () => {
+      const colIssues = broken((raw) => (at(raw.config, "leaderStart", "cell").col = 5));
+      expectSingleIssue(colIssues, "config.leaderStart.cell.col", "außerhalb der Frontzone");
+      const rowIssues = broken((raw) => (at(raw.config, "leaderStart", "cell").row = 3));
+      expectSingleIssue(rowIssues, "config.leaderStart.cell.row", "außerhalb der Frontzone");
+      const negative = broken((raw) => (at(raw.config, "leaderStart", "cell").row = -1));
+      expectSingleIssue(negative, "config.leaderStart.cell.row", "mindestens 0");
+    });
+
     it("fehlendes Feld in config.json", () => {
       const issues = broken((raw) => delete at(raw.config, "combat").maxTicks);
       expectSingleIssue(issues, "config.combat.maxTicks", "Pflichtfeld fehlt");

@@ -10,6 +10,10 @@ Die Engine liest alle Spielinhalte und Zahlen aus diesen Dateien. Code enthält 
 | `cards.json` | Alle Karten inkl. Tokens |
 | `leaders.json` | Anführer mit Kampfwerten, Mana-Fähigkeit, aktiver Fähigkeit und Ästen (R-16) |
 
+## Konfiguration (Auszug)
+
+- `leaderStart` (R-4.4): Startfeld des Anführers beim Aufbau, z. B. `{ "zone": "left", "cell": { "col": 2, "row": 1 } }`. `zone` ist `left` oder `right` (nur Frontzonen haben Felder); `cell` sind Offset-Koordinaten der Frontzone und müssen innerhalb von `arenas.frontZone` liegen (Spalte 0 bis `cols − 1`, Zeile 0 bis `rows − 1`). Gilt für alle Spieler.
+
 ## Karten
 
 Pflichtfelder: `id`, `name`, `type` (`resource` | `unit` | `spell` | `curse`), `cost`, `pool`.
@@ -125,4 +129,4 @@ Spieler geben Ziele von Zaubern (`setSpell`, R-7.3) und Anführer-Fähigkeiten (
 
 ## Validierung
 
-`loadGameData()` prüft alle Dateien beim Laden (`src/validate.ts`) und wirft bei Fehlern einen `GameDataError` mit allen Fundstellen. Geprüft werden: Pflichtfelder und Datentypen, unbekannte Felder (Tippfehler; Felder mit `_` am Anfang sind Kommentare), jeder `op`, jedes `target`, jeder Auslöser, jede Bedingung, jedes Schlüsselwort, doppelte IDs sowie alle Verweise auf Rassen, Klassen und Tokens. Wer einen neuen Baustein oder Wert einführt, ergänzt ihn in `src/dataTypes.ts`, in `src/validate.ts` und in dieser Datei.
+`loadGameData()` prüft alle Dateien beim Laden (`src/validate.ts`) und wirft bei Fehlern einen `GameDataError` mit allen Fundstellen. Geprüft werden: Pflichtfelder und Datentypen, unbekannte Felder (Tippfehler; Felder mit `_` am Anfang sind Kommentare), jeder `op`, jedes `target`, jeder Auslöser, jede Bedingung, jedes Schlüsselwort, doppelte IDs, alle Verweise auf Rassen, Klassen und Tokens sowie, dass `leaderStart` innerhalb der Frontzone liegt. Wer einen neuen Baustein oder Wert einführt, ergänzt ihn in `src/dataTypes.ts`, in `src/validate.ts` und in dieser Datei.

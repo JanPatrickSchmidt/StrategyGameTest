@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { loadGameData } from "./data";
-import { createClassPool, createGame, createSupply, defaultLeaders, pileSizeOf, SetupError, startingDeckCardIds } from "./setup";
+import {
+  createClassPool,
+  createGame,
+  createSupply,
+  defaultLeaders,
+  leaderStartLocation,
+  pileSizeOf,
+  SetupError,
+  startingDeckCardIds,
+} from "./setup";
 import { cloneState, getPlayer, getUnit, PLAYER_INDICES } from "./state";
 
 const data = loadGameData();
@@ -151,6 +160,34 @@ describe("R-4.4: Anführer-Startposition", () => {
     expect(Object.keys(state.units)).toHaveLength(4);
     const placed = state.log.filter((e) => e.type === "unit_placed");
     expect(placed).toHaveLength(4);
+  });
+
+  it("R-4.4: das Startfeld kommt aus config.leaderStart", () => {
+    expect(config.leaderStart).toEqual({ zone: "left", cell: { col: 2, row: 1 } });
+    expect(leaderStartLocation(config)).toEqual({ zone: "left", cell: { col: 2, row: 1 } });
+  });
+
+  it("R-4.4: ein geänderter Konfigurationswert ändert das Startfeld", () => {
+    const changed = { ...data, config: { ...config, leaderStart: { zone: "right", cell: { col: 4, row: 0 } } } };
+    const state = createGame(changed);
+    for (const p of state.players) {
+      expect(getUnit(state, p.leader.unitId).location).toEqual({ zone: "right", cell: { col: 4, row: 0 } });
+    }
+    const placed = state.log.filter((e) => e.type === "unit_placed");
+    expect(placed.map((e) => e.type === "unit_placed" && e.location)).toEqual(
+      Array(4).fill({ zone: "right", cell: { col: 4, row: 0 } }),
+    );
+  });
+
+  it("R-4.4: jede Einheit bekommt eine eigene Kopie des Startfelds", () => {
+    const state = createGame(data);
+    const [a, b] = state.players.map((p) => getUnit(state, p.leader.unitId));
+    expect(a?.location).not.toBe(b?.location);
+  });
+
+  it("R-4.4: eine ungültige Startzone ohne Validator wird abgelehnt", () => {
+    const bad = { ...config, leaderStart: { zone: "center", cell: { col: 0, row: 0 } } };
+    expect(() => leaderStartLocation(bad)).toThrow(SetupError);
   });
 });
 

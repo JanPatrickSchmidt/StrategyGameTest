@@ -23,8 +23,13 @@ export class SetupError extends Error {
   }
 }
 
-/** R-4.4: Startposition des Anführers, Zone `left`, Feld (Spalte 2, Zeile 1). */
-export const LEADER_START_LOCATION: UnitLocation = { zone: "left", cell: { col: 2, row: 1 } };
+/** R-4.4: Startposition des Anführers laut `config.leaderStart` (Standard: Zone `left`, Feld (2, 1)). */
+export function leaderStartLocation(config: ConfigData): UnitLocation {
+  const { zone, cell } = config.leaderStart;
+  // Der Validator lässt nur Frontzonen zu; die Prüfung hier schützt Daten, die ohne Validator gebaut wurden.
+  if (zone !== "left" && zone !== "right") throw new SetupError(`Ungültige Startzone des Anführers: ${zone}`);
+  return { zone, cell: { col: cell.col, row: cell.row } };
+}
 
 /** Stapelgröße einer Karte (data/README.md: `pileSize`, sonst aus der Konfiguration). */
 export function pileSizeOf(card: CardData, config: ConfigData): number {
@@ -124,7 +129,7 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
       xp: 0,
       wounded: false,
       restedInReserve: false,
-      location: copyLocation(LEADER_START_LOCATION),
+      location: leaderStartLocation(config),
     };
     state.units[leaderUnit.id] = leaderUnit;
 

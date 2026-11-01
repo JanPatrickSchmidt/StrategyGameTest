@@ -444,6 +444,21 @@ const leader: Check = obj({
   ),
 });
 
+const FRONT_ZONES = ["left", "right"] as const;
+
+/** R-4.4: Das Startfeld des Anführers muss innerhalb der Frontzone liegen. */
+function checkLeaderStartInZone(rawConfig: unknown, ctx: Context): void {
+  if (!isRecord(rawConfig) || !isRecord(rawConfig.leaderStart) || !isRecord(rawConfig.arenas)) return;
+  const cell = rawConfig.leaderStart.cell;
+  const zone = rawConfig.arenas.frontZone;
+  if (!isRecord(cell) || !isRecord(zone)) return;
+  const { col, row } = cell;
+  const { cols, rows } = zone;
+  if (typeof col !== "number" || typeof row !== "number" || typeof cols !== "number" || typeof rows !== "number") return;
+  if (col >= cols) ctx.report("config.leaderStart.cell.col", `Spalte ${col} liegt außerhalb der Frontzone (0 bis ${cols - 1})`);
+  if (row >= rows) ctx.report("config.leaderStart.cell.row", `Zeile ${row} liegt außerhalb der Frontzone (0 bis ${rows - 1})`);
+}
+
 const pileRule = obj({ maxCost: req(int(0)), copies: req(int(1)) });
 
 const config: Check = obj({
@@ -454,6 +469,12 @@ const config: Check = obj({
   boardCapacity: req(int(1)),
   capacityBonusAtLeaderLevel: req(recordOf(positiveIntKey, int(0))),
   reserveSlots: req(int(0)),
+  leaderStart: req(
+    obj({
+      zone: req(oneOf(FRONT_ZONES, "leaderStart.zone (R-4.4)")),
+      cell: req(obj({ col: req(int(0)), row: req(int(0)) })),
+    }),
+  ),
   spellSlots: req(obj({ pre: req(int(0)), post: req(int(0)) })),
   interestPer: req(int(1)),
   interestMax: req(int(0)),
@@ -520,6 +541,7 @@ export function validateGameData(raw: RawGameData): ValidationIssue[] {
   const ctx = new Context();
 
   config(raw.config, "config", ctx);
+  checkLeaderStartInZone(raw.config, ctx);
 
   const cardList = isRecord(raw.cards) ? raw.cards.cards : undefined;
   if (!isRecord(raw.cards)) ctx.report("cards", "erwartet Objekt mit Feld cards");
