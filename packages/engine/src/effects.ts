@@ -27,6 +27,7 @@ import {
 import type { GameData } from "./data";
 import type { Ability, Amount, Effect, Trigger, UnitTarget } from "./dataTypes";
 import { compareRowCol, hexDistance, neighbors } from "./hex";
+import { scaleByStars } from "./merge";
 
 /** Auslöser, die während der Kampfsimulation ausgewertet werden. */
 export const COMBAT_TRIGGERS: readonly Trigger[] = ["onCombatStart", "onManaFull", "onDeath", "onKill", "onAllyDeath"];
@@ -172,6 +173,16 @@ export function resolveUnitTargets(sim: CombatSim, f: Fighter, target: UnitTarge
   }
 }
 
+/**
+ * R-15.2: Feste Schadens- und Schildzahlen einer Fähigkeit skalieren mit dem Stern der auslösenden Einheit
+ * (abgerundet, mindestens der ★1-Wert). Berechnete Werte (`selfAttackTimes`) beziehen sich schon auf den
+ * skalierten Angriff und werden nicht noch einmal skaliert.
+ */
+export function abilityPower(data: GameData, sim: CombatSim, f: Fighter, amount: Amount): number {
+  const value = resolveAmount(sim, f, amount);
+  return typeof amount === "number" ? scaleByStars(data.config, value, f.stars) : value;
+}
+
 // ---------------------------------------------------------------------------
 // Bausteine
 // ---------------------------------------------------------------------------
@@ -194,7 +205,7 @@ function applyEffect(
   switch (effect.op) {
     case "damage": {
       // R-9.5: Fähigkeitsschaden geht durch Schild und Panzer. Ziele werden vorher festgelegt.
-      const amount = resolveAmount(sim, f, effect.amount);
+      const amount = abilityPower(data, sim, f, effect.amount);
       for (const t of resolveUnitTargets(sim, f, effect.target)) dealDamage(sim, f, t, amount, "ability");
       return;
     }
@@ -204,7 +215,7 @@ function applyEffect(
       return;
     }
     case "shield": {
-      const amount = resolveAmount(sim, f, effect.amount);
+      const amount = abilityPower(data, sim, f, effect.amount);
       for (const t of resolveUnitTargets(sim, f, effect.target)) shieldFighter(sim, f, t, amount);
       return;
     }

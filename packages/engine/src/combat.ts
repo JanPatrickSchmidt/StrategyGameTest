@@ -42,6 +42,8 @@ export interface FighterInit {
   hasManaAbility: boolean;
   startMana?: number;
   shield?: number;
+  /** Stern der Einheit (R-15.2) für Schadens- und Schildzahlen der Fähigkeiten; Standard ★1 (Anführer, Tokens). */
+  stars?: 1 | 2 | 3;
 }
 
 /** Zustand eines Kämpfers während der Simulation. */
@@ -71,6 +73,8 @@ export interface Fighter {
   readonly abilities: readonly Ability[];
   /** Im Kampf erzeugtes Token (`summon`), keine Einheit des Spielzustands. */
   readonly summoned: boolean;
+  /** Stern (R-15.2): skaliert feste Schadens- und Schildzahlen der Fähigkeiten (`effects.ts`). */
+  readonly stars: 1 | 2 | 3;
   /** Verbleibende Betäubungs-Ticks (R-9.3 Schritt 1). */
   stun: number;
   attackCooldown: number;
@@ -211,6 +215,8 @@ export function fighterFromData(data: GameData, src: FighterSource): FighterInit
     race,
     abilities,
     hasManaAbility: abilities.some((a) => a.trigger === "onManaFull"),
+    // R-15.3: Anführer haben keine Sterne und gelten als ★1.
+    stars: src.kind === "leader" ? 1 : src.stars,
   };
   if (src.startMana !== undefined) init.startMana = src.startMana;
   if (src.shield !== undefined) init.shield = src.shield;
@@ -285,6 +291,7 @@ function buildFighter(config: ConfigData, init: FighterInit, summoned: boolean):
     race: init.race ?? null,
     abilities: init.abilities ?? [],
     summoned,
+    stars: init.stars ?? 1,
     stun: 0,
     attackCooldown: 0,
     moveCooldown: 0,

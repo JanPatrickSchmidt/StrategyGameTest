@@ -84,7 +84,7 @@ Erlaubte Werte weiterer Parameter:
 - `startManaPercent.when`: `now` \| `nextRound`; `startManaPercent.class`: Klassen-ID
 - `buff.stat`, `statOverride`-Schlüssel: `attack`, `hp`, `breakthrough`, `range`, `armor`, `attackInterval`, `moveInterval`, `manaMax`
 
-`amount` ist eine Zahl oder ein berechneter Wert: `{ "kind": "distinctOwnRaces" }`, `{ "kind": "selfAttackTimes", "factor": n }`.
+`amount` ist eine Zahl oder ein berechneter Wert: `{ "kind": "distinctOwnRaces" }`, `{ "kind": "selfAttackTimes", "factor": n }`. Feste Zahlen bei `damage` und `shield` sind ★1-Werte und skalieren im Kampf mit dem Stern der auslösenden Einheit (R-15.2, abgerundet, mindestens der ★1-Wert; Anführer und Tokens ★1); berechnete Werte skalieren nicht noch einmal (`selfAttackTimes` nutzt schon den skalierten Angriff).
 
 ### Ziele (`target`)
 Als Text: `self`, `currentTarget`, `currentTargetAndNeighbors`, `weakestAlly` (wenigste aktuelle LP), `adjacentAllies`, `allAllies`, `alliesInArena`, `zoneAllies`, `raceUnits`, `ownClassUnits`, `hexEnemies`, `hexNeighborEnemies`, `hexAndNeighborEnemies`, `hexAlly`, `chosenUnits`.
