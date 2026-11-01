@@ -229,6 +229,8 @@ export type GameEventPayload =
       paidFromTreasury: number;
       /** R-14.6: mit alternativen Kosten bezahlt (Leben und Opfer stehen in eigenen Ereignissen davor). */
       altCost: boolean;
+      /** R-17.3: tatsächliche Änderung der Goldkosten durch die Resonanz (z. B. −1, 0 wenn keine). */
+      costModifier: number;
     }
   /** R-14.6 `bloodToll`: Leben als Kosten bezahlt. */
   | { type: "life_paid"; player: PlayerIndex; amount: number; life: number; cardInstanceId: CardInstanceId }

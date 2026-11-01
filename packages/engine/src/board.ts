@@ -8,6 +8,7 @@ import type { ConfigData, GameData } from "./data";
 import type { CardData } from "./dataTypes";
 import { payGold } from "./economy";
 import { inBounds } from "./hex";
+import { modifiedCost, resonanceCostModifier } from "./resonance";
 import { emit, type GameState, getCard, getPlayer, type PlayerIndex, type Unit, type UnitLocation } from "./state";
 
 /** Zonen, die gegen die Kapazität zählen (R-3.6). */
@@ -91,6 +92,8 @@ function copyLocation(loc: UnitLocation): UnitLocation {
 /** R-14.6: geprüfte Kosten einer Ausspielaktion, noch nicht bezahlt. */
 interface UnitCost {
   gold: number;
+  /** R-17.3: um wie viel Gold die Resonanz die Kosten gesenkt (negativ) bzw. erhöht hat. */
+  goldModifier: number;
   life: number;
   sacrifice: Unit[];
   altCost: boolean;
@@ -105,6 +108,7 @@ interface UnitCost {
  */
 function checkUnitCost(
   state: GameState,
+  data: GameData,
   player: PlayerIndex,
   card: CardData,
   useAltCost: unknown,
@@ -114,7 +118,7 @@ function checkUnitCost(
   if (sacrifice !== undefined && !Array.isArray(sacrifice)) return "malformed";
   if (useAltCost !== true) {
     if (sacrifice !== undefined && sacrifice.length > 0) return "malformed";
-    return { gold: card.cost, life: 0, sacrifice: [], altCost: false };
+    return withCostModifier(state, data, player, card, { gold: card.cost, life: 0, sacrifice: [], altCost: false, goldModifier: 0 });
   }
   const alt = card.type === "unit" ? card.altCost : undefined;
   if (!alt) return "noAltCost";
@@ -129,14 +133,27 @@ function checkUnitCost(
     if (!unit || unit.owner !== player || unit.kind !== "card" || victims.includes(unit)) return "invalidSacrifice";
     victims.push(unit);
   }
-  return { gold: alt.gold ?? 0, life, sacrifice: victims, altCost: true };
+  return withCostModifier(state, data, player, card, { gold: alt.gold ?? 0, life, sacrifice: victims, altCost: true, goldModifier: 0 });
+}
+
+/**
+ * R-17.3: Kostenbonus der Resonanz auf den Goldanteil (normale oder alternative Kosten), nach dem Brett zum
+ * Zeitpunkt der Aktion, also vor dem Entfernen der Opfer und ohne die neue Einheit (F34). Nie unter 0;
+ * Leben und Opfer bleiben unverändert.
+ */
+function withCostModifier(state: GameState, data: GameData, player: PlayerIndex, card: CardData, cost: UnitCost): UnitCost {
+  const race = card.type === "unit" ? card.race : null;
+  const modifier = resonanceCostModifier(state, data, player, race);
+  if (modifier === 0) return cost;
+  const gold = modifiedCost(cost.gold, modifier);
+  return { ...cost, gold, goldModifier: gold - cost.gold };
 }
 
 /**
  * R-7.1: Einheit ausspielen. Karte auf der Hand, Einheitenkarte, Zielfeld frei, Kapazität eingehalten,
  * Kosten bezahlt (normal oder alternativ, R-14.6). Alle Prüfungen vor dem Bezahlen, damit eine
  * Ablehnung nichts verändert. Geopferte Einheiten machen ihr Feld und ihren Kapazitätsplatz schon für
- * diese Aktion frei (R-1.9). Kostenboni der Resonanz (R-17.3) folgen in E10.
+ * diese Aktion frei (R-1.9). Kostenboni der Resonanz (R-17.3) gelten nach dem Brett vor der Aktion.
  */
 export function playUnit(
   state: GameState,
@@ -151,7 +168,7 @@ export function playUnit(
   if (typeof cardInstanceId !== "number" || !p.hand.includes(cardInstanceId)) return "cardNotInHand";
   const card = data.cards.get(getCard(state, cardInstanceId).cardId);
   if (!card || card.type !== "unit") return "notAUnitCard";
-  const cost = checkUnitCost(state, player, card, useAltCost, sacrifice);
+  const cost = checkUnitCost(state, data, player, card, useAltCost, sacrifice);
   if (typeof cost === "string") return cost;
   if (!isValidLocation(data.config, to)) return "invalidLocation";
   const occupant = unitAt(state, player, to);
@@ -205,6 +222,7 @@ export function playUnit(
     paidFromRoundGold: payment.fromRoundGold,
     paidFromTreasury: payment.fromTreasury,
     altCost: cost.altCost,
+    costModifier: cost.goldModifier,
   });
   return null;
 }

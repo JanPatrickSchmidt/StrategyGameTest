@@ -8,7 +8,9 @@
  * - Kampfboni (R-17.2): `buff` (Werte), `startManaPercent` und `grantKeyword` mit Ziel `raceUnits` wirken in
  *   allen Kämpfen der Runde auf alle Einheiten dieser Rasse des Spielers, auch auf Tokens und im Kampf
  *   erzeugte Tokens (R-1.9). Maßgeblich ist das Brett zu Beginn der Kampfphase, also nach dem Aufdecken.
- * Kostenbonus (R-17.3), Rundenwirkungen (R-17.4) und Bonus-XP (R-17.5) folgen mit E10c2–E10c4.
+ * - Kostenbonus (R-17.3, E10c2): `costModifier` mit `appliesTo: raceCards` ändert die Goldkosten beim Ausspielen
+ *   einer Einheitenkarte dieser Rasse, gezählt nach dem Brett zum Zeitpunkt der Aktion (F34).
+ * Rundenwirkungen (R-17.4) und Bonus-XP (R-17.5) folgen mit E10c3–E10c4.
  */
 import type { FighterInit } from "./combat";
 import type { GameData } from "./data";
@@ -80,6 +82,30 @@ export function activeResonance(state: GameState, data: GameData, player: Player
     result.push({ race, count, tier, effects });
   }
   return result.sort((a, b) => (a.race < b.race ? -1 : a.race > b.race ? 1 : 0));
+}
+
+/**
+ * R-17.3: Summe der Kostenänderungen (`costModifier`, `appliesTo: raceCards`) aller aktiven Resonanzen des
+ * Spielers für eine Karte der Rasse `race`, gezählt nach dem aktuellen Brett. Negativ = billiger.
+ * Karten ohne Rasse bekommen keinen Bonus. Das Begrenzen auf mindestens 0 macht die aufrufende Stelle.
+ */
+export function resonanceCostModifier(state: GameState, data: GameData, player: PlayerIndex, race: string | null): number {
+  if (race === null) return 0;
+  let total = 0;
+  for (const tier of activeResonance(state, data, player)) {
+    if (tier.race !== race) continue;
+    for (const effect of tier.effects) {
+      if (effect.op === "costModifier" && effect.appliesTo === "raceCards" && typeof effect.amount === "number") {
+        total += effect.amount;
+      }
+    }
+  }
+  return total;
+}
+
+/** Goldkosten nach Kostenbonus, nie unter 0 (R-17.3). */
+export function modifiedCost(baseCost: number, modifier: number): number {
+  return Math.max(0, baseCost + modifier);
 }
 
 /** R-17.2: Kampfboni der aktiven Resonanzen für eine Einheit der Rasse `race`. */
