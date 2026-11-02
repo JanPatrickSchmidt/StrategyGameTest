@@ -255,6 +255,8 @@ export type GameEventPayload =
   | { type: "spell_discarded"; player: PlayerIndex; cardInstanceId: CardInstanceId; slot: SpellSlot }
   /** R-7.4: Anführer-Fähigkeit gewählt (`{ kind: "none" }` = keine). */
   | { type: "leader_ability_set"; player: PlayerIndex; target: ActionTarget }
+  /** R-16.4/R-19.1: die gewählte Anführer-Fähigkeit verfällt beim Aufräumen. */
+  | { type: "leader_ability_cleared"; player: PlayerIndex }
   /** R-7.7: Ast gewählt; `auto` = ohne Wahl der erste Ast. */
   | { type: "branch_chosen"; player: PlayerIndex; branchId: string; auto: boolean }
   /**

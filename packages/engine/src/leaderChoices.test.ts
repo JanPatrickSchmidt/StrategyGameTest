@@ -41,8 +41,8 @@ function placeUnit(state: GameState, player: PlayerIndex, location: UnitLocation
 const at = (arena: ArenaHex["arena"], col: number, row: number): ArenaHex => ({ arena, cell: { col, row } });
 const hexes = (...list: ArenaHex[]): ActionTarget => ({ kind: "hexes", hexes: list });
 
-function submitOthers(state: GameState, except: PlayerIndex): void {
-  for (const p of activePlayersInPriority(state)) if (p !== except) submitPlanning(state, p, EMPTY);
+function submitOthers(state: GameState, ...except: PlayerIndex[]): void {
+  for (const p of activePlayersInPriority(state)) if (!except.includes(p)) submitPlanning(state, p, EMPTY);
 }
 
 describe("R-7.7: Astwahl", () => {
@@ -219,5 +219,32 @@ describe("R-7.4/R-7.7 im Rundenablauf", () => {
     expect(eventsOf(state, "action_rejected")).toEqual([]);
     expect(eventsOf(state, "leader_ability_set")).toEqual([expect.objectContaining({ player: ILYRA })]);
     expect(getPlayer(state, ILYRA).leader.branchId).toBe("chain");
+  });
+
+  it("R-19.1: das Zurücksetzen der gewählten Anführer-Fähigkeit beim Aufräumen steht im Protokoll", () => {
+    const state = inPlanning();
+    submitPlanning(state, ILYRA, { position: [{ type: "setLeaderAbility", target: hexes(at("right", 2, 4)) }] });
+    submitPlanning(state, BRANN, { position: [{ type: "setLeaderAbility", target: { kind: "none" } }] });
+    submitOthers(state, ILYRA, BRANN);
+    advance(state, data);
+    const cleared = eventsOf(state, "leader_ability_cleared");
+    expect(cleared.map((e) => e.player).sort()).toEqual([BRANN, ILYRA]);
+    for (const e of cleared) {
+      expect(e.phase).toBe("cleanup");
+      expect(e.visibleTo).toBeUndefined();
+    }
+    const setIndex = state.log.findIndex((e) => e.type === "leader_ability_set" && e.player === ILYRA);
+    const clearedIndex = state.log.findIndex((e) => e.type === "leader_ability_cleared" && e.player === ILYRA);
+    expect(clearedIndex).toBeGreaterThan(setIndex);
+    expect(getPlayer(state, ILYRA).leaderAbility).toBeNull();
+    expect(getPlayer(state, BRANN).leaderAbility).toBeNull();
+  });
+
+  it("R-19.1: ohne gewählte Anführer-Fähigkeit entsteht beim Aufräumen kein Ereignis", () => {
+    const state = inPlanning();
+    submitOthers(state);
+    advance(state, data);
+    expect(state.log.some((e) => e.type === "hand_discarded")).toBe(true);
+    expect(eventsOf(state, "leader_ability_cleared")).toEqual([]);
   });
 });

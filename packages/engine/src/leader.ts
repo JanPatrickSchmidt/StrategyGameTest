@@ -116,7 +116,15 @@ export function setLeaderAbility(state: GameState, data: GameData, player: Playe
   return null;
 }
 
-/** Rundenende: die gewählte Anführer-Fähigkeit gilt nur für diese Runde (R-16.4). */
+/**
+ * Rundenende: die gewählte Anführer-Fähigkeit gilt nur für diese Runde (R-16.4). Jede Zurücksetzung erzeugt
+ * ein Ereignis `leader_ability_cleared` (R-19.1), auch für eine bewusst gewählte „keine Fähigkeit“, weil sich
+ * auch dann der Zustand ändert. Spieler ohne Wahl in dieser Runde erzeugen kein Ereignis.
+ */
 export function resetLeaderAbilities(state: GameState): void {
-  for (const p of state.players) p.leaderAbility = null;
+  for (const p of state.players) {
+    if (p.leaderAbility === null) continue;
+    p.leaderAbility = null;
+    emit(state, { type: "leader_ability_cleared", player: p.index });
+  }
 }

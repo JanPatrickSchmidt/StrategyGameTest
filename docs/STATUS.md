@@ -1,7 +1,7 @@
 # Status
 
 **Aktueller Meilenstein:** M2 Regel-Engine
-**Nächste Aufgabe:** P4 Ereignis beim Zurücksetzen der Anführer-Fähigkeit (R-19.1), danach E10c3
+**Nächste Aufgabe:** E10c3 Rundenwirkungen und Bonuszinsen der Resonanz (R-17.4)
 
 ## Zum Ausprobieren
 
@@ -13,6 +13,7 @@ Hier tragen Agenten alles ein, was Jan selbst testen kann, mit Pfad und kurzer A
 
 | Datum | Aufgabe | Ergebnis | Nächster Schritt |
 | --- | --- | --- | --- |
+| 2026-11-02 | P4 Ereignis beim Zurücksetzen der Anführer-Fähigkeit (geplanter Lauf) | **R-19.1:** `resetLeaderAbilities` (`leader.ts`) erzeugt beim Aufräumen für jeden Spieler mit gewählter Fähigkeit das neue Ereignis `leader_ability_cleared` (öffentlich, Phase `cleanup`), auch nach einer bewusst gewählten „keine Fähigkeit“ (`{ kind: "none" }`), weil sich auch dann der Zustand ändert; Spieler ohne Wahl erzeugen keins. Sandbox neu gebaut, keine Änderung (nutzt das Aufräumen nicht). 2 neue Tests, insgesamt 444 grün, Typecheck grün. Keine neue Frage. | E10c3 Rundenwirkungen und Bonuszinsen (R-17.4) |
 | 2026-11-01 | P3 Anführer-Startfeld aus den Daten (geplanter Lauf) | **R-4.4:** Die Konstante `LEADER_START_LOCATION` in `setup.ts` ist ersetzt durch den neuen Wert `leaderStart` in `config.json` (`{ zone: "left", cell: { col: 2, row: 1 } }`, Verhalten unverändert); neue Funktion `leaderStartLocation(config)`. Der Validator prüft Pflichtfeld, Zone (`left`/`right`), ganze Zahlen ≥ 0 und dass das Feld innerhalb von `arenas.frontZone` liegt. `data/README.md` ergänzt (neuer Abschnitt „Konfiguration“). Sandbox neu gebaut (enthält nur die geänderte config.json, keine sichtbare Änderung, im Browser ohne Fehler). 7 neue Tests, insgesamt 442 grün, Typecheck grün. Keine neue Frage. | P4 Ereignis beim Zurücksetzen der Anführer-Fähigkeit (R-19.1) |
 | 2026-11-01 | P2 Sternfaktor für Fähigkeitszahlen (geplanter Lauf) | **R-15.2:** Kämpfer tragen jetzt ihren Stern (`FighterInit.stars`, `Fighter.stars`; aus `fighterFromData`, Anführer und Tokens ★1, ohne Angabe ★1). Neue Funktion `abilityPower` in `effects.ts`: feste Zahlen bei `damage` und `shield` werden mit `scaleByStars` skaliert (abgerundet, mindestens ★1-Wert); berechnete Werte (`selfAttackTimes`, `distinctOwnRaces`) nicht noch einmal. Damit macht der Lehrling 2 → 3 → 6 Schaden, die Mondpriesterin gibt 6 → 10 → 19 Schild. `data/README.md` ergänzt. Sandbox neu gebaut (im Browser ohne Fehler). 10 neue Tests, insgesamt 435 grün, Typecheck grün. Keine neue Frage. | P3 Anführer-Startfeld aus den Daten (R-4.4) |
 | 2026-11-01 | Unabhängige Prüfung (geplanter Prüflauf, kein Produktivcode geändert) | `npm ci`, `npm test` (425 grün) und `npm run typecheck` grün. Bericht `docs/berichte/pruefung-2026-11-01.md`. Leitplanken überwiegend eingehalten (kein `any`, kein `Math.random`/`Date`, deterministisch). **Gefunden:** R-15.2 – Fähigkeitsschaden und Schilde skalieren nicht mit dem Stern (`effects.ts`, nachgeprüft: ★3-Lehrling macht 2 statt 6); R-4.4 – Anführer-Startfeld fest im Code statt in `config.json`; R-19.1 – `resetLeaderAbilities` ohne Ereignis. Hinweise für E11 (Resonanz-Zeitpunkt R-17.2, Test für R-12.4). Drei neue Aufgaben P2–P4 oben im offenen Teil des Backlogs. | P2 Sternfaktor für Fähigkeitszahlen |
