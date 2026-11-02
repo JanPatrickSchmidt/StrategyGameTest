@@ -206,9 +206,15 @@ describe("Kampfphase mit Mitte (R-9, R-1.4)", () => {
     placeUnit(state, 1, front("left", 2, 2));
     placeUnit(state, 1, center(2), "bounty_hunter");
     placeUnit(state, 2, center(2));
-    const before = JSON.stringify(state.units);
+    // Seit E10c4 erhalten Überlebende XP (R-10.7); alles andere an den Einheiten bleibt unverändert.
+    const withoutXp = () => JSON.stringify(Object.values(state.units).map((u) => ({ ...u, xp: 0 })));
+    const before = withoutXp();
     const { fronts, center: res } = runCombatPhase(state, data);
-    expect(JSON.stringify(state.units)).toBe(before);
+    expect(withoutXp()).toBe(before);
+    for (const u of Object.values(state.units)) {
+      const survived = [...fronts.flatMap((r) => r.survivors), ...res.survivors].includes(u.id);
+      expect(u.xp).toBe(survived && u.kind === "card" ? 1 : 0);
+    }
     expect(fronts.find((r) => r.arena === "front:0-1")?.winner).toBe(0);
     expect(res.holder).toBe(1);
     expect(state.frontResults).toBe(fronts);

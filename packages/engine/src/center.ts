@@ -14,6 +14,7 @@ import { type DeferredEffect, effectHooks } from "./effects";
 import { fighterForUnit, removeFoughtTokens, runFronts } from "./fronts";
 import { announceCombatMarks, clearCombatMarks } from "./marks";
 import { announceResonance, resonanceSummonAdjuster } from "./resonance";
+import { countCombatResonance, grantSurvivorXp } from "./unitXp";
 import { centerPositionToArena, type Seat } from "./hex";
 import { type CenterResult, emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit } from "./state";
 
@@ -99,6 +100,8 @@ export function runCombatPhase(state: GameState, data: GameData): { fronts: Fron
   // R-17.2: Resonanz nach dem Brett zu Beginn der Kampfphase (nach dem Aufdecken) gilt in allen Kämpfen.
   announceResonance(state, data, fighting);
   announceCombatMarks(state, data, fighting);
+  // R-17.5: Bonus-XP nach der Resonanz zu Beginn der Kampfphase (wie alle Kampfboni der Runde).
+  const resonance = countCombatResonance(state, data);
   const frontRuns = runFronts(state, data);
   const centerDeferred: DeferredEffect[] = [];
   const center = runCenter(state, data, centerDeferred);
@@ -106,6 +109,8 @@ export function runCombatPhase(state: GameState, data: GameData): { fronts: Fron
   state.frontResults = fronts;
   state.centerResult = center;
   applyCombatAftermath(state, data, { fronts: frontRuns, center: { result: center, deferred: centerDeferred } });
+  // R-10.7, R-17.5: Einheiten-XP für überlebende Karten-Einheiten.
+  grantSurvivorXp(state, data, { fronts, center }, resonance);
   removeFoughtTokens(state, [...fronts.flatMap((r) => r.participants), ...center.participants]);
   clearCombatMarks(state);
   return { fronts, center };

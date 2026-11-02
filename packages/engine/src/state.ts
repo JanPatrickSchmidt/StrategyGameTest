@@ -304,6 +304,8 @@ export type GameEventPayload =
       survivors: UnitId[];
     }
   /** Dauerhafter Buff nach dem Kampf; `total` = gesamter dauerhafter Zuschlag dieses Werts. */
+  /** R-10.7, R-17.5: XP für eine überlebende Karten-Einheit; `bonus` = Anteil der Menschen-Resonanz. */
+  | { type: "unit_xp_gained"; player: PlayerIndex; unitId: UnitId; amount: number; bonus: number; xp: number; arena: string }
   | { type: "unit_buffed_permanently"; player: PlayerIndex; unitId: UnitId; stat: Stat; amount: number; total: number; sourceUnitId: UnitId }
   /** R-14.7: Fluch aus dem Fluch-Stapel auf den Ablagestapel von `to`; `player` = Spieler, dessen Effekt ihn gibt. */
   | { type: "curse_given"; player: PlayerIndex; to: PlayerIndex; cardId: string; cardInstanceId: CardInstanceId; sourceUnitId: UnitId | null }
