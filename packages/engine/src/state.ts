@@ -317,6 +317,10 @@ export type GameEventPayload =
   | { type: "round_mark_applied"; player: PlayerIndex; mark: RoundMark; unitIds: UnitId[] }
   /** R-17.2: erreichte Resonanzstufe einer Rasse für die Kämpfe dieser Runde (`unitIds` = betroffene Teilnehmer). */
   | { type: "resonance_active"; player: PlayerIndex; race: string; count: number; tier: number; unitIds: UnitId[] }
+  /** R-17.4: Resonanz mit Rundenwirkung wird zu Rundenbeginn ausgewertet (danach folgen Gold- bzw. XP-Ereignisse). */
+  | { type: "resonance_round"; player: PlayerIndex; race: string; count: number; tier: number }
+  /** R-17.4: Bonuszinsen (`bonusInterest`, Zwerge 4) nach den normalen Zinsen. */
+  | { type: "bonus_interest_paid"; player: PlayerIndex; race: string; amount: number; treasury: number }
   /** R-17a.2: Markierung gelöscht (nach dem Wirken oder weil ihre Runde vorbei ist). */
   | { type: "round_mark_cleared"; player: PlayerIndex; mark: RoundMark }
   /** R-7.5 */

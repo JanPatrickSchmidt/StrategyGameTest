@@ -10,7 +10,7 @@
  *   erzeugte Tokens (R-1.9). Maßgeblich ist das Brett zu Beginn der Kampfphase, also nach dem Aufdecken.
  * - Kostenbonus (R-17.3, E10c2): `costModifier` mit `appliesTo: raceCards` ändert die Goldkosten beim Ausspielen
  *   einer Einheitenkarte dieser Rasse, gezählt nach dem Brett zum Zeitpunkt der Aktion (F34).
- * Rundenwirkungen (R-17.4) und Bonus-XP (R-17.5) folgen mit E10c3–E10c4.
+ * Rundenwirkungen (R-17.4) stehen in `resonanceRound.ts` (E10c3); Bonus-XP (R-17.5) folgt mit E10c4.
  */
 import type { FighterInit } from "./combat";
 import type { GameData } from "./data";

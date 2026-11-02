@@ -1,7 +1,7 @@
 # Status
 
 **Aktueller Meilenstein:** M2 Regel-Engine
-**Nächste Aufgabe:** E10c3 Rundenwirkungen und Bonuszinsen der Resonanz (R-17.4)
+**Nächste Aufgabe:** E10c4 Bonus-XP der Menschen (R-17.5) mit Einheiten-XP (R-10.7)
 
 ## Zum Ausprobieren
 
@@ -13,6 +13,7 @@ Hier tragen Agenten alles ein, was Jan selbst testen kann, mit Pfad und kurzer A
 
 | Datum | Aufgabe | Ergebnis | Nächster Schritt |
 | --- | --- | --- | --- |
+| 2026-11-02 | E10c3 Rundenwirkungen und Bonuszinsen der Resonanz (geplanter Lauf) | **R-17.4:** Neues Modul `resonanceRound.ts`. Zu Rundenbeginn wird die Resonanz ganz am Anfang gezählt (Brett am Ende der Vorrunde, vor Genesung und Aufstieg). Zwerge 2/4: +1 Gold in die Schatzkammer, vor den Zinsen (zählt also schon für die Zinsen); Zwerge 4 zusätzlich Bonuszinsen 1 je volle 10 Gold, auf derselben Grundlage wie die Zinsen, nicht gedeckelt. Menschen 2/4: Anführer +1/+2 XP, der Aufstieg im selben Rundenbeginn zählt sie schon. Reihenfolge: Resonanz → „pro Runde“ → Markierungen → Zinsen → Bonuszinsen. Neue Ereignisse `resonance_round`, `bonus_interest_paid`. `data/README.md` ergänzt. Sandbox neu gebaut (keine sichtbare Änderung). 9 neue Tests, insgesamt 453 grün, Typecheck grün. Neue Frage F35. | E10c4 Bonus-XP (R-17.5) mit Einheiten-XP (R-10.7) |
 | 2026-11-02 | P4 Ereignis beim Zurücksetzen der Anführer-Fähigkeit (geplanter Lauf) | **R-19.1:** `resetLeaderAbilities` (`leader.ts`) erzeugt beim Aufräumen für jeden Spieler mit gewählter Fähigkeit das neue Ereignis `leader_ability_cleared` (öffentlich, Phase `cleanup`), auch nach einer bewusst gewählten „keine Fähigkeit“ (`{ kind: "none" }`), weil sich auch dann der Zustand ändert; Spieler ohne Wahl erzeugen keins. Sandbox neu gebaut, keine Änderung (nutzt das Aufräumen nicht). 2 neue Tests, insgesamt 444 grün, Typecheck grün. Keine neue Frage. | E10c3 Rundenwirkungen und Bonuszinsen (R-17.4) |
 | 2026-11-01 | P3 Anführer-Startfeld aus den Daten (geplanter Lauf) | **R-4.4:** Die Konstante `LEADER_START_LOCATION` in `setup.ts` ist ersetzt durch den neuen Wert `leaderStart` in `config.json` (`{ zone: "left", cell: { col: 2, row: 1 } }`, Verhalten unverändert); neue Funktion `leaderStartLocation(config)`. Der Validator prüft Pflichtfeld, Zone (`left`/`right`), ganze Zahlen ≥ 0 und dass das Feld innerhalb von `arenas.frontZone` liegt. `data/README.md` ergänzt (neuer Abschnitt „Konfiguration“). Sandbox neu gebaut (enthält nur die geänderte config.json, keine sichtbare Änderung, im Browser ohne Fehler). 7 neue Tests, insgesamt 442 grün, Typecheck grün. Keine neue Frage. | P4 Ereignis beim Zurücksetzen der Anführer-Fähigkeit (R-19.1) |
 | 2026-11-01 | P2 Sternfaktor für Fähigkeitszahlen (geplanter Lauf) | **R-15.2:** Kämpfer tragen jetzt ihren Stern (`FighterInit.stars`, `Fighter.stars`; aus `fighterFromData`, Anführer und Tokens ★1, ohne Angabe ★1). Neue Funktion `abilityPower` in `effects.ts`: feste Zahlen bei `damage` und `shield` werden mit `scaleByStars` skaliert (abgerundet, mindestens ★1-Wert); berechnete Werte (`selfAttackTimes`, `distinctOwnRaces`) nicht noch einmal. Damit macht der Lehrling 2 → 3 → 6 Schaden, die Mondpriesterin gibt 6 → 10 → 19 Schild. `data/README.md` ergänzt. Sandbox neu gebaut (im Browser ohne Fehler). 10 neue Tests, insgesamt 435 grün, Typecheck grün. Keine neue Frage. | P3 Anführer-Startfeld aus den Daten (R-4.4) |
