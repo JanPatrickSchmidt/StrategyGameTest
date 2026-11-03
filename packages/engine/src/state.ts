@@ -251,6 +251,13 @@ export type GameEventPayload =
       paidFromRoundGold: number;
       paidFromTreasury: number;
     }
+  /** R-8.3/R-8.4: Zauber wird aufgelöst; danach folgen die Ereignisse seiner Effekte. */
+  | { type: "spell_resolved"; player: PlayerIndex; cardInstanceId: CardInstanceId; cardId: string; slot: SpellSlot; tempo: number }
+  /**
+   * R-8.5: Zauber verpufft ohne Wirkung (Kosten bleiben bezahlt). `noValidTarget` = Ziel ungültig geworden
+   * (z. B. Ziel-Spieler ausgeschieden), `conditionNotMet` = Bedingung der Karte nicht erfüllt (F37).
+   */
+  | { type: "spell_fizzled"; player: PlayerIndex; cardInstanceId: CardInstanceId; cardId: string; slot: SpellSlot; reason: "noValidTarget" | "conditionNotMet" }
   /** R-8.6: Zauber verlässt den Slot und geht auf den Ablagestapel. */
   | { type: "spell_discarded"; player: PlayerIndex; cardInstanceId: CardInstanceId; slot: SpellSlot }
   /** R-7.4: Anführer-Fähigkeit gewählt (`{ kind: "none" }` = keine). */

@@ -36,6 +36,8 @@ export interface StateEffectContext {
   frontOpponent: PlayerIndex | null;
   /** `true` während des Rundenbeginns: Gold mit `to: "pool"` geht in den Rundenvorrat (R-10.3, letzter Satz). */
   duringPlanning: boolean;
+  /** Vom Spieler gewählter Ziel-Spieler eines Zaubers (`targetPlayer`, z. B. Bürde, E11a). */
+  targetPlayer?: PlayerIndex | null;
 }
 
 const priority = priorityForRound;
@@ -57,8 +59,8 @@ function resolvePlayer(target: PlayerTarget, ctx: StateEffectContext): PlayerInd
     case "frontOpponentTreasury":
       return ctx.frontOpponent;
     case "targetPlayer":
-      // Gewählte Spieler gibt es nur bei Zaubern (E11).
-      return null;
+      // Gewählte Spieler gibt es nur bei Zaubern (E11a).
+      return ctx.targetPlayer ?? null;
   }
 }
 

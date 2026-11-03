@@ -28,7 +28,7 @@ import { runRoundStartEffects } from "./aftermath";
 import { applyRoundStartMarks } from "./marks";
 import { applyRoundResonance, bonusInterestFor, countRoundResonance, payBonusInterest } from "./resonanceRound";
 import { mergeUnits } from "./merge";
-import { discardSetSpells, setSpell } from "./spells";
+import { discardSetSpells, resolvePostCombatSpells, setSpell } from "./spells";
 import {
   buyCard,
   depositRoundGold,
@@ -192,7 +192,8 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         enterPhase(state, "postCombatSpells");
         break;
       case "postCombatSpells":
-        // R-8.4 folgt in E11.
+        // R-8.4 (E11a): Nachkampf-Zauber nach Tempo und Prioritätsreihenfolge.
+        resolvePostCombatSpells(state, data);
         enterPhase(state, "cleanup");
         break;
       case "cleanup":
