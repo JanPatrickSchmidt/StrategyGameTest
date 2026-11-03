@@ -11,6 +11,7 @@ import type { GameData } from "./data";
 import { applyCombatAftermath } from "./aftermath";
 import { type DeferredEffect, effectHooks } from "./effects";
 import { markedStartManaPercent } from "./marks";
+import { applyRoundEffects } from "./preCombat";
 import { activeResonance, addStartManaPercent, addStatBonuses, applyResonanceStats, resonanceBonus, resonanceSummonAdjuster } from "./resonance";
 import { frontArenaSize, type FrontSide, frontToArena, type OffsetCoord } from "./hex";
 import { activeRing, neighborsOf } from "./seating";
@@ -56,7 +57,8 @@ export function frontParticipants(state: GameState, pairing: FrontPairing): { fi
 /**
  * R-9.2 plus R-16.3: Kampfwerte einer Einheit. Ab Anführer-Stufe 3 steigen `attack` und `hp` der
  * Anführer-Kampfeinheit um `config.leader.level3StatBonus` (Zuschlag abgerundet). Dauerhafte Buffs
- * (`unit.permanentBuffs`, E10b) kommen danach als fester Zuschlag hinzu (F31), dann die Rassen-Resonanz
+ * (`unit.permanentBuffs`, E10b) kommen danach als fester Zuschlag hinzu (F31), dann die Wirkungen der
+ * Vorkampf-Zauber (`unit.roundEffects`, E11b1), dann die Rassen-Resonanz
  * (R-17.2, E10c1) und zuletzt Start-Mana aus Markierungen und Resonanz.
  */
 export function fighterForUnit(state: GameState, data: GameData, unit: Unit, pos: OffsetCoord): FighterInit {
@@ -74,6 +76,8 @@ export function fighterForUnit(state: GameState, data: GameData, unit: Unit, pos
     init.stats = { ...init.stats, attack: raise(init.stats.attack), hp: raise(init.stats.hp) };
   }
   if (unit.permanentBuffs) init.stats = addStatBonuses(data.config, init.stats, unit.permanentBuffs);
+  // R-8.3 (E11b1): Schild, Buffs und Schlüsselwörter aus Vorkampf-Zaubern dieser Runde.
+  applyRoundEffects(data.config, init, unit);
   // R-17.2: Rassen-Resonanz nach dem Brett zu Beginn der Kampfphase (Werte, Schlüsselwörter, Start-Mana).
   const bonus = resonanceBonus(activeResonance(state, data, unit.owner), init.race);
   applyResonanceStats(data.config, init, bonus);

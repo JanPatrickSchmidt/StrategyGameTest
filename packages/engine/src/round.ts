@@ -28,7 +28,8 @@ import { runRoundStartEffects } from "./aftermath";
 import { applyRoundStartMarks } from "./marks";
 import { applyRoundResonance, bonusInterestFor, countRoundResonance, payBonusInterest } from "./resonanceRound";
 import { mergeUnits } from "./merge";
-import { discardSetSpells, resolvePostCombatSpells, setSpell } from "./spells";
+import { discardSetSpells, resolvePostCombatSpells, resolvePreCombatSpells, setSpell } from "./spells";
+import { clearRoundEffects } from "./preCombat";
 import {
   buyCard,
   depositRoundGold,
@@ -177,7 +178,8 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         enterPhase(state, "preCombatSpells");
         break;
       case "preCombatSpells":
-        // R-8.3 folgt in E11.
+        // R-8.3 (E11b1): Vorkampf-Zauber nach Tempo und Prioritätsreihenfolge.
+        resolvePreCombatSpells(state, data);
         enterPhase(state, "combat");
         break;
       case "combat":
@@ -312,12 +314,14 @@ function executePlanningAction(
 
 /**
  * R-12 Rundenende: R-12.1 (Hand und ausgespielte Ressourcen), R-12.2 (Tokens), R-12.3 (Anführer-XP),
- * R-12.5 (Gold in die Schatzkammer), R-12.6 (Nachziehen). Schilde und Buffs (R-12.4) folgen in E10/E11.
+ * R-12.4 (Schilde, Kampf-Buffs und Schlüsselwörter aus Vorkampf-Zaubern), R-12.5 (Gold in die Schatzkammer),
+ * R-12.6 (Nachziehen).
  * Noch liegende Zauber gehen auf den Ablagestapel (R-8.6), die gewählte Anführer-Fähigkeit verfällt (R-16.4).
  */
 function runCleanup(state: GameState, data: GameData): void {
   discardSetSpells(state);
   resetLeaderAbilities(state);
+  clearRoundEffects(state);
   for (const p of state.players) {
     if (p.eliminated) continue;
     if (p.hand.length > 0 || p.played.length > 0) {

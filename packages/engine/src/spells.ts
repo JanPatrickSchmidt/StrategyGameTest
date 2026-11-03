@@ -4,15 +4,18 @@
  * E11a: Nachkampf-Zauber (R-8.4) lösen nach Tempo auf (1 vor 2 vor 3), bei gleichem Tempo in
  * Prioritätsreihenfolge (R-1.7), bei einem Spieler in der Reihenfolge des Legens; jeder Zauber wird
  * vollständig abgehandelt und geht danach sofort auf den Ablagestapel (R-8.6). Die Vorkampf-Zauber
- * (R-8.3) folgen in E11b und gehen bis dahin beim Rundenende ungenutzt auf den Ablagestapel.
+ * (R-8.3) lösen in der Phase `preCombatSpells` genauso auf (E11b1: Schild, Buff, Schlüsselwort auf eigene
+ * Einheiten, `preCombat.ts`). Vorkampf-Zauber mit noch fehlenden Bausteinen (Schaden, Verwunden, Beschwören;
+ * E11b2–E11b4) bleiben vorerst liegen und gehen beim Rundenende ungenutzt auf den Ablagestapel.
  */
 import type { RejectionReason } from "./actions";
 import { applyStateEffect } from "./aftermath";
 import type { GameData } from "./data";
-import type { Condition, SpellCard } from "./dataTypes";
+import type { Amount, Condition, SpellCard } from "./dataTypes";
 import { trashCards } from "./deck";
 import { payGold } from "./economy";
 import { priorityForRound } from "./marks";
+import { addRoundBuff, addRoundKeyword, addRoundShield, PRE_COMBAT_OPS, preCombatAllies } from "./preCombat";
 import { checkTarget } from "./targets";
 import { emit, type GameState, getCard, getPlayer, type PlayerIndex, type SetSpell, type SpellSlot } from "./state";
 
@@ -61,7 +64,7 @@ export function setSpell(
 
 /**
  * R-8.6: gelegte Zauber gehen auf den Ablagestapel. Wird beim Rundenende für alle noch liegenden
- * Zauber aufgerufen (solange die Vorkampf-Zauber aus E11b fehlen, sind das die Vorkampf-Zauber).
+ * Zauber aufgerufen (Zauber ausgeschiedener Spieler und Vorkampf-Zauber mit noch fehlenden Bausteinen).
  */
 export function discardSetSpells(state: GameState): void {
   for (const p of state.players) {
@@ -169,5 +172,68 @@ export function resolvePostCombatSpells(state: GameState, data: GameData): void 
   for (const queued of spellResolutionOrder(state, data, "post")) {
     resolveSpell(state, data, queued, "post");
     discardSpell(state, queued.player, "post", queued.spell.cardInstanceId);
+  }
+}
+
+/** Kann ein Vorkampf-Zauber schon aufgelöst werden (alle Bausteine aus E11b1)? */
+export function isPreCombatSpellSupported(card: SpellCard): boolean {
+  return card.effects.every((e) => PRE_COMBAT_OPS.has(e.op));
+}
+
+/**
+ * Wirkt einen Vorkampf-Zauber auf eigene Einheiten (R-8.3, E11b1). Gibt es für keinen Effekt eine gültige
+ * Einheit (Feld leer, nur verwundete Einheiten, Zone leer), verpufft er (R-8.5).
+ */
+function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedSpell): void {
+  const { player, spell, card } = queued;
+  const base = { player, cardInstanceId: spell.cardInstanceId, cardId: card.id, slot: "pre" as const };
+  if (!spellConditionHolds(state, player, card.condition)) {
+    emit(state, { type: "spell_fizzled", ...base, reason: "conditionNotMet" });
+    return;
+  }
+  const targetsOf = (effect: SpellCard["effects"][number]) =>
+    "target" in effect && typeof effect.target === "string" ? preCombatAllies(state, data.config, player, spell, effect.target) : [];
+  // Ziele werden vor dem ersten Effekt festgelegt (R-8.5 gilt für den Zauber als Ganzes).
+  const targets = card.effects.map(targetsOf);
+  if (targets.every((t) => t.length === 0)) {
+    emit(state, { type: "spell_fizzled", ...base, reason: "noValidTarget" });
+    return;
+  }
+  emit(state, { type: "spell_resolved", ...base, tempo: card.tempo });
+  card.effects.forEach((effect, i) => {
+    for (const unit of targets[i] ?? []) {
+      switch (effect.op) {
+        case "shield":
+          addRoundShield(state, unit, fixedAmount(effect.amount), card.id);
+          break;
+        case "buff":
+          // `permanent` gibt es bei Vorkampf-Zaubern nicht; es würde wie `round` wirken.
+          addRoundBuff(state, unit, effect.stat, fixedAmount(effect.amount), effect.duration === "combat" ? "combat" : "round", card.id);
+          break;
+        case "grantKeyword":
+          addRoundKeyword(state, unit, effect.keyword, card.id);
+          break;
+        default:
+          break;
+      }
+    }
+  });
+}
+
+/** Außerhalb des Kampfes zählen nur feste Zahlen (berechnete Werte beziehen sich auf eine Arena). */
+function fixedAmount(amount: Amount): number {
+  return typeof amount === "number" ? amount : 0;
+}
+
+/**
+ * R-8.3: Vorkampf-Zauber nach dem Aufdecken (und den Anführer-Fähigkeiten, E11c) auflösen, Reihenfolge wie
+ * `spellResolutionOrder`, jeden vollständig; danach auf den Ablagestapel (R-8.6), auch wenn er verpufft (R-8.5).
+ * Zauber mit noch fehlenden Bausteinen werden übersprungen (siehe Modulkommentar).
+ */
+export function resolvePreCombatSpells(state: GameState, data: GameData): void {
+  for (const queued of spellResolutionOrder(state, data, "pre")) {
+    if (!isPreCombatSpellSupported(queued.card)) continue;
+    resolvePreCombatSpell(state, data, queued);
+    discardSpell(state, queued.player, "pre", queued.spell.cardInstanceId);
   }
 }

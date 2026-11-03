@@ -7,7 +7,7 @@ import type { ActionTarget, Planning, PlanningSection, RejectionReason } from ".
 import type { OffsetCoord } from "./hex";
 import type { RngState } from "./rng";
 import type { CombatEvent } from "./combat";
-import type { GoldDestination, Stat, Trigger, UnitTarget } from "./dataTypes";
+import type { GoldDestination, Keyword, Stat, Trigger, UnitTarget } from "./dataTypes";
 
 /** R-1.1: genau 4 Spieler, Index 0–3. */
 export type PlayerIndex = 0 | 1 | 2 | 3;
@@ -72,6 +72,17 @@ export interface Unit {
    * auf die Kampfwerte nach dem Sternfaktor. Fehlt = keine.
    */
   permanentBuffs?: Partial<Record<Stat, number>>;
+  /**
+   * R-8.3, R-12.4, R-14.3: Wirkungen aus Vorkampf-Zaubern für alle Kämpfe dieser Runde (Schild, Buffs mit
+   * `duration: combat`/`round`, Schlüsselwörter). Verfallen beim Aufräumen. Fehlt = keine.
+   */
+  roundEffects?: UnitRoundEffects;
+}
+
+export interface UnitRoundEffects {
+  shield: number;
+  buffs: Partial<Record<Stat, number>>;
+  keywords: Keyword[];
 }
 
 export interface LeaderState {
@@ -258,6 +269,14 @@ export type GameEventPayload =
    * (z. B. Ziel-Spieler ausgeschieden), `conditionNotMet` = Bedingung der Karte nicht erfüllt (F37).
    */
   | { type: "spell_fizzled"; player: PlayerIndex; cardInstanceId: CardInstanceId; cardId: string; slot: SpellSlot; reason: "noValidTarget" | "conditionNotMet" }
+  /** R-8.3, R-14.3 (E11b1): Vorkampf-Zauber gibt einer Einheit Schild für die Kämpfe dieser Runde. */
+  | { type: "unit_shielded"; player: PlayerIndex; unitId: UnitId; amount: number; shield: number; cardId: string }
+  /** R-8.3 (E11b1): Buff für die Kämpfe dieser Runde (`duration` aus den Daten). */
+  | { type: "unit_buffed"; player: PlayerIndex; unitId: UnitId; stat: Stat; amount: number; duration: "combat" | "round"; cardId: string }
+  /** R-8.3 (E11b1): Schlüsselwort für die Kämpfe dieser Runde. */
+  | { type: "unit_keyword_granted"; player: PlayerIndex; unitId: UnitId; keyword: Keyword; cardId: string }
+  /** R-12.4, R-14.3: Schild, Buffs und Schlüsselwörter aus Vorkampf-Zaubern verfallen beim Aufräumen. */
+  | { type: "unit_round_effects_cleared"; player: PlayerIndex; unitId: UnitId }
   /** R-8.6: Zauber verlässt den Slot und geht auf den Ablagestapel. */
   | { type: "spell_discarded"; player: PlayerIndex; cardInstanceId: CardInstanceId; slot: SpellSlot }
   /** R-7.4: Anführer-Fähigkeit gewählt (`{ kind: "none" }` = keine). */
