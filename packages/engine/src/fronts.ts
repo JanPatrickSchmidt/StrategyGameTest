@@ -12,6 +12,7 @@ import { applyCombatAftermath } from "./aftermath";
 import { type DeferredEffect, effectHooks } from "./effects";
 import { markedStartManaPercent } from "./marks";
 import { applyRoundEffects } from "./preCombat";
+import { applyCombatWounds, woundedUnits } from "./wounds";
 import { activeResonance, addStartManaPercent, addStatBonuses, applyResonanceStats, resonanceBonus, resonanceSummonAdjuster } from "./resonance";
 import { frontArenaSize, type FrontSide, frontToArena, type OffsetCoord } from "./hex";
 import { activeRing, neighborsOf } from "./seating";
@@ -107,7 +108,7 @@ export function runFront(state: GameState, data: GameData, pairing: FrontPairing
   let result: FrontResult;
   if (first.length === 0 && second.length === 0) {
     // R-9.1: niemand da, kein Kampf, Unentschieden ohne Schaden.
-    result = { ...base, outcome: "noFight", winner: null, ticks: 0, survivors: [], winnerBreakthrough: 0 };
+    result = { ...base, outcome: "noFight", winner: null, ticks: 0, survivors: [], winnerBreakthrough: 0, wounded: [] };
   } else if (first.length === 0 || second.length === 0) {
     // R-9.1, R-10.2: leere Front, die andere Seite gewinnt ohne Simulation mit allen Einheiten.
     const winnerUnits = first.length > 0 ? first : second;
@@ -123,6 +124,7 @@ export function runFront(state: GameState, data: GameData, pairing: FrontPairing
       ticks: 0,
       survivors: winnerUnits.map((u) => u.id),
       winnerBreakthrough: breakthrough,
+      wounded: [],
     };
   } else {
     // R-3.2: `first` belegt die Arena-Zeilen 0–2 unverändert, `second` gedreht die Zeilen 3–5.
@@ -154,6 +156,7 @@ export function runFront(state: GameState, data: GameData, pairing: FrontPairing
       ticks: combat.ticks,
       survivors: [...combat.survivors],
       winnerBreakthrough: breakthrough,
+      wounded: woundedUnits(state, combat.wounded),
     };
   }
   emit(state, {
@@ -200,6 +203,7 @@ export function runFrontCombats(state: GameState, data: GameData): FrontResult[]
   const results = fronts.map((f) => f.result);
   state.frontResults = results;
   applyCombatAftermath(state, data, { fronts, center: null });
+  applyCombatWounds(state, results);
   removeFoughtTokens(state, results.flatMap((r) => r.participants));
   return results;
 }

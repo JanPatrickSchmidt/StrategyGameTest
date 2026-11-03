@@ -15,9 +15,11 @@ import type { Amount, Condition, SpellCard } from "./dataTypes";
 import { trashCards } from "./deck";
 import { payGold } from "./economy";
 import { priorityForRound } from "./marks";
-import { addRoundBuff, addRoundKeyword, addRoundShield, PRE_COMBAT_OPS, preCombatAllies } from "./preCombat";
+import { fighterForUnit } from "./fronts";
+import { addRoundBuff, addRoundKeyword, addRoundShield, PRE_COMBAT_OPS, preCombatAllies, preCombatEnemies } from "./preCombat";
 import { checkTarget } from "./targets";
-import { emit, type GameState, getCard, getPlayer, type PlayerIndex, type SetSpell, type SpellSlot } from "./state";
+import { emit, type GameState, getCard, getPlayer, type PlayerIndex, type SetSpell, type SpellSlot, type Unit } from "./state";
+import { woundUnit } from "./wounds";
 
 const SLOTS: readonly SpellSlot[] = ["pre", "post"];
 
@@ -181,8 +183,17 @@ export function isPreCombatSpellSupported(card: SpellCard): boolean {
 }
 
 /**
- * Wirkt einen Vorkampf-Zauber auf eigene Einheiten (R-8.3, E11b1). Gibt es für keinen Effekt eine gültige
- * Einheit (Feld leer, nur verwundete Einheiten, Zone leer), verpufft er (R-8.5).
+ * R-14.4: Kann die Einheit verwundet werden? `unwoundable` aus Karte, Vorkampf-Zaubern oder Rassen-Resonanz
+ * (Zwerge 4, gezählt nach dem aktuellen Brett) schützt (F39).
+ */
+export function isUnwoundable(state: GameState, data: GameData, unit: Unit): boolean {
+  return (fighterForUnit(state, data, unit, { col: 0, row: 0 }).keywords ?? []).includes("unwoundable");
+}
+
+/**
+ * Wirkt einen Vorkampf-Zauber (R-8.3): auf eigene Einheiten (E11b1) oder Verwunden gegnerischer Einheiten
+ * (`wound`, Frostlanze, E11b2). Gibt es für keinen Effekt eine gültige Einheit (Feld leer, nur verwundete
+ * Einheiten, Zone leer, nur Gegner mit `unwoundable`), verpufft er (R-8.5).
  */
 function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedSpell): void {
   const { player, spell, card } = queued;
@@ -191,8 +202,13 @@ function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedS
     emit(state, { type: "spell_fizzled", ...base, reason: "conditionNotMet" });
     return;
   }
-  const targetsOf = (effect: SpellCard["effects"][number]) =>
-    "target" in effect && typeof effect.target === "string" ? preCombatAllies(state, data.config, player, spell, effect.target) : [];
+  const targetsOf = (effect: SpellCard["effects"][number]): Unit[] => {
+    if (!("target" in effect) || typeof effect.target !== "string") return [];
+    if (effect.op === "wound") {
+      return preCombatEnemies(state, data.config, player, spell, effect.target).filter((u) => !isUnwoundable(state, data, u));
+    }
+    return preCombatAllies(state, data.config, player, spell, effect.target);
+  };
   // Ziele werden vor dem ersten Effekt festgelegt (R-8.5 gilt für den Zauber als Ganzes).
   const targets = card.effects.map(targetsOf);
   if (targets.every((t) => t.length === 0)) {
@@ -212,6 +228,10 @@ function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedS
           break;
         case "grantKeyword":
           addRoundKeyword(state, unit, effect.keyword, card.id);
+          break;
+        case "wound":
+          // R-14.4: sofort verwundet, nimmt an keinem Kampf dieser Runde teil.
+          woundUnit(state, unit, { cardId: card.id });
           break;
         default:
           break;

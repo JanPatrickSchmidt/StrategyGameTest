@@ -75,6 +75,8 @@ export interface Fighter {
   readonly summoned: boolean;
   /** Stern (R-15.2): skaliert feste Schadens- und Schildzahlen der Fähigkeiten (`effects.ts`). */
   readonly stars: 1 | 2 | 3;
+  /** R-14.4: von einem Effekt mit `wound` (oder einem Bezwinger mit `woundOnKill`) besiegt, nach dem Kampf verwundet. */
+  wounded: boolean;
   /** Verbleibende Betäubungs-Ticks (R-9.3 Schritt 1). */
   stun: number;
   attackCooldown: number;
@@ -117,6 +119,8 @@ export type CombatEvent =
       summoner: UnitId | null;
     }
   | { type: "combat_unit_died"; tick: number; unit: UnitId; killer: UnitId | null }
+  /** R-14.4: Die gestorbene Einheit ist nach dem Kampf verwundet (`cause`: Schaden mit `wound` oder Bezwinger mit `woundOnKill`). */
+  | { type: "combat_unit_wounded"; tick: number; unit: UnitId; source: UnitId | null; cause: "woundEffect" | "woundOnKill" }
   | { type: "combat_ended"; tick: number; winner: number | null; survivors: UnitId[] };
 
 /**
@@ -159,6 +163,8 @@ export interface CombatResult {
   events: CombatEvent[];
   /** Erste noch nicht vergebene ID nach im Kampf erzeugten Tokens. */
   nextSummonId: UnitId;
+  /** R-14.4: im Kampf verwundet besiegte Einheiten (ohne im Kampf erzeugte Tokens), nach ID aufsteigend. */
+  wounded: UnitId[];
 }
 
 // ---------------------------------------------------------------------------
@@ -292,6 +298,7 @@ function buildFighter(config: ConfigData, init: FighterInit, summoned: boolean):
     abilities: init.abilities ?? [],
     summoned,
     stars: init.stars ?? 1,
+    wounded: false,
     stun: 0,
     attackCooldown: 0,
     moveCooldown: 0,
@@ -403,6 +410,12 @@ function gainMana(fighter: Fighter, amount: number): number {
 // Wirkungen (auch für Fähigkeiten-Haken)
 // ---------------------------------------------------------------------------
 
+/** Zusatzangaben zu Schaden und Tod. */
+export interface DamageOptions {
+  /** R-14.4: `damage` mit `wound: true` – wird das Ziel dadurch besiegt, ist es nach dem Kampf verwundet. */
+  wound?: boolean;
+}
+
 /**
  * R-9.5: Schaden zuerst auf den Schild, der Rest abzüglich Panzer (mindestens 1) auf die Lebenspunkte.
  * Ein Angriff gibt der getroffenen Einheit Mana. Lebenspunkte ≤ 0 → sofortiger Tod (R-9.6).
@@ -413,6 +426,7 @@ export function dealDamage(
   target: Fighter,
   amount: number,
   kind: DamageKind,
+  options: DamageOptions = {},
 ): void {
   if (!target.alive || amount <= 0) return;
   const absorbed = Math.min(target.shield, amount);
@@ -432,15 +446,24 @@ export function dealDamage(
     hp: target.hp,
   });
   if (kind === "attack") gainMana(target, sim.config.combat.manaPerHitTaken);
-  if (target.hp <= 0) killFighter(sim, target, source);
+  if (target.hp <= 0) killFighter(sim, target, source, options);
 }
 
-/** R-9.6: Die Einheit verlässt die Simulation, „wenn diese Einheit stirbt“ wird sofort abgehandelt. */
-export function killFighter(sim: CombatSim, fighter: Fighter, killer: Fighter | null): void {
+/**
+ * R-9.6: Die Einheit verlässt die Simulation, „wenn diese Einheit stirbt“ wird sofort abgehandelt.
+ * R-14.4: Besiegt sie ein Effekt mit `wound` oder ein Bezwinger mit `woundOnKill`, ist sie nach dem Kampf
+ * verwundet, außer sie hat `unwoundable`. Das wird direkt nach dem Tod gemeldet, vor „wenn stirbt“.
+ */
+export function killFighter(sim: CombatSim, fighter: Fighter, killer: Fighter | null, options: DamageOptions = {}): void {
   if (!fighter.alive) return;
   fighter.alive = false;
   fighter.targetId = null;
   sim.events.push({ type: "combat_unit_died", tick: sim.tick, unit: fighter.id, killer: killer ? killer.id : null });
+  const cause = options.wound ? "woundEffect" : killer?.keywords.includes("woundOnKill") ? "woundOnKill" : null;
+  if (cause !== null && !fighter.keywords.includes("unwoundable")) {
+    fighter.wounded = true;
+    sim.events.push({ type: "combat_unit_wounded", tick: sim.tick, unit: fighter.id, source: killer ? killer.id : null, cause });
+  }
   sim.hooks.onDeath?.(sim, fighter, killer);
 }
 
@@ -671,6 +694,10 @@ export function combatResult(sim: CombatSim): CombatResult {
     fighters: sim.fighters,
     events: sim.events,
     nextSummonId: sim.nextSummonId,
+    wounded: sim.fighters
+      .filter((f) => f.wounded && !f.summoned)
+      .map((f) => f.id)
+      .sort((a, b) => a - b),
   };
 }
 

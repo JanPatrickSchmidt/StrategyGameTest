@@ -11,11 +11,12 @@ import type { FighterInit } from "./combat";
 import type { ConfigData } from "./data";
 import type { Effect, Keyword, Stat } from "./dataTypes";
 import { addStatBonuses } from "./resonance";
-import { emit, type GameState, type PlayerIndex, type SetSpell, type Unit, type UnitRoundEffects } from "./state";
+import { emit, type GameState, getPlayer, type PlayerIndex, type SetSpell, type Unit, type UnitRoundEffects } from "./state";
+import { neighborsOf } from "./seating";
 import { sameArenaHex, unitArenaHex } from "./targets";
 
 /** Effekt-Bausteine, die Vorkampf-Zauber in E11b1 schon wirken lassen. */
-export const PRE_COMBAT_OPS: ReadonlySet<Effect["op"]> = new Set(["shield", "buff", "grantKeyword"]);
+export const PRE_COMBAT_OPS: ReadonlySet<Effect["op"]> = new Set(["shield", "buff", "grantKeyword", "wound"]);
 
 /**
  * R-8.5: gültige Einheiten eines Vorkampf-Zaubers zum Zeitpunkt der Auflösung. `hexAlly` = die eigene, nicht
@@ -43,6 +44,46 @@ export function preCombatAllies(state: GameState, config: ConfigData, player: Pl
     default:
       return [];
   }
+}
+
+/**
+ * Gegner, deren Einheiten in einer Arena des Spielers stehen: Frontarena `right` = rechter Nachbar (dessen
+ * Zone `left`), Frontarena `left` = linker Nachbar (dessen Zone `right`), Mittelarena = alle anderen aktiven
+ * Spieler (R-2.3, R-3.2, R-3.4). Gibt die Zone des Gegners zurück, in der seine Einheiten dort stehen.
+ */
+function opponentsInArena(state: GameState, player: PlayerIndex, arena: ArenaRef): { owner: PlayerIndex; zone: ArenaRef }[] {
+  if (arena === "center") {
+    return Object.values(state.players)
+      .filter((p) => p.index !== player && !p.eliminated)
+      .map((p) => ({ owner: p.index, zone: "center" as const }));
+  }
+  const n = neighborsOf(state, player);
+  if (!n) return [];
+  return arena === "right" ? [{ owner: n.right, zone: "left" }] : [{ owner: n.left, zone: "right" }];
+}
+
+/**
+ * R-8.5, R-14.2: gegnerische, nicht verwundete Einheiten auf dem gewählten Feld bzw. den gewählten Feldern
+ * (`hexEnemies`), zum Zeitpunkt der Auflösung, nach ID. Felder sind aus Sicht des Zaubernden angegeben;
+ * Einheiten ausgeschiedener Spieler zählen nicht.
+ */
+export function preCombatEnemies(state: GameState, config: ConfigData, player: PlayerIndex, spell: SetSpell, target: string): Unit[] {
+  if (target !== "hexEnemies") return [];
+  const t = spell.target;
+  const hexes: ArenaHex[] = t.kind === "hexes" ? t.hexes : t.kind === "hex" ? [{ arena: t.arena, cell: t.cell }] : [];
+  const result = new Map<number, Unit>();
+  for (const hex of hexes) {
+    for (const { owner, zone } of opponentsInArena(state, player, hex.arena)) {
+      if (getPlayer(state, owner).eliminated) continue;
+      for (const u of Object.values(state.units)) {
+        if (u.owner !== owner || u.wounded || u.location.zone !== zone) continue;
+        const at = unitArenaHex(config, u);
+        // Dasselbe Feld der gemeinsamen Arena: gleiche Koordinaten, Arena aus Sicht des Gegners (`zone`).
+        if (at !== null && at.arena === zone && at.cell.col === hex.cell.col && at.cell.row === hex.cell.row) result.set(u.id, u);
+      }
+    }
+  }
+  return [...result.values()].sort((a, b) => a.id - b.id);
 }
 
 function roundEffectsOf(unit: Unit): UnitRoundEffects {

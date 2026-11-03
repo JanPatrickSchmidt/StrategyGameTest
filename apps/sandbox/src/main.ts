@@ -504,6 +504,8 @@ class SandboxApp {
         return `✦ ${n(e.summoner)} ruft ${n(e.unit)} herbei`;
       case "combat_unit_died":
         return `✖ ${n(e.unit)} stirbt`;
+      case "combat_unit_wounded":
+        return `  → ${n(e.unit)} ist nach dem Kampf verwundet`;
       case "combat_ended":
         return `Kampfende: ${e.winner === null ? "Unentschieden" : `${SIDE_NAMES[e.winner as 0 | 1]} gewinnt`}`;
     }

@@ -205,8 +205,9 @@ function applyEffect(
   switch (effect.op) {
     case "damage": {
       // R-9.5: Fähigkeitsschaden geht durch Schild und Panzer. Ziele werden vorher festgelegt.
+      // R-14.4: `wound: true` → ein dadurch besiegtes Ziel ist nach dem Kampf verwundet.
       const amount = abilityPower(data, sim, f, effect.amount);
-      for (const t of resolveUnitTargets(sim, f, effect.target)) dealDamage(sim, f, t, amount, "ability");
+      for (const t of resolveUnitTargets(sim, f, effect.target)) dealDamage(sim, f, t, amount, "ability", { wound: effect.wound === true });
       return;
     }
     case "heal": {

@@ -15,6 +15,7 @@ import { fighterForUnit, removeFoughtTokens, runFronts } from "./fronts";
 import { announceCombatMarks, clearCombatMarks } from "./marks";
 import { announceResonance, resonanceSummonAdjuster } from "./resonance";
 import { countCombatResonance, grantSurvivorXp } from "./unitXp";
+import { applyCombatWounds, woundedUnits } from "./wounds";
 import { centerPositionToArena, type Seat } from "./hex";
 import { type CenterResult, emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit } from "./state";
 
@@ -50,10 +51,10 @@ export function runCenter(state: GameState, data: GameData, deferredOut: Deferre
   let result: CenterResult;
   if (players.length === 0) {
     // R-9.1: niemand in der Mitte, kein Halter.
-    result = { ...base, outcome: "noFight", holder: null, ticks: 0, survivors: [] };
+    result = { ...base, outcome: "noFight", holder: null, ticks: 0, survivors: [], wounded: [] };
   } else if (players.length === 1) {
     // R-9.1: nur ein Spieler hat Einheiten in der Mitte, er hält sie ohne Simulation.
-    result = { ...base, outcome: "uncontested", holder: players[0] as PlayerIndex, ticks: 0, survivors: [...base.participants] };
+    result = { ...base, outcome: "uncontested", holder: players[0] as PlayerIndex, ticks: 0, survivors: [...base.participants], wounded: [] };
   } else {
     const inits: FighterInit[] = units.map((u) => fighterForUnit(state, data, u, centerCell(data, u)));
     emit(state, {
@@ -74,6 +75,7 @@ export function runCenter(state: GameState, data: GameData, deferredOut: Deferre
       holder: combat.winner === null ? null : (combat.winner as PlayerIndex),
       ticks: combat.ticks,
       survivors: [...combat.survivors],
+      wounded: woundedUnits(state, combat.wounded),
     };
   }
   emit(state, {
@@ -109,6 +111,8 @@ export function runCombatPhase(state: GameState, data: GameData): { fronts: Fron
   state.frontResults = fronts;
   state.centerResult = center;
   applyCombatAftermath(state, data, { fronts: frontRuns, center: { result: center, deferred: centerDeferred } });
+  // R-14.4: Wer im Kampf von einem Effekt mit `wound` besiegt wurde, ist nach dem Kampf verwundet.
+  applyCombatWounds(state, [...fronts, center]);
   // R-10.7, R-17.5: Einheiten-XP für überlebende Karten-Einheiten.
   grantSurvivorXp(state, data, { fronts, center }, resonance);
   removeFoughtTokens(state, [...fronts.flatMap((r) => r.participants), ...center.participants]);

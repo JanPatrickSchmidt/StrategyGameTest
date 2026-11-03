@@ -79,6 +79,7 @@ function frontResult(first: PlayerIndex, second: PlayerIndex, winner: PlayerInde
     participants,
     survivors: [],
     winnerBreakthrough: 0,
+    wounded: [],
   };
 }
 

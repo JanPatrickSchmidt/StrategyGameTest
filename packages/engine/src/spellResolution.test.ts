@@ -46,6 +46,7 @@ function wonFront(state: GameState, winner: PlayerIndex, loser: PlayerIndex, rou
     participants: [],
     survivors: [],
     winnerBreakthrough: 0,
+    wounded: [],
   };
 }
 

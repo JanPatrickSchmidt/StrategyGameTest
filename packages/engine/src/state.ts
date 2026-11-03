@@ -275,6 +275,11 @@ export type GameEventPayload =
   | { type: "unit_buffed"; player: PlayerIndex; unitId: UnitId; stat: Stat; amount: number; duration: "combat" | "round"; cardId: string }
   /** R-8.3 (E11b1): Schlüsselwort für die Kämpfe dieser Runde. */
   | { type: "unit_keyword_granted"; player: PlayerIndex; unitId: UnitId; keyword: Keyword; cardId: string }
+  /**
+   * R-14.4: Einheit ist verwundet – vor dem Kampf durch einen Zauber (`cardId`, z. B. Frostlanze) oder nach
+   * dem Kampf, weil ein Effekt mit `wound` bzw. ein Bezwinger mit `woundOnKill` sie besiegt hat (`arena`).
+   */
+  | { type: "unit_wounded"; player: PlayerIndex; unitId: UnitId; cardId: string | null; arena: string | null }
   /** R-12.4, R-14.3: Schild, Buffs und Schlüsselwörter aus Vorkampf-Zaubern verfallen beim Aufräumen. */
   | { type: "unit_round_effects_cleared"; player: PlayerIndex; unitId: UnitId }
   /** R-8.6: Zauber verlässt den Slot und geht auf den Ablagestapel. */
@@ -376,7 +381,8 @@ export interface FrontResult {
   /** Überlebende beider Seiten (bei leerer Front alle Einheiten des Siegers), nach ID aufsteigend. */
   survivors: UnitId[];
   /** R-10.1/R-10.2: Summe `breakthrough` der überlebenden Einheiten des Siegers (Tokens zählen), sonst 0. */
-  winnerBreakthrough: number;
+  winnerBreakthrough: number;  /** R-14.4: im Kampf verwundet besiegte Einheiten (ohne Tokens), nach ID aufsteigend; nach dem Kampf verwundet. */
+  wounded: UnitId[];
 }
 
 /**
@@ -395,7 +401,8 @@ export interface CenterResult {
   /** Teilnehmer nach R-9.1, nach ID aufsteigend. */
   participants: UnitId[];
   /** Überlebende aller Spieler (ohne Simulation alle Teilnehmer), nach ID aufsteigend. */
-  survivors: UnitId[];
+  survivors: UnitId[];  /** R-14.4: im Kampf verwundet besiegte Einheiten (ohne Tokens), nach ID aufsteigend; nach dem Kampf verwundet. */
+  wounded: UnitId[];
 }
 
 export interface GameState {
