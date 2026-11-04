@@ -5,8 +5,8 @@
  * Prioritätsreihenfolge (R-1.7), bei einem Spieler in der Reihenfolge des Legens; jeder Zauber wird
  * vollständig abgehandelt und geht danach sofort auf den Ablagestapel (R-8.6). Die Vorkampf-Zauber
  * (R-8.3) lösen in der Phase `preCombatSpells` genauso auf (E11b1: Schild, Buff, Schlüsselwort auf eigene
- * Einheiten, `preCombat.ts`). Vorkampf-Zauber mit noch fehlenden Bausteinen (Schaden, Verwunden, Beschwören;
- * E11b2–E11b4) bleiben vorerst liegen und gehen beim Rundenende ungenutzt auf den Ablagestapel.
+ * Einheiten, `preCombat.ts`; E11b2: Verwunden; E11b3: Schaden). Vorkampf-Zauber mit noch fehlenden Bausteinen
+ * (Beschwören, E11b4) bleiben vorerst liegen und gehen beim Rundenende ungenutzt auf den Ablagestapel.
  */
 import type { RejectionReason } from "./actions";
 import { applyStateEffect } from "./aftermath";
@@ -16,7 +16,15 @@ import { trashCards } from "./deck";
 import { payGold } from "./economy";
 import { priorityForRound } from "./marks";
 import { fighterForUnit } from "./fronts";
-import { addRoundBuff, addRoundKeyword, addRoundShield, PRE_COMBAT_OPS, preCombatAllies, preCombatEnemies } from "./preCombat";
+import {
+  addRoundBuff,
+  addRoundKeyword,
+  addRoundShield,
+  dealPreCombatDamage,
+  PRE_COMBAT_OPS,
+  preCombatAllies,
+  preCombatEnemies,
+} from "./preCombat";
 import { checkTarget } from "./targets";
 import { emit, type GameState, getCard, getPlayer, type PlayerIndex, type SetSpell, type SpellSlot, type Unit } from "./state";
 import { woundUnit } from "./wounds";
@@ -191,9 +199,10 @@ export function isUnwoundable(state: GameState, data: GameData, unit: Unit): boo
 }
 
 /**
- * Wirkt einen Vorkampf-Zauber (R-8.3): auf eigene Einheiten (E11b1) oder Verwunden gegnerischer Einheiten
- * (`wound`, Frostlanze, E11b2). Gibt es für keinen Effekt eine gültige Einheit (Feld leer, nur verwundete
- * Einheiten, Zone leer, nur Gegner mit `unwoundable`), verpufft er (R-8.5).
+ * Wirkt einen Vorkampf-Zauber (R-8.3): auf eigene Einheiten (E11b1), Verwunden gegnerischer Einheiten
+ * (`wound`, Frostlanze, E11b2) oder Schaden an gegnerischen Einheiten (`damage`, Feuerball, E11b3, R-14.2).
+ * Gibt es für keinen Effekt eine gültige Einheit (Feld leer, nur verwundete oder schon besiegte Einheiten,
+ * Zone leer, nur Gegner mit `unwoundable`), verpufft er (R-8.5).
  */
 function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedSpell): void {
   const { player, spell, card } = queued;
@@ -204,6 +213,7 @@ function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedS
   }
   const targetsOf = (effect: SpellCard["effects"][number]): Unit[] => {
     if (!("target" in effect) || typeof effect.target !== "string") return [];
+    if (effect.op === "damage") return preCombatEnemies(state, data.config, player, spell, effect.target);
     if (effect.op === "wound") {
       return preCombatEnemies(state, data.config, player, spell, effect.target).filter((u) => !isUnwoundable(state, data, u));
     }
@@ -233,6 +243,16 @@ function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedS
           // R-14.4: sofort verwundet, nimmt an keinem Kampf dieser Runde teil.
           woundUnit(state, unit, { cardId: card.id });
           break;
+        case "damage": {
+          // R-14.2, R-9.5: wie Fähigkeitsschaden durch Schild und Panzer; bleibt für alle Kämpfe der Runde.
+          const stats = fighterForUnit(state, data, unit, { col: 0, row: 0 }).stats;
+          const defeated = dealPreCombatDamage(state, unit, fixedAmount(effect.amount), { hp: stats.hp, armor: stats.armor ?? 0 }, card.id);
+          // R-14.4: besiegt ein Schaden mit `wound` die Einheit, ist sie verwundet (außer `unwoundable`).
+          if (defeated && effect.wound === true && unit.kind !== "token" && !isUnwoundable(state, data, unit)) {
+            woundUnit(state, unit, { cardId: card.id });
+          }
+          break;
+        }
         default:
           break;
       }

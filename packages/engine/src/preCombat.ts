@@ -1,6 +1,7 @@
 /**
  * Vorkampf-Zauber (R-8.3, R-8.5, E11b1): Wirkungen auf eigene Einheiten, die in alle Kämpfe der Runde
- * übernommen werden – Schild (Schutzrune), Buff `combat`/`round` (Kriegsruf), Schlüsselwort (Giftklinge).
+ * übernommen werden – Schild (Schutzrune), Buff `combat`/`round` (Kriegsruf), Schlüsselwort (Giftklinge) –
+ * sowie Schaden an gegnerischen Einheiten (Feuerball, E11b3, R-14.2).
  *
  * Die Wirkungen liegen bis zum Aufräumen als `unit.roundEffects` an der Einheit (R-12.4, R-14.3) und werden
  * in `fighterForUnit` (`fronts.ts`) auf die Kampfwerte übertragen. Alle Kämpfe einer Runde nutzen denselben
@@ -12,21 +13,23 @@ import type { ConfigData } from "./data";
 import type { Effect, Keyword, Stat } from "./dataTypes";
 import { addStatBonuses } from "./resonance";
 import { emit, type GameState, getPlayer, type PlayerIndex, type SetSpell, type Unit, type UnitRoundEffects } from "./state";
+import { coordEquals, neighbors } from "./hex";
 import { neighborsOf } from "./seating";
-import { sameArenaHex, unitArenaHex } from "./targets";
+import { arenaSize, sameArenaHex, unitArenaHex } from "./targets";
+import { fightsThisRound } from "./wounds";
 
-/** Effekt-Bausteine, die Vorkampf-Zauber in E11b1 schon wirken lassen. */
-export const PRE_COMBAT_OPS: ReadonlySet<Effect["op"]> = new Set(["shield", "buff", "grantKeyword", "wound"]);
+/** Effekt-Bausteine, die Vorkampf-Zauber schon wirken lassen (E11b1–E11b3). */
+export const PRE_COMBAT_OPS: ReadonlySet<Effect["op"]> = new Set(["shield", "buff", "grantKeyword", "wound", "damage"]);
 
 /**
  * R-8.5: gültige Einheiten eines Vorkampf-Zaubers zum Zeitpunkt der Auflösung. `hexAlly` = die eigene, nicht
  * verwundete Einheit auf dem gewählten Feld; `zoneAllies` = alle eigenen, nicht verwundeten Einheiten der
- * gewählten Zone(n) (inkl. Anführer und Tokens), nach ID. Verwundete Einheiten kämpfen nicht (R-14.4) und
- * sind deshalb kein gültiges Ziel.
+ * gewählten Zone(n) (inkl. Anführer und Tokens), nach ID. Verwundete und vor dem Kampf besiegte Einheiten
+ * kämpfen nicht (R-14.4, R-14.2) und sind deshalb kein gültiges Ziel.
  */
 export function preCombatAllies(state: GameState, config: ConfigData, player: PlayerIndex, spell: SetSpell, target: string): Unit[] {
   const own = Object.values(state.units)
-    .filter((u) => u.owner === player && !u.wounded)
+    .filter((u) => u.owner === player && fightsThisRound(u))
     .sort((a, b) => a.id - b.id);
   const t = spell.target;
   switch (target) {
@@ -63,23 +66,35 @@ function opponentsInArena(state: GameState, player: PlayerIndex, arena: ArenaRef
 }
 
 /**
- * R-8.5, R-14.2: gegnerische, nicht verwundete Einheiten auf dem gewählten Feld bzw. den gewählten Feldern
- * (`hexEnemies`), zum Zeitpunkt der Auflösung, nach ID. Felder sind aus Sicht des Zaubernden angegeben;
- * Einheiten ausgeschiedener Spieler zählen nicht.
+ * R-8.5, R-14.2: gegnerische Einheiten, die an den Kämpfen der Runde teilnehmen würden (nicht verwundet, nicht
+ * vor dem Kampf besiegt), zum Zeitpunkt der Auflösung, nach ID. `hexEnemies` = auf dem gewählten Feld bzw. den
+ * gewählten Feldern; `hexNeighborEnemies` = auf den Nachbarfeldern (innerhalb der Arena) ohne die gewählten
+ * Felder selbst (Feuerball, E11b3). Felder sind aus Sicht des Zaubernden angegeben; alle Spieler einer Arena
+ * nutzen dieselben Arena-Koordinaten. Einheiten ausgeschiedener Spieler zählen nicht.
  */
 export function preCombatEnemies(state: GameState, config: ConfigData, player: PlayerIndex, spell: SetSpell, target: string): Unit[] {
-  if (target !== "hexEnemies") return [];
+  if (target !== "hexEnemies" && target !== "hexNeighborEnemies") return [];
   const t = spell.target;
-  const hexes: ArenaHex[] = t.kind === "hexes" ? t.hexes : t.kind === "hex" ? [{ arena: t.arena, cell: t.cell }] : [];
+  const chosen: ArenaHex[] = t.kind === "hexes" ? t.hexes : t.kind === "hex" ? [{ arena: t.arena, cell: t.cell }] : [];
+  let hexes: ArenaHex[] = chosen;
+  if (target === "hexNeighborEnemies") {
+    hexes = [];
+    for (const hex of chosen) {
+      for (const cell of neighbors(hex.cell, arenaSize(config, hex.arena))) {
+        const n: ArenaHex = { arena: hex.arena, cell };
+        if (!chosen.some((c) => sameArenaHex(c, n)) && !hexes.some((h) => sameArenaHex(h, n))) hexes.push(n);
+      }
+    }
+  }
   const result = new Map<number, Unit>();
   for (const hex of hexes) {
     for (const { owner, zone } of opponentsInArena(state, player, hex.arena)) {
       if (getPlayer(state, owner).eliminated) continue;
       for (const u of Object.values(state.units)) {
-        if (u.owner !== owner || u.wounded || u.location.zone !== zone) continue;
+        if (u.owner !== owner || !fightsThisRound(u) || u.location.zone !== zone) continue;
         const at = unitArenaHex(config, u);
         // Dasselbe Feld der gemeinsamen Arena: gleiche Koordinaten, Arena aus Sicht des Gegners (`zone`).
-        if (at !== null && at.arena === zone && at.cell.col === hex.cell.col && at.cell.row === hex.cell.row) result.set(u.id, u);
+        if (at !== null && at.arena === zone && coordEquals(at.cell, hex.cell)) result.set(u.id, u);
       }
     }
   }
@@ -113,6 +128,35 @@ export function addRoundKeyword(state: GameState, unit: Unit, keyword: Keyword, 
   emit(state, { type: "unit_keyword_granted", player: unit.owner, unitId: unit.id, keyword, cardId });
 }
 
+/**
+ * R-14.2, R-9.5 (E11b3): Schaden vor dem Kampf (Feuerball). Wie Fähigkeitsschaden: zuerst wird der Schild aus
+ * Vorkampf-Zaubern dieser Runde verbraucht, der Rest abzüglich Panzer (mindestens 1) geht von den Lebenspunkten
+ * ab. `hp` und `armor` sind die Kampfwerte der Einheit zum Zeitpunkt der Auflösung (ohne den Schaden). Der Verlust
+ * bleibt für alle Kämpfe der Runde; sinken die Lebenspunkte auf 0 oder darunter, ist die Einheit besiegt und
+ * nimmt an keinem Kampf dieser Runde teil. Gibt zurück, ob sie dadurch besiegt wurde.
+ */
+export function dealPreCombatDamage(
+  state: GameState,
+  unit: Unit,
+  amount: number,
+  stats: { hp: number; armor: number },
+  cardId: string,
+): boolean {
+  if (amount <= 0 || !fightsThisRound(unit)) return false;
+  const fx = roundEffectsOf(unit);
+  const absorbed = Math.min(fx.shield, amount);
+  fx.shield -= absorbed;
+  const rest = amount - absorbed;
+  const hpLoss = rest > 0 ? Math.max(1, rest - stats.armor) : 0;
+  fx.damage = (fx.damage ?? 0) + hpLoss;
+  const hp = stats.hp - fx.damage;
+  emit(state, { type: "unit_damaged", player: unit.owner, unitId: unit.id, amount, absorbed, hpLoss, hp, cardId });
+  if (hp > 0) return false;
+  fx.defeated = true;
+  emit(state, { type: "unit_defeated", player: unit.owner, unitId: unit.id, cardId });
+  return true;
+}
+
 /** Überträgt `unit.roundEffects` auf einen Kämpfer: Werte, Schlüsselwörter, Start-Schild. */
 export function applyRoundEffects(config: ConfigData, init: FighterInit, unit: Unit): void {
   const fx = unit.roundEffects;
@@ -124,6 +168,7 @@ export function applyRoundEffects(config: ConfigData, init: FighterInit, unit: U
     init.keywords = keywords;
   }
   if (fx.shield > 0) init.shield = (init.shield ?? 0) + fx.shield;
+  if ((fx.damage ?? 0) > 0) init.damageTaken = (init.damageTaken ?? 0) + (fx.damage ?? 0);
 }
 
 /** R-12.4, R-14.3: Schilde, Kampf-Buffs und Schlüsselwörter aus Vorkampf-Zaubern verfallen beim Aufräumen. */

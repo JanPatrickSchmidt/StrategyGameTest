@@ -34,3 +34,11 @@ export function applyCombatWounds(state: GameState, results: readonly (FrontResu
     }
   }
 }
+
+/**
+ * Nimmt die Einheit an den Kämpfen dieser Runde teil? Nicht, wenn sie verwundet ist (R-14.4) oder vor dem
+ * Kampf durch Schaden besiegt wurde (R-14.2, E11b3).
+ */
+export function fightsThisRound(unit: Unit): boolean {
+  return !unit.wounded && unit.roundEffects?.defeated !== true;
+}

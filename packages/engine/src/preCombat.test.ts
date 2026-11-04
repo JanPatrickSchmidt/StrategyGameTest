@@ -234,14 +234,13 @@ describe("E11b1: Vorkampf-Zauber auf eigene Einheiten", () => {
     expect(fighter(state, squire).shield ?? 0).toBe(0);
   });
 
-  it("Vorkampf-Zauber mit noch fehlenden Bausteinen (Feuerball) bleiben liegen und gehen beim Rundenende ab", () => {
+  it("Vorkampf-Zauber mit noch fehlenden Bausteinen (Geistertrommel, E11b4) bleiben liegen und gehen beim Rundenende ab", () => {
     const state = emptyBoard();
-    const enemy = placeUnit(state, 1, front("left", 1, 1), "recruit");
-    const at = unitArenaHex(data.config, unit(state, enemy));
-    const ball = setPre(state, 0, "fireball", { kind: "hexes", hexes: [{ arena: "right", cell: at!.cell }] });
+    placeUnit(state, 0, front("right", 1, 1), "recruit");
+    const drum = setPre(state, 0, "spirit_drum", zoneTarget("right"));
     resolvePreCombatSpells(state, data);
     expect(eventsOf(state, "spell_resolved")).toEqual([]);
-    expect(getPlayer(state, 0).spells.pre.map((s) => s.cardInstanceId)).toEqual([ball]);
+    expect(getPlayer(state, 0).spells.pre.map((s) => s.cardInstanceId)).toEqual([drum]);
   });
 
   it("Determinismus: gleiche Vorkampf-Zauber, gleicher Zustand = gleiches Protokoll", () => {

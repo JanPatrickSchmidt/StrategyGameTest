@@ -200,8 +200,13 @@ describe("R-7.3 im Rundenablauf", () => {
       expect.objectContaining({ player: 0, section: "position", action: "setSpell", reason: "wrongSection" }),
     ]);
     const p = getPlayer(state, 0);
+    // R-8.5, R-8.6 (E11b3): Der Feuerball trifft in der leeren Mitte niemanden, verpufft und geht direkt nach
+    // seiner Auflösung auf den Ablagestapel.
+    expect(eventsOf(state, "spell_fizzled")).toEqual([
+      expect.objectContaining({ player: 0, cardInstanceId: fireball, reason: "noValidTarget" }),
+    ]);
     expect(eventsOf(state, "spell_discarded")).toEqual([
-      expect.objectContaining({ player: 0, cardInstanceId: fireball, slot: "pre", phase: "cleanup" }),
+      expect.objectContaining({ player: 0, cardInstanceId: fireball, slot: "pre", phase: "preCombatSpells" }),
     ]);
     expect(p.spells).toEqual({ pre: [], post: [] });
     expect([...p.discard, ...p.deck, ...p.hand]).toContain(fireball);

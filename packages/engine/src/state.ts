@@ -83,6 +83,10 @@ export interface UnitRoundEffects {
   shield: number;
   buffs: Partial<Record<Stat, number>>;
   keywords: Keyword[];
+  /** R-14.2 (E11b3): Lebenspunkte, die die Einheit vor dem Kampf verloren hat; gilt in allen Kämpfen der Runde. */
+  damage?: number;
+  /** R-14.2 (E11b3): vor dem Kampf besiegt – nimmt in dieser Runde an keinem Kampf teil. */
+  defeated?: boolean;
 }
 
 export interface LeaderState {
@@ -280,6 +284,13 @@ export type GameEventPayload =
    * dem Kampf, weil ein Effekt mit `wound` bzw. ein Bezwinger mit `woundOnKill` sie besiegt hat (`arena`).
    */
   | { type: "unit_wounded"; player: PlayerIndex; unitId: UnitId; cardId: string | null; arena: string | null }
+  /**
+   * R-14.2, R-9.5 (E11b3): Schaden vor dem Kampf (Feuerball). `absorbed` = vom Schild aufgefangen,
+   * `hpLoss` nach Panzer, `hp` = verbleibende Lebenspunkte für die Kämpfe dieser Runde.
+   */
+  | { type: "unit_damaged"; player: PlayerIndex; unitId: UnitId; amount: number; absorbed: number; hpLoss: number; hp: number; cardId: string }
+  /** R-14.2 (E11b3): vor dem Kampf besiegt, nimmt in dieser Runde an keinem Kampf teil (bleibt auf dem Brett). */
+  | { type: "unit_defeated"; player: PlayerIndex; unitId: UnitId; cardId: string }
   /** R-12.4, R-14.3: Schild, Buffs und Schlüsselwörter aus Vorkampf-Zaubern verfallen beim Aufräumen. */
   | { type: "unit_round_effects_cleared"; player: PlayerIndex; unitId: UnitId }
   /** R-8.6: Zauber verlässt den Slot und geht auf den Ablagestapel. */

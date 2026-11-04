@@ -42,6 +42,8 @@ export interface FighterInit {
   hasManaAbility: boolean;
   startMana?: number;
   shield?: number;
+  /** R-14.2 (E11b3): vor dem Kampf verlorene Lebenspunkte; der Kämpfer startet mit `hp − damageTaken`. */
+  damageTaken?: number;
   /** Stern der Einheit (R-15.2) für Schadens- und Schildzahlen der Fähigkeiten; Standard ★1 (Anführer, Tokens). */
   stars?: 1 | 2 | 3;
 }
@@ -282,7 +284,7 @@ function buildFighter(config: ConfigData, init: FighterInit, summoned: boolean):
     alive: true,
     attack: s.attack,
     maxHp: s.hp,
-    hp: s.hp,
+    hp: s.hp - (init.damageTaken ?? 0),
     range: s.range,
     breakthrough: s.breakthrough,
     armor: s.armor ?? 0,

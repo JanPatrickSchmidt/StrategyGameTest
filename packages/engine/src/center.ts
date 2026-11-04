@@ -15,7 +15,7 @@ import { fighterForUnit, removeFoughtTokens, runFronts } from "./fronts";
 import { announceCombatMarks, clearCombatMarks } from "./marks";
 import { announceResonance, resonanceSummonAdjuster } from "./resonance";
 import { countCombatResonance, grantSurvivorXp } from "./unitXp";
-import { applyCombatWounds, woundedUnits } from "./wounds";
+import { applyCombatWounds, fightsThisRound, woundedUnits } from "./wounds";
 import { centerPositionToArena, type Seat } from "./hex";
 import { type CenterResult, emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit } from "./state";
 
@@ -28,7 +28,7 @@ export const CENTER_ARENA_ID = "center";
  */
 export function centerParticipants(state: GameState): Unit[] {
   return Object.values(state.units)
-    .filter((u) => !u.wounded && u.location.zone === "center" && !getPlayer(state, u.owner).eliminated)
+    .filter((u) => fightsThisRound(u) && u.location.zone === "center" && !getPlayer(state, u.owner).eliminated)
     .sort((a, b) => a.id - b.id);
 }
 
@@ -97,7 +97,7 @@ export function runCenter(state: GameState, data: GameData, deferredOut: Deferre
 export function runCombatPhase(state: GameState, data: GameData): { fronts: FrontResult[]; center: CenterResult } {
   // R-17a.2: Start-Mana-Markierungen dieser Runde wirken in allen Kämpfen (melden, dann kämpfen, dann löschen).
   const fighting = Object.values(state.units)
-    .filter((u) => !u.wounded && u.location.zone !== "reserve" && !getPlayer(state, u.owner).eliminated)
+    .filter((u) => fightsThisRound(u) && u.location.zone !== "reserve" && !getPlayer(state, u.owner).eliminated)
     .sort((a, b) => a.id - b.id);
   // R-17.2: Resonanz nach dem Brett zu Beginn der Kampfphase (nach dem Aufdecken) gilt in allen Kämpfen.
   announceResonance(state, data, fighting);

@@ -12,7 +12,7 @@ import { applyCombatAftermath } from "./aftermath";
 import { type DeferredEffect, effectHooks } from "./effects";
 import { markedStartManaPercent } from "./marks";
 import { applyRoundEffects } from "./preCombat";
-import { applyCombatWounds, woundedUnits } from "./wounds";
+import { applyCombatWounds, fightsThisRound, woundedUnits } from "./wounds";
 import { activeResonance, addStartManaPercent, addStatBonuses, applyResonanceStats, resonanceBonus, resonanceSummonAdjuster } from "./resonance";
 import { frontArenaSize, type FrontSide, frontToArena, type OffsetCoord } from "./hex";
 import { activeRing, neighborsOf } from "./seating";
@@ -48,7 +48,7 @@ export function frontPairings(state: GameState): FrontPairing[] {
  */
 export function frontParticipants(state: GameState, pairing: FrontPairing): { first: Unit[]; second: Unit[] } {
   const units = Object.values(state.units)
-    .filter((u) => !u.wounded)
+    .filter(fightsThisRound)
     .sort((a, b) => a.id - b.id);
   const inZone = (owner: PlayerIndex, zone: "left" | "right"): Unit[] =>
     units.filter((u) => u.owner === owner && u.location.zone === zone);
