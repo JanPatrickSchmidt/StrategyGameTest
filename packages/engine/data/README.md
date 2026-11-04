@@ -107,7 +107,7 @@ Im Kampf (F30): Ziele werden vor dem Anwenden festgelegt und nach ID aufsteigend
 
 ## Anführer
 
-`active.category` bestimmt die Reihenfolge in R-8.2. `base` gilt auf Stufe 1, `branches[].levels` ab Stufe 2. Zusätzliche Parameter einer Stufe:
+`active.category` bestimmt die Reihenfolge in R-8.2. **Auflösung** (`src/leaderAbilities.ts`, E11c1, F42): In der Phase `leaderAbilities` (nach dem Aufdecken, vor den Vorkampf-Zaubern) lösen die gewählten Fähigkeiten nach Kategorien aus: `summon`/`move` → `buff` → `damage`; innerhalb einer Kategorie werden alle Ziele festgelegt, bevor etwas wirkt, Ereignisse in Prioritätsreihenfolge (R-1.7). Stufe und Ast sind die der Planung. Ausgeschiedene Spieler und `{ kind: "none" }` lösen nichts aus. Ereignisse `leader_ability_resolved` (`leaderId`, `category`, `level`, `branchId`) und `leader_ability_fizzled` (`noValidTarget`, wenn kein Effekt eine gültige Einheit hat). `buff` mit `target: zoneAllies` (Brann) trifft wie bei Vorkampf-Zaubern alle eigenen, nicht verwundeten Einheiten der gewählten Zone(n) inkl. Anführer und Tokens, liegt als `unit.roundEffects` an (Ereignis `unit_buffed` mit `cardId` = Anführer-ID) und verfällt beim Aufräumen. Kategorien `damage`, `summon`, `move` folgen in E11c2–E11c4. `base` gilt auf Stufe 1, `branches[].levels` ab Stufe 2. Zusätzliche Parameter einer Stufe:
 - `zones` (Brann): Anzahl wählbarer Zonen
 - `hexes` (Ilyra): Anzahl wählbarer Felder
 - `count` (Vex): Anzahl bewegbarer Einheiten

@@ -7,7 +7,7 @@ import type { ActionTarget, Planning, PlanningSection, RejectionReason } from ".
 import type { OffsetCoord } from "./hex";
 import type { RngState } from "./rng";
 import type { CombatEvent } from "./combat";
-import type { GoldDestination, Keyword, Stat, Trigger, UnitTarget } from "./dataTypes";
+import type { GoldDestination, Keyword, LeaderCategory, Stat, Trigger, UnitTarget } from "./dataTypes";
 
 /** R-1.1: genau 4 Spieler, Index 0–3. */
 export type PlayerIndex = 0 | 1 | 2 | 3;
@@ -299,6 +299,17 @@ export type GameEventPayload =
   | { type: "spell_discarded"; player: PlayerIndex; cardInstanceId: CardInstanceId; slot: SpellSlot }
   /** R-7.4: Anführer-Fähigkeit gewählt (`{ kind: "none" }` = keine). */
   | { type: "leader_ability_set"; player: PlayerIndex; target: ActionTarget }
+  /** R-8.2 (E11c): gewählte Anführer-Fähigkeit löst aus; `branchId` ist auf Stufe 1 `null`. */
+  | {
+      type: "leader_ability_resolved";
+      player: PlayerIndex;
+      leaderId: string;
+      category: LeaderCategory;
+      level: 1 | 2 | 3 | 4;
+      branchId: string | null;
+    }
+  /** R-8.2, analog R-8.5 (F42): Anführer-Fähigkeit ohne gültiges Ziel verpufft. */
+  | { type: "leader_ability_fizzled"; player: PlayerIndex; leaderId: string; category: LeaderCategory; reason: "noValidTarget" }
   /** R-16.4/R-19.1: die gewählte Anführer-Fähigkeit verfällt beim Aufräumen. */
   | { type: "leader_ability_cleared"; player: PlayerIndex }
   /** R-7.7: Ast gewählt; `auto` = ohne Wahl der erste Ast. */

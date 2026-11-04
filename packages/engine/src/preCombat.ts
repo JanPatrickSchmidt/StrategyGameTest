@@ -29,7 +29,7 @@ export const PRE_COMBAT_OPS: ReadonlySet<Effect["op"]> = new Set(["shield", "buf
  * gewählten Zone(n) (inkl. Anführer und Tokens), nach ID. Verwundete und vor dem Kampf besiegte Einheiten
  * kämpfen nicht (R-14.4, R-14.2) und sind deshalb kein gültiges Ziel.
  */
-export function preCombatAllies(state: GameState, config: ConfigData, player: PlayerIndex, spell: SetSpell, target: string): Unit[] {
+export function preCombatAllies(state: GameState, config: ConfigData, player: PlayerIndex, spell: Pick<SetSpell, "target">, target: string): Unit[] {
   const own = Object.values(state.units)
     .filter((u) => u.owner === player && fightsThisRound(u))
     .sort((a, b) => a.id - b.id);
@@ -74,7 +74,7 @@ function opponentsInArena(state: GameState, player: PlayerIndex, arena: ArenaRef
  * Felder selbst (Feuerball, E11b3). Felder sind aus Sicht des Zaubernden angegeben; alle Spieler einer Arena
  * nutzen dieselben Arena-Koordinaten. Einheiten ausgeschiedener Spieler zählen nicht.
  */
-export function preCombatEnemies(state: GameState, config: ConfigData, player: PlayerIndex, spell: SetSpell, target: string): Unit[] {
+export function preCombatEnemies(state: GameState, config: ConfigData, player: PlayerIndex, spell: Pick<SetSpell, "target">, target: string): Unit[] {
   if (target !== "hexEnemies" && target !== "hexNeighborEnemies") return [];
   const t = spell.target;
   const chosen: ArenaHex[] = t.kind === "hexes" ? t.hexes : t.kind === "hex" ? [{ arena: t.arena, cell: t.cell }] : [];

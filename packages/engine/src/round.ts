@@ -22,6 +22,7 @@ import {
 import type { GameData } from "./data";
 import { healUnit, markReserveRest, moveUnit, playUnit, recoverInReserve } from "./board";
 import { drawEndOfRound } from "./deck";
+import { resolveLeaderAbilities } from "./leaderAbilities";
 import { autoChooseBranch, chooseBranch, grantRoundXp, levelUpLeaders, resetLeaderAbilities, setLeaderAbility } from "./leader";
 import { runCombatPhase } from "./center";
 import { runRoundStartEffects } from "./aftermath";
@@ -174,7 +175,8 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         enterPhase(state, "leaderAbilities");
         break;
       case "leaderAbilities":
-        // R-8.2 folgt in E11.
+        // R-8.2 (E11c): Anführer-Fähigkeiten nach Kategorien.
+        resolveLeaderAbilities(state, data);
         enterPhase(state, "preCombatSpells");
         break;
       case "preCombatSpells":
