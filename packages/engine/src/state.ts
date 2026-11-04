@@ -291,6 +291,8 @@ export type GameEventPayload =
   | { type: "unit_damaged"; player: PlayerIndex; unitId: UnitId; amount: number; absorbed: number; hpLoss: number; hp: number; cardId: string }
   /** R-14.2 (E11b3): vor dem Kampf besiegt, nimmt in dieser Runde an keinem Kampf teil (bleibt auf dem Brett). */
   | { type: "unit_defeated"; player: PlayerIndex; unitId: UnitId; cardId: string }
+  /** R-8.3 (E11b4): Token vor dem Kampf auf ein freies Feld der Zone beschworen (Geistertrommel). */
+  | { type: "unit_summoned"; player: PlayerIndex; unitId: UnitId; sourceId: string; location: UnitLocation; cardId: string }
   /** R-12.4, R-14.3: Schild, Buffs und Schlüsselwörter aus Vorkampf-Zaubern verfallen beim Aufräumen. */
   | { type: "unit_round_effects_cleared"; player: PlayerIndex; unitId: UnitId }
   /** R-8.6: Zauber verlässt den Slot und geht auf den Ablagestapel. */

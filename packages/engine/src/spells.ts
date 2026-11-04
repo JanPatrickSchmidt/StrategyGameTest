@@ -8,7 +8,7 @@
  * Einheiten, `preCombat.ts`; E11b2: Verwunden; E11b3: Schaden). Vorkampf-Zauber mit noch fehlenden Bausteinen
  * (Beschwören, E11b4) bleiben vorerst liegen und gehen beim Rundenende ungenutzt auf den Ablagestapel.
  */
-import type { RejectionReason } from "./actions";
+import type { ArenaRef, RejectionReason } from "./actions";
 import { applyStateEffect } from "./aftermath";
 import type { GameData } from "./data";
 import type { Amount, Condition, SpellCard } from "./dataTypes";
@@ -24,6 +24,8 @@ import {
   PRE_COMBAT_OPS,
   preCombatAllies,
   preCombatEnemies,
+  summonZoneTokens,
+  zoneFreeLocations,
 } from "./preCombat";
 import { checkTarget } from "./targets";
 import { emit, type GameState, getCard, getPlayer, type PlayerIndex, type SetSpell, type SpellSlot, type Unit } from "./state";
@@ -185,7 +187,7 @@ export function resolvePostCombatSpells(state: GameState, data: GameData): void 
   }
 }
 
-/** Kann ein Vorkampf-Zauber schon aufgelöst werden (alle Bausteine aus E11b1)? */
+/** Kann ein Vorkampf-Zauber aufgelöst werden (alle Bausteine in `PRE_COMBAT_OPS`, E11b1–E11b4)? */
 export function isPreCombatSpellSupported(card: SpellCard): boolean {
   return card.effects.every((e) => PRE_COMBAT_OPS.has(e.op));
 }
@@ -200,9 +202,10 @@ export function isUnwoundable(state: GameState, data: GameData, unit: Unit): boo
 
 /**
  * Wirkt einen Vorkampf-Zauber (R-8.3): auf eigene Einheiten (E11b1), Verwunden gegnerischer Einheiten
- * (`wound`, Frostlanze, E11b2) oder Schaden an gegnerischen Einheiten (`damage`, Feuerball, E11b3, R-14.2).
- * Gibt es für keinen Effekt eine gültige Einheit (Feld leer, nur verwundete oder schon besiegte Einheiten,
- * Zone leer, nur Gegner mit `unwoundable`), verpufft er (R-8.5).
+ * (`wound`, Frostlanze, E11b2), Schaden an gegnerischen Einheiten (`damage`, Feuerball, E11b3, R-14.2) oder
+ * Beschwören in eine eigene Zone (`summon` mit `zoneFree`, Geistertrommel, E11b4). Gibt es für keinen Effekt
+ * eine gültige Einheit bzw. kein freies Feld (Feld leer, nur verwundete oder schon besiegte Einheiten, Zone leer,
+ * nur Gegner mit `unwoundable`, Zone voll), verpufft er (R-8.5).
  */
 function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedSpell): void {
   const { player, spell, card } = queued;
@@ -221,12 +224,25 @@ function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedS
   };
   // Ziele werden vor dem ersten Effekt festgelegt (R-8.5 gilt für den Zauber als Ganzes).
   const targets = card.effects.map(targetsOf);
-  if (targets.every((t) => t.length === 0)) {
+  // `summon` mit `zoneFree` (Geistertrommel, E11b4): gültig, solange eine gewählte eigene Zone ein freies Feld hat.
+  const summonZones: readonly ArenaRef[] = spell.target.kind === "zone" ? spell.target.arenas : [];
+  const canSummon = (effect: SpellCard["effects"][number]): boolean =>
+    effect.op === "summon" &&
+    effect.where === "zoneFree" &&
+    summonZones.some((zone) => zoneFreeLocations(state, data.config, player, zone).length > 0);
+  if (targets.every((t) => t.length === 0) && !card.effects.some(canSummon)) {
     emit(state, { type: "spell_fizzled", ...base, reason: "noValidTarget" });
     return;
   }
   emit(state, { type: "spell_resolved", ...base, tempo: card.tempo });
   card.effects.forEach((effect, i) => {
+    if (effect.op === "summon") {
+      // R-8.3: je gewählter Zone `count` Tokens auf freie Felder; fehlen Felder, entstehen weniger (F41).
+      if (effect.where === "zoneFree") {
+        for (const zone of summonZones) summonZoneTokens(state, data.config, player, zone, effect.token, effect.count, card.id);
+      }
+      return;
+    }
     for (const unit of targets[i] ?? []) {
       switch (effect.op) {
         case "shield":
@@ -268,7 +284,7 @@ function fixedAmount(amount: Amount): number {
 /**
  * R-8.3: Vorkampf-Zauber nach dem Aufdecken (und den Anführer-Fähigkeiten, E11c) auflösen, Reihenfolge wie
  * `spellResolutionOrder`, jeden vollständig; danach auf den Ablagestapel (R-8.6), auch wenn er verpufft (R-8.5).
- * Zauber mit noch fehlenden Bausteinen werden übersprungen (siehe Modulkommentar).
+ * Zauber mit unbekannten Bausteinen würden übersprungen; seit E11b4 sind alle Vorkampf-Zauber der Daten abgedeckt.
  */
 export function resolvePreCombatSpells(state: GameState, data: GameData): void {
   for (const queued of spellResolutionOrder(state, data, "pre")) {

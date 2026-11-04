@@ -1,7 +1,8 @@
 /**
  * Vorkampf-Zauber (R-8.3, R-8.5, E11b1): Wirkungen auf eigene Einheiten, die in alle Kämpfe der Runde
  * übernommen werden – Schild (Schutzrune), Buff `combat`/`round` (Kriegsruf), Schlüsselwort (Giftklinge) –
- * sowie Schaden an gegnerischen Einheiten (Feuerball, E11b3, R-14.2).
+ * sowie Schaden an gegnerischen Einheiten (Feuerball, E11b3, R-14.2) und Beschwören von Tokens in eine eigene
+ * Zone (Geistertrommel, E11b4).
  *
  * Die Wirkungen liegen bis zum Aufräumen als `unit.roundEffects` an der Einheit (R-12.4, R-14.3) und werden
  * in `fighterForUnit` (`fronts.ts`) auf die Kampfwerte übertragen. Alle Kämpfe einer Runde nutzen denselben
@@ -12,14 +13,15 @@ import type { FighterInit } from "./combat";
 import type { ConfigData } from "./data";
 import type { Effect, Keyword, Stat } from "./dataTypes";
 import { addStatBonuses } from "./resonance";
-import { emit, type GameState, getPlayer, type PlayerIndex, type SetSpell, type Unit, type UnitRoundEffects } from "./state";
+import { isValidLocation, unitAt } from "./board";
+import { emit, type GameState, getPlayer, type PlayerIndex, type SetSpell, type Unit, type UnitLocation, type UnitRoundEffects } from "./state";
 import { coordEquals, neighbors } from "./hex";
 import { neighborsOf } from "./seating";
 import { arenaSize, sameArenaHex, unitArenaHex } from "./targets";
 import { fightsThisRound } from "./wounds";
 
-/** Effekt-Bausteine, die Vorkampf-Zauber schon wirken lassen (E11b1–E11b3). */
-export const PRE_COMBAT_OPS: ReadonlySet<Effect["op"]> = new Set(["shield", "buff", "grantKeyword", "wound", "damage"]);
+/** Effekt-Bausteine, die Vorkampf-Zauber wirken lassen (E11b1–E11b4). */
+export const PRE_COMBAT_OPS: ReadonlySet<Effect["op"]> = new Set(["shield", "buff", "grantKeyword", "wound", "damage", "summon"]);
 
 /**
  * R-8.5: gültige Einheiten eines Vorkampf-Zaubers zum Zeitpunkt der Auflösung. `hexAlly` = die eigene, nicht
@@ -178,4 +180,66 @@ export function clearRoundEffects(state: GameState): void {
     delete unit.roundEffects;
     emit(state, { type: "unit_round_effects_cleared", player: unit.owner, unitId: unit.id });
   }
+}
+
+/**
+ * `summon` mit `where: zoneFree` (E11b4): freie Felder einer eigenen Zone in fester Reihenfolge – Frontzone nach
+ * kleinstem `(row, col)` in Zonen-Koordinaten, Mittelzone nach Position. Frei = keine eigene Einheit auf dem Ort
+ * (auch verwundete oder vor dem Kampf besiegte Einheiten belegen ihr Feld).
+ */
+export function zoneFreeLocations(state: GameState, config: ConfigData, player: PlayerIndex, zone: ArenaRef): UnitLocation[] {
+  const candidates: UnitLocation[] = [];
+  if (zone === "center") {
+    for (let position = 0; position < config.arenas.centerStartSlots; position++) candidates.push({ zone: "center", position });
+  } else {
+    const { cols, rows } = config.arenas.frontZone;
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const loc: UnitLocation = { zone, cell: { col, row } };
+        if (isValidLocation(config, loc)) candidates.push(loc);
+      }
+    }
+  }
+  return candidates.filter((loc) => unitAt(state, player, loc) === undefined);
+}
+
+/**
+ * R-8.3, R-1.4 (E11b4): beschwört bis zu `count` Tokens auf freie Felder der Zone (`zoneFreeLocations`). Fehlen
+ * Felder, entstehen entsprechend weniger. Tokens zählen nicht gegen die Kapazität (R-3.6) und nicht für die
+ * Resonanz (R-17.1), kämpfen in allen Kämpfen der Runde mit und werden beim Aufräumen entfernt (R-12.2).
+ */
+export function summonZoneTokens(
+  state: GameState,
+  config: ConfigData,
+  player: PlayerIndex,
+  zone: ArenaRef,
+  tokenId: string,
+  count: number,
+  cardId: string,
+): Unit[] {
+  const summoned: Unit[] = [];
+  for (const location of zoneFreeLocations(state, config, player, zone).slice(0, Math.max(0, count))) {
+    const unit: Unit = {
+      id: state.nextUnitId++,
+      owner: player,
+      kind: "token",
+      sourceId: tokenId,
+      cardInstanceIds: [],
+      stars: 1,
+      xp: 0,
+      wounded: false,
+      restedInReserve: false,
+      location,
+    };
+    state.units[unit.id] = unit;
+    emit(state, { type: "unit_summoned", player, unitId: unit.id, sourceId: tokenId, location: copyZoneLocation(location), cardId });
+    summoned.push(unit);
+  }
+  return summoned;
+}
+
+function copyZoneLocation(loc: UnitLocation): UnitLocation {
+  if (loc.zone === "center") return { zone: "center", position: loc.position };
+  if (loc.zone === "reserve") return { zone: "reserve", slot: loc.slot };
+  return { zone: loc.zone, cell: { col: loc.cell.col, row: loc.cell.row } };
 }

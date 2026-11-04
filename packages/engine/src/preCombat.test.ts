@@ -5,7 +5,7 @@ import { fighterForUnit } from "./fronts";
 import { priorityForRound } from "./marks";
 import { advance, submitPlanning } from "./round";
 import { createGame, defaultLeaders } from "./setup";
-import { resolvePreCombatSpells } from "./spells";
+import { isPreCombatSpellSupported, resolvePreCombatSpells } from "./spells";
 import {
   type CardInstanceId,
   type GameEvent,
@@ -234,13 +234,16 @@ describe("E11b1: Vorkampf-Zauber auf eigene Einheiten", () => {
     expect(fighter(state, squire).shield ?? 0).toBe(0);
   });
 
-  it("Vorkampf-Zauber mit noch fehlenden Bausteinen (Geistertrommel, E11b4) bleiben liegen und gehen beim Rundenende ab", () => {
+  it("R-8.3 (E11b4): alle Vorkampf-Zauber der Daten werden aufgelöst, auch die Geistertrommel", () => {
     const state = emptyBoard();
     placeUnit(state, 0, front("right", 1, 1), "recruit");
     const drum = setPre(state, 0, "spirit_drum", zoneTarget("right"));
     resolvePreCombatSpells(state, data);
-    expect(eventsOf(state, "spell_resolved")).toEqual([]);
-    expect(getPlayer(state, 0).spells.pre.map((s) => s.cardInstanceId)).toEqual([drum]);
+    expect(eventsOf(state, "spell_resolved")).toEqual([expect.objectContaining({ cardInstanceId: drum, cardId: "spirit_drum" })]);
+    expect(getPlayer(state, 0).spells.pre).toEqual([]);
+    const preSpells = [...data.cards.values()].filter((c) => c.type === "spell" && c.slot === "pre");
+    expect(preSpells.length).toBeGreaterThan(0);
+    expect(preSpells.every((c) => c.type === "spell" && isPreCombatSpellSupported(c))).toBe(true);
   });
 
   it("Determinismus: gleiche Vorkampf-Zauber, gleicher Zustand = gleiches Protokoll", () => {
