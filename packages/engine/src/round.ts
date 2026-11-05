@@ -22,7 +22,7 @@ import {
 import type { GameData } from "./data";
 import { healUnit, markReserveRest, moveUnit, playUnit, recoverInReserve } from "./board";
 import { drawEndOfRound } from "./deck";
-import { resolveLeaderAbilities } from "./leaderAbilities";
+import { resolveLeaderAbilities, returnShadowSteppedUnits } from "./leaderAbilities";
 import { autoChooseBranch, chooseBranch, grantRoundXp, levelUpLeaders, resetLeaderAbilities, setLeaderAbility } from "./leader";
 import { runCombatPhase } from "./center";
 import { runRoundStartEffects } from "./aftermath";
@@ -317,7 +317,7 @@ function executePlanningAction(
 /**
  * R-12 Rundenende: R-12.1 (Hand und ausgespielte Ressourcen), R-12.2 (Tokens), R-12.3 (Anführer-XP),
  * R-12.4 (Schilde, Kampf-Buffs und Schlüsselwörter aus Vorkampf-Zaubern), R-12.5 (Gold in die Schatzkammer),
- * R-12.6 (Nachziehen).
+ * R-12.6 (Nachziehen); danach kehren Einheiten nach einem Schattenschritt zurück (R-16.6).
  * Noch liegende Zauber gehen auf den Ablagestapel (R-8.6), die gewählte Anführer-Fähigkeit verfällt (R-16.4).
  */
 function runCleanup(state: GameState, data: GameData): void {
@@ -342,6 +342,8 @@ function runCleanup(state: GameState, data: GameData): void {
   grantRoundXp(state, data.config);
   depositRoundGold(state);
   drawEndOfRound(state, data.config);
+  // R-16.6 (E11c4): nach dem Aufräumen zurück auf das Ausgangsfeld.
+  returnShadowSteppedUnits(state, data);
 }
 
 function structuredCopy<T>(value: T): T {

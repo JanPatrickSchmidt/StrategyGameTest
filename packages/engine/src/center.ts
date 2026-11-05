@@ -11,7 +11,7 @@ import { type FighterInit, simulateCombat } from "./combat";
 import type { GameData } from "./data";
 import { applyCombatAftermath } from "./aftermath";
 import { type DeferredEffect, effectHooks } from "./effects";
-import { fighterForUnit, removeFoughtTokens, runFronts } from "./fronts";
+import { fighterForUnit, removeFoughtTokens, roundArena, runFronts } from "./fronts";
 import { announceCombatMarks, clearCombatMarks } from "./marks";
 import { announceResonance, resonanceSummonAdjuster } from "./resonance";
 import { countCombatResonance, grantSurvivorXp } from "./unitXp";
@@ -24,16 +24,19 @@ export const CENTER_ARENA_ID = "center";
 
 /**
  * R-9.1: Teilnehmer des Mittelkampfs: alle nicht verwundeten Einheiten in Mittelzonen nicht
- * ausgeschiedener Spieler, inklusive Anführer und Tokens, nach ID aufsteigend.
+ * ausgeschiedener Spieler, inklusive Anführer und Tokens, nach ID aufsteigend; dazu Einheiten, die per
+ * Schattenschritt in die Mittelarena gesetzt wurden, ohne die, die sie verlassen haben (R-16.6).
  */
 export function centerParticipants(state: GameState): Unit[] {
   return Object.values(state.units)
-    .filter((u) => fightsThisRound(u) && u.location.zone === "center" && !getPlayer(state, u.owner).eliminated)
+    .filter((u) => fightsThisRound(u) && roundArena(u) === "center" && !getPlayer(state, u.owner).eliminated)
     .sort((a, b) => a.id - b.id);
 }
 
 /** R-3.4: Startfeld einer Einheit der Mittelzone in der Mittelarena (Sitz = Spielerindex, fest). */
 function centerCell(data: GameData, unit: Unit) {
+  // R-16.6 (E11c4): nach einem Schattenschritt beliebiges Feld der Mittelarena.
+  if (unit.shadowStep) return { ...unit.shadowStep.hex.cell };
   if (unit.location.zone !== "center") throw new RangeError(`Einheit ${unit.id} steht nicht in der Mittelzone`);
   const { centerArena, centerStartSlots } = data.config.arenas;
   return centerPositionToArena(unit.owner as Seat, unit.location.position, centerArena, centerStartSlots);

@@ -8,28 +8,28 @@
  * ist (R-16.4); Stufe und Ast sind die der Planung (Aufstieg nur zu Rundenbeginn, R-6.6).
  *
  * E11c1: Rahmen und Kategorie `buff` (Brann, alle Äste). E11c2: Kategorie `damage` (Ilyra, alle Äste). E11c3:
- * Kategorie `summon` (Morgra, alle Äste) mit Feldkonflikt. Die Kategorie `move` (Vex, E11c4) folgt; bis dahin
- * bleibt sie ohne Wirkung.
+ * Kategorie `summon` (Morgra, alle Äste) mit Feldkonflikt. E11c4a: Kategorie `move` (Vex, R-16.6), gemeinsam mit
+ * `summon` geplant (Feldkonflikt über beide); der verzögerte Auslöser `onFrontWinOfChosen` (Beute) folgt in E11c4b.
  */
 import type { ActionTarget, ArenaHex } from "./actions";
-import { unitAt } from "./board";
 import { compareRowCol, neighbors } from "./hex";
 import type { GameData } from "./data";
 import type { Amount, Effect, LeaderCategory, LeaderData } from "./dataTypes";
 import { fighterForUnit } from "./fronts";
 import { leaderAbilityParams } from "./leader";
 import { priorityForRound } from "./marks";
-import { addRoundBuff, createToken, dealPreCombatDamage, preCombatAllies, preCombatEnemies } from "./preCombat";
+import { addRoundBuff, addRoundKeyword, createToken, dealPreCombatDamage, preCombatAllies, preCombatEnemies } from "./preCombat";
 import { isUnwoundable } from "./spells";
 import { emit, type GameState, getPlayer, type PlayerIndex, type Unit, type UnitId, type UnitLocation } from "./state";
-import { arenaSize, globalHexKey, isOwnHex, ownLocationOfHex } from "./targets";
-import { woundUnit } from "./wounds";
+import { arenaSize, globalHexKey, isArenaHexFree, isOwnHex, locationArenaHex, ownLocationOfHex } from "./targets";
+import { fightsThisRound, woundUnit } from "./wounds";
+import { isValidLocation, sameLocation } from "./board";
 
 /** R-8.2: Reihenfolge der Kategorien; `summon` und `move` bilden eine gemeinsame Kategorie. */
 export const LEADER_CATEGORY_STEPS: readonly (readonly LeaderCategory[])[] = [["summon", "move"], ["buff"], ["damage"]];
 
-/** Kategorien, deren Wirkung schon umgesetzt ist (E11c1: `buff`, E11c2: `damage`, E11c3: `summon`). */
-export const SUPPORTED_LEADER_CATEGORIES: ReadonlySet<LeaderCategory> = new Set(["buff", "damage", "summon"]);
+/** Kategorien, deren Wirkung umgesetzt ist (E11c1: `buff`, E11c2: `damage`, E11c3: `summon`, E11c4: `move`). */
+export const SUPPORTED_LEADER_CATEGORIES: ReadonlySet<LeaderCategory> = new Set(["buff", "damage", "summon", "move"]);
 
 /** Eine gewählte Fähigkeit, bereit zur Auflösung. */
 interface QueuedAbility {
@@ -186,7 +186,11 @@ function compareLocations(a: UnitLocation, b: UnitLocation): number {
  */
 function summonPlacements(state: GameState, data: GameData, player: PlayerIndex, hex: ArenaHex, count: number): PlannedPlacement[] {
   const { config } = data;
-  const isFree = (loc: UnitLocation): boolean => unitAt(state, player, loc) === undefined;
+  // E11c4: frei nach dem Stand dieser Runde, für Einheiten aller Spieler auf dem Feld der gemeinsamen Arena.
+  const isFree = (loc: UnitLocation): boolean => {
+    const at = locationArenaHex(config, player, loc);
+    return at !== null && isArenaHexFree(state, config, player, at);
+  };
   const result: PlannedPlacement[] = [];
   const target = ownLocationOfHex(config, player, hex);
   if (target && isFree(target)) result.push({ hex, location: target, key: globalHexKey(state, player, hex) });
@@ -200,40 +204,115 @@ function summonPlacements(state: GameState, data: GameData, player: PlayerIndex,
   return result.slice(0, Math.max(0, count));
 }
 
+type MoveEffect = Extract<Effect, { op: "move" }>;
+
+/** Eine geplante Bewegung des Schattenschritts (Kategorie `move`). */
+interface PlannedMove {
+  unitId: UnitId;
+  hex: ArenaHex;
+  key: string;
+  /** Kämpft die Einheit in dieser Runde und steht sie auf dem Brett? */
+  available: boolean;
+  /** Ist das Zielfeld bei der Auflösung frei (Stand vor allen Wirkungen der Kategorie)? */
+  free: boolean;
+}
+
 /**
- * Kategorie `summon` (Morgra, E11c3, R-8.2): Jede Beschwörung erzeugt bis zu `count` Tokens (`summonPlacements`),
- * mit `statOverride` (ersetzt die Grundwerte des Tokens) und `countsForResonance` (Seelenband: zählt für die
- * Resonanz, R-17.1). Gleichzeitig: Erst werden für alle Fähigkeiten der Kategorie die Felder bestimmt; will mehr
- * als eine Fähigkeit dasselbe freie Feld belegen, scheitern dort alle (`leader_ability_hex_conflict`), Ersatzfelder
- * gibt es nicht. Die Tokens kämpfen in dieser Runde mit und werden wie alle Tokens nach den Kämpfen entfernt
- * (R-1.4). Ohne freies Feld verpufft die Fähigkeit (`noValidTarget`), wenn alle Felder am Konflikt scheitern
- * (`hexConflict`).
+ * R-16.6, R-8.2 (E11c4): Bewegungen einer `move`-Fähigkeit. Gültig ist eine eigene Einheit, die in dieser Runde
+ * kämpft (nicht verwundet, nicht vor dem Kampf besiegt) und auf dem Brett steht (nicht Reserve, F45). Das Zielfeld
+ * muss bei der Auflösung frei sein – keine Einheit irgendeines Spielers auf dem Feld der gemeinsamen Arena.
  */
-function resolveSummonAbilities(state: GameState, data: GameData, queue: QueuedAbility[]): void {
-  // 1. Planen: Felder aller Beschwörungen vor dem ersten Token.
+function plannedMoves(state: GameState, data: GameData, a: QueuedAbility): PlannedMove[] {
+  if (a.target.kind !== "moveUnits" || !a.effects.some((e) => e.op === "move")) return [];
+  return a.target.moves.map((m) => {
+    const unit = state.units[m.unitId];
+    const available = unit !== undefined && unit.owner === a.player && fightsThisRound(unit) && unit.location.zone !== "reserve" && !unit.shadowStep;
+    return {
+      unitId: m.unitId,
+      hex: { arena: m.to.arena, cell: { ...m.to.cell } },
+      key: globalHexKey(state, a.player, m.to),
+      available,
+      free: available && isArenaHexFree(state, data.config, a.player, m.to),
+    };
+  });
+}
+
+/** R-16.6 (E11c4): Schattenschritt ausführen; `location` bleibt das Ausgangsfeld. */
+function shadowStep(state: GameState, unit: Unit, hex: ArenaHex, cardId: string): void {
+  unit.shadowStep = { hex: { arena: hex.arena, cell: { ...hex.cell } } };
+  emit(state, {
+    type: "unit_shadow_stepped",
+    player: unit.owner,
+    unitId: unit.id,
+    from: JSON.parse(JSON.stringify(unit.location)) as UnitLocation,
+    to: { arena: hex.arena, cell: { ...hex.cell } },
+    cardId,
+  });
+}
+
+/**
+ * Kategorie `summon` und `move` (R-8.2; Morgra E11c3, Vex E11c4). Gleichzeitig: Erst werden für alle Fähigkeiten
+ * der Kategorie die Felder bestimmt (Beschwörungen nach `summonPlacements`, Bewegungen nach `plannedMoves`); will
+ * mehr als eine Fähigkeit dasselbe freie Feld belegen, scheitern dort alle (`leader_ability_hex_conflict`),
+ * Ersatzfelder gibt es nicht. Dann wirken die Fähigkeiten in Prioritätsreihenfolge.
+ *
+ * Beschwörung: bis zu `count` Tokens mit `statOverride` und `countsForResonance` (Seelenband, R-17.1); sie kämpfen
+ * in dieser Runde mit und werden nach den Kämpfen entfernt (R-1.4).
+ *
+ * Schattenschritt (R-16.6): Jede gewählte Einheit, deren Zielfeld frei und nicht umkämpft ist, kämpft in dieser
+ * Runde von dort aus (`unit.shadowStep`), auch in der gegnerischen Hälfte und überall in der Mitte; sonst meldet
+ * `leader_ability_move_blocked` den Grund. Buffs und Schlüsselwörter der Äste (`chosenUnits`) gelten für alle
+ * gültigen gewählten Einheiten, auch wenn ihre Bewegung scheitert (R-1.9, F45). Die Fähigkeit verpufft nur, wenn
+ * kein Effekt eine Einheit trifft (`hexConflict`, wenn dabei Felder am Konflikt scheiterten, sonst `noValidTarget`).
+ */
+function resolveSummonAndMoveAbilities(state: GameState, data: GameData, queue: QueuedAbility[]): void {
+  // 1. Planen: Felder aller Beschwörungen und Bewegungen vor der ersten Wirkung.
   const planned = queue.map((a) => {
     const t = a.target;
     const hexes: ArenaHex[] = t.kind === "hexes" ? t.hexes : t.kind === "hex" ? [{ arena: t.arena, cell: t.cell }] : [];
     const summons = a.effects
       .filter((e): e is SummonEffect => e.op === "summon" && e.where === "targetHexThenAdjacentFree")
       .map((effect) => ({ effect, places: hexes.length > 0 ? summonPlacements(state, data, a.player, hexes[0] as ArenaHex, effect.count) : [] }));
-    return { ability: a, summons };
+    return { ability: a, summons, moves: plannedMoves(state, data, a) };
   });
   // 2. Feldkonflikt: Felder, die mehr als eine Fähigkeit belegen will.
   const claims = new Map<string, number>();
-  planned.forEach(({ summons }) => {
-    for (const key of new Set(summons.flatMap((s) => s.places.map((p) => p.key)))) claims.set(key, (claims.get(key) ?? 0) + 1);
+  planned.forEach(({ summons, moves }) => {
+    const keys = new Set([...summons.flatMap((s) => s.places.map((p) => p.key)), ...moves.filter((m) => m.free).map((m) => m.key)]);
+    for (const key of keys) claims.set(key, (claims.get(key) ?? 0) + 1);
   });
   const contested = new Set([...claims].filter(([, n]) => n > 1).map(([key]) => key));
   // 3. Wirken in Prioritätsreihenfolge.
-  for (const { ability, summons } of planned) {
+  for (const { ability, summons, moves } of planned) {
     const { player, leader } = ability;
     const base = { player, leaderId: leader.id, category: leader.active.category };
-    const lost = summons.flatMap((s) => s.places.filter((p) => contested.has(p.key)));
-    for (const p of lost) emit(state, { type: "leader_ability_hex_conflict", player, leaderId: leader.id, hex: { arena: p.hex.arena, cell: { ...p.hex.cell } } });
+    const lostHexes = [
+      ...summons.flatMap((s) => s.places.filter((p) => contested.has(p.key)).map((p) => p.hex)),
+      ...moves.filter((m) => m.free && contested.has(m.key)).map((m) => m.hex),
+    ];
+    for (const h of lostHexes) emit(state, { type: "leader_ability_hex_conflict", player, leaderId: leader.id, hex: { arena: h.arena, cell: { ...h.cell } } });
+    for (const m of moves) {
+      if (m.free) continue;
+      emit(state, {
+        type: "leader_ability_move_blocked",
+        player,
+        leaderId: leader.id,
+        unitId: m.unitId,
+        hex: { arena: m.hex.arena, cell: { ...m.hex.cell } },
+        reason: m.available ? "hexOccupied" : "unitUnavailable",
+      });
+    }
     const kept = summons.map((s) => ({ effect: s.effect, places: s.places.filter((p) => !contested.has(p.key)) }));
-    if (kept.every((s) => s.places.length === 0)) {
-      emit(state, { type: "leader_ability_fizzled", ...base, reason: lost.length > 0 ? "hexConflict" : "noValidTarget" });
+    const moving = moves.filter((m) => m.free && !contested.has(m.key));
+    const chosen = moves.filter((m) => m.available).map((m) => state.units[m.unitId] as Unit);
+    const hits = ability.effects.some((e) => {
+      if (e.op === "summon") return kept.some((s) => s.effect === e && s.places.length > 0);
+      if (e.op === "move") return moving.length > 0;
+      if ((e.op === "buff" || e.op === "grantKeyword") && e.target === "chosenUnits") return chosen.length > 0;
+      return false;
+    });
+    if (!hits) {
+      emit(state, { type: "leader_ability_fizzled", ...base, reason: lostHexes.length > 0 ? "hexConflict" : "noValidTarget" });
       continue;
     }
     emitResolved(state, ability);
@@ -243,18 +322,58 @@ function resolveSummonAbilities(state: GameState, data: GameData, queue: QueuedA
       if (effect.countsForResonance === true) options.countsForResonance = true;
       for (const p of places) createToken(state, player, effect.token, p.location, leader.id, options);
     }
+    for (const effect of ability.effects) {
+      if (effect.op === "move") {
+        for (const m of moving) shadowStep(state, state.units[m.unitId] as Unit, m.hex, leader.id);
+      } else if (effect.op === "buff" && effect.target === "chosenUnits") {
+        const duration = effect.duration === "combat" ? "combat" : "round";
+        for (const unit of chosen) addRoundBuff(state, unit, effect.stat, fixedAmount(effect.amount), duration, leader.id);
+      } else if (effect.op === "grantKeyword" && effect.target === "chosenUnits") {
+        for (const unit of chosen) addRoundKeyword(state, unit, effect.keyword, leader.id);
+      }
+    }
+  }
+}
+
+/**
+ * R-16.6 (E11c4): Nach dem Aufräumen kehren alle Einheiten nach einem Schattenschritt auf ihr Ausgangsfeld zurück.
+ * Ist es von einer anderen eigenen Einheit belegt: nächstes freies Feld derselben Zone (Frontzone nach kleinstem
+ * `(row, col)`, Mitte nach Position), sonst der erste freie Reserveplatz; ist auch die Reserve voll, bleibt sie
+ * auf dem Ausgangsfeld (F45). Ereignis `unit_returned`, nach ID.
+ */
+export function returnShadowSteppedUnits(state: GameState, data: GameData): void {
+  const { config } = data;
+  for (const unit of Object.values(state.units).sort((a, b) => a.id - b.id)) {
+    if (!unit.shadowStep) continue;
+    const from = unit.shadowStep.hex;
+    delete unit.shadowStep;
+    const isFree = (loc: UnitLocation): boolean => Object.values(state.units).every((u) => u.id === unit.id || u.owner !== unit.owner || u.shadowStep !== undefined || !sameLocation(u.location, loc));
+    if (!isFree(unit.location)) {
+      const zone = unit.location.zone;
+      const candidates: UnitLocation[] = [];
+      if (zone === "left" || zone === "right") {
+        const { cols, rows } = config.arenas.frontZone;
+        for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) candidates.push({ zone, cell: { col, row } });
+      } else if (zone === "center") {
+        for (let position = 0; position < config.arenas.centerStartSlots; position++) candidates.push({ zone: "center", position });
+      }
+      for (let slot = 0; slot < config.reserveSlots; slot++) candidates.push({ zone: "reserve", slot });
+      const next = candidates.find((loc) => isValidLocation(config, loc) && isFree(loc));
+      if (next) unit.location = next;
+    }
+    emit(state, { type: "unit_returned", player: unit.owner, unitId: unit.id, from: { arena: from.arena, cell: { ...from.cell } }, to: JSON.parse(JSON.stringify(unit.location)) as UnitLocation });
   }
 }
 
 /**
  * R-8.2: Phase `leaderAbilities` nach dem Aufdecken und vor den Vorkampf-Zaubern. Kategorien nacheinander,
- * innerhalb einer Kategorie gleichzeitig. Noch nicht umgesetzte Kategorien (`move`, E11c4) bleiben ohne Wirkung.
+ * innerhalb einer Kategorie gleichzeitig.
  */
 export function resolveLeaderAbilities(state: GameState, data: GameData): void {
   for (const step of LEADER_CATEGORY_STEPS) {
     const queue = abilitiesOf(state, data, step).filter((a) => SUPPORTED_LEADER_CATEGORIES.has(a.leader.active.category));
     if (queue.length === 0) continue;
-    if (step.includes("summon")) resolveSummonAbilities(state, data, queue);
+    if (step.includes("summon")) resolveSummonAndMoveAbilities(state, data, queue);
     else if (step.includes("buff")) resolveBuffAbilities(state, data, queue);
     else if (step.includes("damage")) resolveDamageAbilities(state, data, queue);
   }

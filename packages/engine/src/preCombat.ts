@@ -13,11 +13,11 @@ import type { FighterInit } from "./combat";
 import type { ConfigData } from "./data";
 import type { Effect, Keyword, Stat, StatOverride } from "./dataTypes";
 import { addStatBonuses } from "./resonance";
-import { isValidLocation, unitAt } from "./board";
+import { isValidLocation } from "./board";
 import { emit, type GameEventPayload, type GameState, getPlayer, type PlayerIndex, type SetSpell, type Unit, type UnitLocation, type UnitRoundEffects } from "./state";
 import { coordEquals, neighbors } from "./hex";
 import { neighborsOf } from "./seating";
-import { arenaSize, sameArenaHex, unitArenaHex } from "./targets";
+import { arenaSize, isArenaHexFree, locationArenaHex, sameArenaHex, unitArenaHex } from "./targets";
 import { fightsThisRound } from "./wounds";
 
 /** Effekt-Bausteine, die Vorkampf-Zauber wirken lassen (E11b1–E11b4). */
@@ -44,7 +44,11 @@ export function preCombatAllies(state: GameState, config: ConfigData, player: Pl
     }
     case "zoneAllies": {
       const arenas: readonly ArenaRef[] = t.kind === "zone" ? t.arenas : [];
-      return own.filter((u) => u.location.zone !== "reserve" && arenas.includes(u.location.zone));
+      // R-16.6 (E11c4): maßgeblich ist die Arena, in der die Einheit in dieser Runde steht (nach Schattenschritt).
+      return own.filter((u) => {
+        const at = unitArenaHex(config, u);
+        return at !== null && arenas.includes(at.arena);
+      });
     }
     default:
       return [];
@@ -94,7 +98,7 @@ export function preCombatEnemies(state: GameState, config: ConfigData, player: P
     for (const { owner, zone } of opponentsInArena(state, player, hex.arena)) {
       if (getPlayer(state, owner).eliminated) continue;
       for (const u of Object.values(state.units)) {
-        if (u.owner !== owner || !fightsThisRound(u) || u.location.zone !== zone) continue;
+        if (u.owner !== owner || !fightsThisRound(u)) continue;
         const at = unitArenaHex(config, u);
         // Dasselbe Feld der gemeinsamen Arena: gleiche Koordinaten, Arena aus Sicht des Gegners (`zone`).
         if (at !== null && at.arena === zone && coordEquals(at.cell, hex.cell)) result.set(u.id, u);
@@ -192,7 +196,8 @@ export function clearRoundEffects(state: GameState): void {
 /**
  * `summon` mit `where: zoneFree` (E11b4): freie Felder einer eigenen Zone in fester Reihenfolge – Frontzone nach
  * kleinstem `(row, col)` in Zonen-Koordinaten, Mittelzone nach Position. Frei = keine eigene Einheit auf dem Ort
- * (auch verwundete oder vor dem Kampf besiegte Einheiten belegen ihr Feld).
+ * (auch verwundete oder vor dem Kampf besiegte Einheiten belegen ihr Feld); seit E11c4 gilt das für Einheiten
+ * aller Spieler auf dem Feld der gemeinsamen Arena (`isArenaHexFree`).
  */
 export function zoneFreeLocations(state: GameState, config: ConfigData, player: PlayerIndex, zone: ArenaRef): UnitLocation[] {
   const candidates: UnitLocation[] = [];
@@ -207,7 +212,12 @@ export function zoneFreeLocations(state: GameState, config: ConfigData, player: 
       }
     }
   }
-  return candidates.filter((loc) => unitAt(state, player, loc) === undefined);
+  // E11c4: frei nach dem Stand dieser Runde – auch gegnerische Einheiten nach einem Schattenschritt belegen ein Feld,
+  // das Ausgangsfeld einer eigenen fortgesetzten Einheit ist frei.
+  return candidates.filter((loc) => {
+    const hex = locationArenaHex(config, player, loc);
+    return hex !== null && isArenaHexFree(state, config, player, hex);
+  });
 }
 
 /**

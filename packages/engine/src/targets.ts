@@ -22,7 +22,7 @@ import {
   type Seat,
 } from "./hex";
 import { neighborsOf } from "./seating";
-import type { GameState, PlayerIndex, Unit, UnitId, UnitLocation } from "./state";
+import { type GameState, getPlayer, type PlayerIndex, type Unit, type UnitId, type UnitLocation } from "./state";
 
 export const ARENA_REFS: readonly ArenaRef[] = ["left", "right", "center"];
 
@@ -63,9 +63,8 @@ export function isOwnHex(config: ConfigData, player: PlayerIndex, hex: ArenaHex)
   }
 }
 
-/** Arena-Feld, auf dem eine eigene Einheit steht (Reserve: keins). */
-export function unitArenaHex(config: ConfigData, unit: Unit): ArenaHex | null {
-  const loc = unit.location;
+/** Arena-Feld eines eigenen Orts (aus Sicht des Besitzers; Reserve: keins). */
+export function locationArenaHex(config: ConfigData, owner: PlayerIndex, loc: UnitLocation): ArenaHex | null {
   switch (loc.zone) {
     case "right":
       return { arena: "right", cell: frontToArena("first", loc.cell, config.arenas.frontZone) };
@@ -74,11 +73,35 @@ export function unitArenaHex(config: ConfigData, unit: Unit): ArenaHex | null {
     case "center":
       return {
         arena: "center",
-        cell: centerPositionToArena(unit.owner as Seat, loc.position, config.arenas.centerArena, config.arenas.centerStartSlots),
+        cell: centerPositionToArena(owner as Seat, loc.position, config.arenas.centerArena, config.arenas.centerStartSlots),
       };
     case "reserve":
       return null;
   }
+}
+
+/**
+ * Arena-Feld, auf dem eine Einheit in dieser Runde steht (aus Sicht ihres Besitzers; Reserve: keins). Nach einem
+ * Schattenschritt (R-16.6, E11c4) ist das das Zielfeld, sonst das Feld ihres Orts.
+ */
+export function unitArenaHex(config: ConfigData, unit: Unit): ArenaHex | null {
+  if (unit.shadowStep) return copyHex(unit.shadowStep.hex);
+  return locationArenaHex(config, unit.owner, unit.location);
+}
+
+/**
+ * Ist das Feld der gemeinsamen Arena in dieser Runde frei (E11c4)? Frei = keine Einheit irgendeines Spielers
+ * steht dort (`unitArenaHex`, also nach Schattenschritten; verwundete und vor dem Kampf besiegte belegen ihr
+ * Feld; Einheiten ausgeschiedener Spieler zählen nicht). Das Ausgangsfeld einer Einheit, die per Schattenschritt fortgesetzt wurde, ist damit frei. `hex` aus
+ * Sicht von `player`.
+ */
+export function isArenaHexFree(state: GameState, config: ConfigData, player: PlayerIndex, hex: ArenaHex, except?: UnitId): boolean {
+  const key = globalHexKey(state, player, hex);
+  return !Object.values(state.units).some((u) => {
+    if (u.id === except || getPlayer(state, u.owner).eliminated) return false;
+    const at = unitArenaHex(config, u);
+    return at !== null && globalHexKey(state, u.owner, at) === key;
+  });
 }
 
 /**

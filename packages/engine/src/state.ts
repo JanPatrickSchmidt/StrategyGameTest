@@ -84,6 +84,13 @@ export interface Unit {
   statOverride?: Partial<Record<Stat, number>>;
   /** Seelenband (E11c3, R-17.1): dieses Token zählt für die Rassen-Resonanz wie eine Karten-Einheit. */
   countsForResonance?: boolean;
+  /**
+   * R-16.6 (Vex, E11c4): Die Einheit wurde in dieser Runde vom Schattenschritt auf ein Arena-Feld gesetzt (aus
+   * Sicht ihres Besitzers, Arena-Koordinaten, auch gegnerische Hälfte oder beliebiges Feld der Mitte). Sie kämpft
+   * in dieser Runde von dort aus; `location` bleibt ihr Ausgangsfeld. Nach dem Aufräumen kehrt sie zurück und das
+   * Feld wird gelöscht. Fehlt = steht auf `location`.
+   */
+  shadowStep?: { hex: ArenaHex };
 }
 
 export interface UnitRoundEffects {
@@ -334,6 +341,16 @@ export type GameEventPayload =
    * scheitern beide. Ein Ereignis je betroffener Fähigkeit, `hex` aus Sicht ihres Spielers.
    */
   | { type: "leader_ability_hex_conflict"; player: PlayerIndex; leaderId: string; hex: ArenaHex }
+  /**
+   * R-8.2, R-16.6 (E11c4): eine gewählte Bewegung des Schattenschritts findet nicht statt – `hexOccupied`: auf dem
+   * Zielfeld steht bei der Auflösung schon eine Einheit (gleich welches Spielers); `unitUnavailable`: die Einheit
+   * kämpft in dieser Runde nicht (verwundet, vor dem Kampf besiegt), steht in der Reserve oder gibt es nicht mehr.
+   */
+  | { type: "leader_ability_move_blocked"; player: PlayerIndex; leaderId: string; unitId: UnitId; hex: ArenaHex; reason: "hexOccupied" | "unitUnavailable" }
+  /** R-16.6 (E11c4): Schattenschritt – die Einheit kämpft in dieser Runde von `to` aus (Arena-Feld aus Sicht des Besitzers). */
+  | { type: "unit_shadow_stepped"; player: PlayerIndex; unitId: UnitId; from: UnitLocation; to: ArenaHex; cardId: string }
+  /** R-16.6 (E11c4): nach dem Aufräumen zurück auf das Ausgangsfeld (belegt: nächstes freies Feld der Zone, sonst Reserve). */
+  | { type: "unit_returned"; player: PlayerIndex; unitId: UnitId; from: ArenaHex; to: UnitLocation }
   /** R-16.4/R-19.1: die gewählte Anführer-Fähigkeit verfällt beim Aufräumen. */
   | { type: "leader_ability_cleared"; player: PlayerIndex }
   /** R-7.7: Ast gewählt; `auto` = ohne Wahl der erste Ast. */

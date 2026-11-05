@@ -16,7 +16,7 @@ import { applyCombatWounds, fightsThisRound, woundedUnits } from "./wounds";
 import { activeResonance, addStartManaPercent, addStatBonuses, applyResonanceStats, resonanceBonus, resonanceSummonAdjuster } from "./resonance";
 import { frontArenaSize, type FrontSide, frontToArena, type OffsetCoord } from "./hex";
 import { activeRing, neighborsOf } from "./seating";
-import { emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit, type UnitId } from "./state";
+import { emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit, type UnitId, type UnitLocation } from "./state";
 
 /** R-2.3: `first.right` kämpft gegen `second.left`. */
 export interface FrontPairing {
@@ -43,15 +43,24 @@ export function frontPairings(state: GameState): FrontPairing[] {
 }
 
 /**
+ * Arena (aus Sicht des Besitzers), in der eine Einheit in dieser Runde kämpft: nach einem Schattenschritt
+ * (R-16.6, E11c4) die Arena des Zielfelds, sonst die Zone ihres Orts.
+ */
+export function roundArena(unit: Unit): UnitLocation["zone"] {
+  return unit.shadowStep ? unit.shadowStep.hex.arena : unit.location.zone;
+}
+
+/**
  * R-9.1: Teilnehmer einer Front-Paarung: alle nicht verwundeten Einheiten der beiden Zonen,
- * inklusive Anführer und Tokens, nach ID aufsteigend.
+ * inklusive Anführer und Tokens, nach ID aufsteigend. Einheiten nach einem Schattenschritt (R-16.6) kämpfen in
+ * der Arena ihres Zielfelds, auch wenn es in der gegnerischen Hälfte liegt.
  */
 export function frontParticipants(state: GameState, pairing: FrontPairing): { first: Unit[]; second: Unit[] } {
   const units = Object.values(state.units)
     .filter(fightsThisRound)
     .sort((a, b) => a.id - b.id);
   const inZone = (owner: PlayerIndex, zone: "left" | "right"): Unit[] =>
-    units.filter((u) => u.owner === owner && u.location.zone === zone);
+    units.filter((u) => u.owner === owner && roundArena(u) === zone);
   return { first: inZone(pairing.first, "right"), second: inZone(pairing.second, "left") };
 }
 
@@ -87,6 +96,12 @@ export function fighterForUnit(state: GameState, data: GameData, unit: Unit, pos
   // R-17a.2 und R-17.2: Start-Mana aus Markierungen und Resonanz (Prozente addiert, von `manaMax` abgerundet).
   addStartManaPercent(data.config, init, markedStartManaPercent(state, data, unit) + bonus.startManaPercent);
   return init;
+}
+
+/** Startfeld in Arena-Koordinaten: nach einem Schattenschritt das Zielfeld (R-16.6), sonst das gedrehte Zonenfeld. */
+function frontArenaCell(unit: Unit, side: FrontSide, zone: GameData["config"]["arenas"]["frontZone"]): OffsetCoord {
+  if (unit.shadowStep) return { ...unit.shadowStep.hex.cell };
+  return frontToArena(side, frontCell(unit), zone);
 }
 
 function frontCell(unit: Unit): OffsetCoord {
@@ -131,7 +146,7 @@ export function runFront(state: GameState, data: GameData, pairing: FrontPairing
   } else {
     // R-3.2: `first` belegt die Arena-Zeilen 0–2 unverändert, `second` gedreht die Zeilen 3–5.
     const place = (u: Unit, side: FrontSide): FighterInit =>
-      fighterForUnit(state, data, u, frontToArena(side, frontCell(u), zone));
+      fighterForUnit(state, data, u, frontArenaCell(u, side, zone));
     const inits = [...first.map((u) => place(u, "first")), ...second.map((u) => place(u, "second"))];
     emit(state, {
       type: "combat_started",
