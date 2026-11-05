@@ -71,16 +71,17 @@ function opponentsInArena(state: GameState, player: PlayerIndex, arena: ArenaRef
  * R-8.5, R-14.2: gegnerische Einheiten, die an den Kämpfen der Runde teilnehmen würden (nicht verwundet, nicht
  * vor dem Kampf besiegt), zum Zeitpunkt der Auflösung, nach ID. `hexEnemies` = auf dem gewählten Feld bzw. den
  * gewählten Feldern; `hexNeighborEnemies` = auf den Nachbarfeldern (innerhalb der Arena) ohne die gewählten
- * Felder selbst (Feuerball, E11b3). Felder sind aus Sicht des Zaubernden angegeben; alle Spieler einer Arena
+ * Felder selbst (Feuerball, E11b3); `hexAndNeighborEnemies` = auf den gewählten Feldern und ihren Nachbarfeldern
+ * (Ilyra, Ast „Sturm“, E11c2). Felder sind aus Sicht des Zaubernden angegeben; alle Spieler einer Arena
  * nutzen dieselben Arena-Koordinaten. Einheiten ausgeschiedener Spieler zählen nicht.
  */
 export function preCombatEnemies(state: GameState, config: ConfigData, player: PlayerIndex, spell: Pick<SetSpell, "target">, target: string): Unit[] {
-  if (target !== "hexEnemies" && target !== "hexNeighborEnemies") return [];
+  if (target !== "hexEnemies" && target !== "hexNeighborEnemies" && target !== "hexAndNeighborEnemies") return [];
   const t = spell.target;
   const chosen: ArenaHex[] = t.kind === "hexes" ? t.hexes : t.kind === "hex" ? [{ arena: t.arena, cell: t.cell }] : [];
   let hexes: ArenaHex[] = chosen;
-  if (target === "hexNeighborEnemies") {
-    hexes = [];
+  if (target === "hexNeighborEnemies" || target === "hexAndNeighborEnemies") {
+    hexes = target === "hexAndNeighborEnemies" ? [...chosen] : [];
     for (const hex of chosen) {
       for (const cell of neighbors(hex.cell, arenaSize(config, hex.arena))) {
         const n: ArenaHex = { arena: hex.arena, cell };
@@ -135,7 +136,9 @@ export function addRoundKeyword(state: GameState, unit: Unit, keyword: Keyword, 
  * Vorkampf-Zaubern dieser Runde verbraucht, der Rest abzüglich Panzer (mindestens 1) geht von den Lebenspunkten
  * ab. `hp` und `armor` sind die Kampfwerte der Einheit zum Zeitpunkt der Auflösung (ohne den Schaden). Der Verlust
  * bleibt für alle Kämpfe der Runde; sinken die Lebenspunkte auf 0 oder darunter, ist die Einheit besiegt und
- * nimmt an keinem Kampf dieser Runde teil. Gibt zurück, ob sie dadurch besiegt wurde.
+ * nimmt an keinem Kampf dieser Runde teil. Gibt zurück, ob sie dadurch besiegt wurde. Mit `simultaneous`
+ * (Anführer-Fähigkeiten `damage`, R-8.2) trifft der Schaden auch eine Einheit, die im selben Schritt schon besiegt
+ * wurde (ohne erneutes `unit_defeated`).
  */
 export function dealPreCombatDamage(
   state: GameState,
@@ -143,8 +146,12 @@ export function dealPreCombatDamage(
   amount: number,
   stats: { hp: number; armor: number },
   cardId: string,
+  options: { simultaneous?: boolean } = {},
 ): boolean {
-  if (amount <= 0 || !fightsThisRound(unit)) return false;
+  const wasDefeated = unit.roundEffects?.defeated === true;
+  // R-8.2: gleichzeitiger Schaden trifft auch Einheiten, die ein anderer Treffer desselben Schritts besiegt hat.
+  const hittable = fightsThisRound(unit) || (options.simultaneous === true && wasDefeated && !unit.wounded);
+  if (amount <= 0 || !hittable) return false;
   const fx = roundEffectsOf(unit);
   const absorbed = Math.min(fx.shield, amount);
   fx.shield -= absorbed;
@@ -153,7 +160,7 @@ export function dealPreCombatDamage(
   fx.damage = (fx.damage ?? 0) + hpLoss;
   const hp = stats.hp - fx.damage;
   emit(state, { type: "unit_damaged", player: unit.owner, unitId: unit.id, amount, absorbed, hpLoss, hp, cardId });
-  if (hp > 0) return false;
+  if (hp > 0 || wasDefeated) return false;
   fx.defeated = true;
   emit(state, { type: "unit_defeated", player: unit.owner, unitId: unit.id, cardId });
   return true;
