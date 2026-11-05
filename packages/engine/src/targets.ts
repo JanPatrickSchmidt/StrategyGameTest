@@ -11,6 +11,7 @@ import type { ConfigData, GameData } from "./data";
 import type { ArenaScope, TargetSpec } from "./dataTypes";
 import { checkOwnCardsChoice } from "./deck";
 import {
+  arenaToFront,
   centerPositionToArena,
   centerStartCells,
   coordEquals,
@@ -21,7 +22,7 @@ import {
   type Seat,
 } from "./hex";
 import { neighborsOf } from "./seating";
-import type { GameState, PlayerIndex, Unit, UnitId } from "./state";
+import type { GameState, PlayerIndex, Unit, UnitId, UnitLocation } from "./state";
 
 export const ARENA_REFS: readonly ArenaRef[] = ["left", "right", "center"];
 
@@ -78,6 +79,34 @@ export function unitArenaHex(config: ConfigData, unit: Unit): ArenaHex | null {
     case "reserve":
       return null;
   }
+}
+
+/**
+ * Umkehrung von `unitArenaHex` für eigene Felder (E11c3): Ort einer eigenen Zone zu einem Arena-Feld, oder `null`,
+ * wenn das Feld nicht in einer eigenen Zone liegt (gegnerische Hälfte, Mitte außerhalb des Startbereichs).
+ */
+export function ownLocationOfHex(config: ConfigData, player: PlayerIndex, hex: ArenaHex): UnitLocation | null {
+  if (!isValidArenaHex(config, hex) || !isOwnHex(config, player, hex)) return null;
+  if (hex.arena === "center") {
+    const cells = centerStartCells(player as Seat, config.arenas.centerArena, config.arenas.centerStartSlots);
+    const position = cells.findIndex((c) => coordEquals(c, hex.cell));
+    return position < 0 ? null : { zone: "center", position };
+  }
+  const { coord } = arenaToFront(hex.cell, config.arenas.frontZone);
+  return { zone: hex.arena, cell: coord };
+}
+
+/**
+ * Spielerunabhängige Kennung eines Arena-Felds (E11c3, Feldkonflikt R-8.2): Frontarena wie `frontArenaId`
+ * (`front:<erster>-<zweiter>`; die rechte Arena des Spielers ist die, in der er erster ist), Mittelarena `center`.
+ * Alle Spieler einer Arena nutzen dieselben Arena-Koordinaten.
+ */
+export function globalHexKey(state: GameState, player: PlayerIndex, hex: ArenaHex): string {
+  const cell = `${hex.cell.col},${hex.cell.row}`;
+  if (hex.arena === "center") return `center:${cell}`;
+  const n = neighborsOf(state, player);
+  if (!n) return `front:${player}:${hex.arena}:${cell}`;
+  return hex.arena === "right" ? `front:${player}-${n.right}:${cell}` : `front:${n.left}-${player}:${cell}`;
 }
 
 export function sameArenaHex(a: ArenaHex, b: ArenaHex): boolean {

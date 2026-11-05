@@ -49,7 +49,8 @@ export function resonanceCounts(state: GameState, data: GameData, player: Player
   const ids = new Map<string, Set<string>>();
   if (getPlayer(state, player).eliminated) return new Map();
   for (const unit of Object.values(state.units)) {
-    if (unit.owner !== player || unit.kind === "token" || unit.wounded) continue;
+    // Tokens zählen nicht, außer mit Seelenband (`countsForResonance`, E11c3).
+    if (unit.owner !== player || (unit.kind === "token" && unit.countsForResonance !== true) || unit.wounded) continue;
     if (unit.location.zone === "reserve") continue;
     const race = unitRace(data, unit);
     if (race === null) continue;

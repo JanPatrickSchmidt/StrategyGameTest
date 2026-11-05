@@ -3,7 +3,7 @@
  * Der Zustand ist ein reines, JSON-serialisierbares Objekt. Alle Zustandsänderungen
  * laufen über Engine-Funktionen, die zusätzlich Ereignisse (R-19) ins Protokoll schreiben.
  */
-import type { ActionTarget, Planning, PlanningSection, RejectionReason } from "./actions";
+import type { ActionTarget, ArenaHex, Planning, PlanningSection, RejectionReason } from "./actions";
 import type { OffsetCoord } from "./hex";
 import type { RngState } from "./rng";
 import type { CombatEvent } from "./combat";
@@ -77,6 +77,13 @@ export interface Unit {
    * `duration: combat`/`round`, Schlüsselwörter). Verfallen beim Aufräumen. Fehlt = keine.
    */
   roundEffects?: UnitRoundEffects;
+  /**
+   * Tokens aus Morgras Beschwörung (E11c3): ersetzt die Grundwerte des Tokens (vor Buffs und Resonanz). Fehlt =
+   * Werte der Token-Karte.
+   */
+  statOverride?: Partial<Record<Stat, number>>;
+  /** Seelenband (E11c3, R-17.1): dieses Token zählt für die Rassen-Resonanz wie eine Karten-Einheit. */
+  countsForResonance?: boolean;
 }
 
 export interface UnitRoundEffects {
@@ -291,8 +298,20 @@ export type GameEventPayload =
   | { type: "unit_damaged"; player: PlayerIndex; unitId: UnitId; amount: number; absorbed: number; hpLoss: number; hp: number; cardId: string }
   /** R-14.2 (E11b3): vor dem Kampf besiegt, nimmt in dieser Runde an keinem Kampf teil (bleibt auf dem Brett). */
   | { type: "unit_defeated"; player: PlayerIndex; unitId: UnitId; cardId: string }
-  /** R-8.3 (E11b4): Token vor dem Kampf auf ein freies Feld der Zone beschworen (Geistertrommel). */
-  | { type: "unit_summoned"; player: PlayerIndex; unitId: UnitId; sourceId: string; location: UnitLocation; cardId: string }
+  /**
+   * R-8.3 (E11b4): Token vor dem Kampf beschworen (Geistertrommel; Morgras Beschwörung, E11c3, mit den optionalen
+   * Angaben `statOverride` und `countsForResonance`).
+   */
+  | {
+      type: "unit_summoned";
+      player: PlayerIndex;
+      unitId: UnitId;
+      sourceId: string;
+      location: UnitLocation;
+      cardId: string;
+      statOverride?: Partial<Record<Stat, number>>;
+      countsForResonance?: boolean;
+    }
   /** R-12.4, R-14.3: Schild, Buffs und Schlüsselwörter aus Vorkampf-Zaubern verfallen beim Aufräumen. */
   | { type: "unit_round_effects_cleared"; player: PlayerIndex; unitId: UnitId }
   /** R-8.6: Zauber verlässt den Slot und geht auf den Ablagestapel. */
@@ -309,7 +328,12 @@ export type GameEventPayload =
       branchId: string | null;
     }
   /** R-8.2, analog R-8.5 (F42): Anführer-Fähigkeit ohne gültiges Ziel verpufft. */
-  | { type: "leader_ability_fizzled"; player: PlayerIndex; leaderId: string; category: LeaderCategory; reason: "noValidTarget" }
+  | { type: "leader_ability_fizzled"; player: PlayerIndex; leaderId: string; category: LeaderCategory; reason: "noValidTarget" | "hexConflict" }
+  /**
+   * R-8.2 (E11c3): Zwei Fähigkeiten derselben Kategorie wollten dasselbe freie Feld belegen; auf diesem Feld
+   * scheitern beide. Ein Ereignis je betroffener Fähigkeit, `hex` aus Sicht ihres Spielers.
+   */
+  | { type: "leader_ability_hex_conflict"; player: PlayerIndex; leaderId: string; hex: ArenaHex }
   /** R-16.4/R-19.1: die gewählte Anführer-Fähigkeit verfällt beim Aufräumen. */
   | { type: "leader_ability_cleared"; player: PlayerIndex }
   /** R-7.7: Ast gewählt; `auto` = ohne Wahl der erste Ast. */

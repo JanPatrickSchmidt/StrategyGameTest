@@ -11,10 +11,10 @@
 import type { ArenaHex, ArenaRef } from "./actions";
 import type { FighterInit } from "./combat";
 import type { ConfigData } from "./data";
-import type { Effect, Keyword, Stat } from "./dataTypes";
+import type { Effect, Keyword, Stat, StatOverride } from "./dataTypes";
 import { addStatBonuses } from "./resonance";
 import { isValidLocation, unitAt } from "./board";
-import { emit, type GameState, getPlayer, type PlayerIndex, type SetSpell, type Unit, type UnitLocation, type UnitRoundEffects } from "./state";
+import { emit, type GameEventPayload, type GameState, getPlayer, type PlayerIndex, type SetSpell, type Unit, type UnitLocation, type UnitRoundEffects } from "./state";
 import { coordEquals, neighbors } from "./hex";
 import { neighborsOf } from "./seating";
 import { arenaSize, sameArenaHex, unitArenaHex } from "./targets";
@@ -224,25 +224,52 @@ export function summonZoneTokens(
   count: number,
   cardId: string,
 ): Unit[] {
-  const summoned: Unit[] = [];
-  for (const location of zoneFreeLocations(state, config, player, zone).slice(0, Math.max(0, count))) {
-    const unit: Unit = {
-      id: state.nextUnitId++,
-      owner: player,
-      kind: "token",
-      sourceId: tokenId,
-      cardInstanceIds: [],
-      stars: 1,
-      xp: 0,
-      wounded: false,
-      restedInReserve: false,
-      location,
-    };
-    state.units[unit.id] = unit;
-    emit(state, { type: "unit_summoned", player, unitId: unit.id, sourceId: tokenId, location: copyZoneLocation(location), cardId });
-    summoned.push(unit);
-  }
-  return summoned;
+  return zoneFreeLocations(state, config, player, zone)
+    .slice(0, Math.max(0, count))
+    .map((location) => createToken(state, player, tokenId, location, cardId));
+}
+
+/**
+ * Legt ein Token des Spielzustands auf `location` an und meldet `unit_summoned` (R-1.4). Optional mit
+ * `statOverride` (ersetzt Grundwerte) und `countsForResonance` (Seelenband, E11c3).
+ */
+export function createToken(
+  state: GameState,
+  player: PlayerIndex,
+  tokenId: string,
+  location: UnitLocation,
+  cardId: string,
+  options: { statOverride?: StatOverride; countsForResonance?: boolean } = {},
+): Unit {
+  const unit: Unit = {
+    id: state.nextUnitId++,
+    owner: player,
+    kind: "token",
+    sourceId: tokenId,
+    cardInstanceIds: [],
+    stars: 1,
+    xp: 0,
+    wounded: false,
+    restedInReserve: false,
+    location,
+  };
+  const extra: { statOverride?: StatOverride; countsForResonance?: boolean } = {};
+  if (options.statOverride && Object.keys(options.statOverride).length > 0) extra.statOverride = { ...options.statOverride };
+  if (options.countsForResonance === true) extra.countsForResonance = true;
+  Object.assign(unit, extra);
+  state.units[unit.id] = unit;
+  const event: Extract<GameEventPayload, { type: "unit_summoned" }> = {
+    type: "unit_summoned",
+    player,
+    unitId: unit.id,
+    sourceId: tokenId,
+    location: copyZoneLocation(location),
+    cardId,
+  };
+  if (extra.statOverride) event.statOverride = { ...extra.statOverride };
+  if (extra.countsForResonance) event.countsForResonance = true;
+  emit(state, event);
+  return unit;
 }
 
 function copyZoneLocation(loc: UnitLocation): UnitLocation {

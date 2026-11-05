@@ -71,6 +71,8 @@ export function fighterForUnit(state: GameState, data: GameData, unit: Unit, pos
     stars: unit.stars,
     pos,
   });
+  // E11c3: Morgras Beschwörung ersetzt Grundwerte des Tokens (vor allen Zuschlägen).
+  if (unit.statOverride) init.stats = { ...init.stats, ...unit.statOverride };
   if (unit.kind === "leader" && getPlayer(state, unit.owner).leader.level >= 3) {
     const bonus = data.config.leader.level3StatBonus;
     const raise = (v: number): number => v + Math.floor(v * bonus + 1e-9);
