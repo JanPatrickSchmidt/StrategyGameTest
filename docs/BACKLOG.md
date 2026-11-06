@@ -69,7 +69,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
     - [x] **E10c2 Kostenbonus (R-17.3)** (2026-11-01) – `costModifier` (Goblins 4) beim Ausspielen nach dem Brett zum Zeitpunkt der Aktion, Kosten nie unter 0; auch für alternative Gold-Kosten prüfen. Abnahme: Tests zu R-17.3.
     - [x] **E10c3 Rundenwirkungen und Bonuszinsen (R-17.4)** (2026-11-02) – Zwerge `gainGold` mit `when: roundStart` und `bonusInterest`, Menschen `gainLeaderXp`, ausgewertet zu Rundenbeginn nach dem Brett am Ende der Vorrunde, Reihenfolge Resonanz-Gold → Zinsen. Abnahme: Tests für Zwerge 2/4 und Menschen 2/4 (Rundenwirkung).
     - [x] **E10c4 Bonus-XP (R-17.5)** (2026-11-02) – Menschen-Einheiten erhalten beim Überleben eines Kampfes zusätzliche XP; setzt die Einheiten-XP (R-10.7) voraus, die bisher erst mit E12 vorgesehen sind – daher R-10.7 hier mit umsetzen. Abnahme: Tests zu R-10.7 und R-17.5 (Menschen 2/4).
-- [ ] **E11 Zauber und Anführer**
+- [x] **E11 Zauber und Anführer** (abgeschlossen 2026-11-06)
   - Aufdecken, Anführer-Fähigkeiten nach Kategorien (R-8.2), Zauber nach Tempo und Prioritätsreihenfolge (R-8.3, R-8.4), Verpuffen (R-8.5), Anführer-Stufen und Äste (R-16).
   - Abnahme: Tests zu allen genannten Regeln, jeder Ast jedes Anführers auf jeder Stufe.
   - Aufgeteilt (2026-11-03):
@@ -86,7 +86,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
         - [x] **E11c4 Kategorie `move` (Vex)** (2026-11-06) – Schattenschritt nach `participatingFreeHex` (R-16.6, auch gegnerische Hälfte und Mitte), Rückkehr nach dem Aufräumen, Feldkonflikt mit Beschwörungen, Hinterhalt-Buffs, `onFrontWinOfChosen` (Beute). Abnahme: Tests zu R-16.6 und je Ast und Stufe. Aufgeteilt (2026-11-05):
             - [x] **E11c4a Schattenschritt** (2026-11-05) – `move` nach `participatingFreeHex` (R-16.6, gegnerische Hälfte und Mitte), Rückkehr nach dem Aufräumen, Feldkonflikt mit Beschwörungen, Äste „Doppelt“ und „Hinterhalt“ (Buffs, Erstschlag), „Beute“ ohne Gold. Abnahme: Tests zu R-16.6 und je Ast und Stufe.
             - [x] **E11c4b Beute (`onFrontWinOfChosen`)** (2026-11-06) – verzögerter Auslöser: gewinnt die Front, in der eine gewählte Einheit kämpft, bekommt Vex 2/3/4 Gold sofort in die Schatzkammer (R-10.3). Abnahme: Tests je Stufe, auch Mitte/verlorene Front/leere Front.
-    - [ ] **E11d Abnahme E11** – Test jedes Asts jedes Anführers auf jeder Stufe (R-16.2), R-16.3 und R-16.4 im Rundenablauf. Abnahme: wie E11.
+    - [x] **E11d Abnahme E11** (2026-11-06) – Test jedes Asts jedes Anführers auf jeder Stufe (R-16.2), R-16.3 und R-16.4 im Rundenablauf. Abnahme: wie E11.
 - [ ] **E12 Auswertung, Ausscheiden, Sieg**
   - Durchbruch, leere Front, Grundschaden, Mitte, Schwung und Trotz, XP (R-10), Ausscheiden, Platzierung, Machtsieg, Rundenlimit (R-13), Nachbarn neu berechnen (R-2).
   - Abnahme: Tests zu allen genannten Regeln.
