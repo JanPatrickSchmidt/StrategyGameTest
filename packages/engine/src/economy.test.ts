@@ -127,9 +127,10 @@ describe("R-6.2: Rundenvorrat", () => {
     gainGoldAfterPlanning(state, 1, 5);
     expect(p.treasury).toBe(17);
     playRound(state);
-    // Einzahlung am Rundenende: 17 + 3 = 20; Runde 2: Zinsen +2, Rundenvorrat 0 (nur Rekruten auf der Hand).
+    // R-10.2: Spieler 1 gewinnt seine linke Front leer (nur sein Anführer) → +2 Beute: 19.
+    // Einzahlung am Rundenende: 19 + 3 = 22; Runde 2: Zinsen +2, Rundenvorrat 0 (nur Rekruten auf der Hand).
     expect(p.roundGold).toBe(0);
-    expect(p.treasury).toBe(22);
+    expect(p.treasury).toBe(24);
     expect(state.round).toBe(2);
   });
 });
@@ -179,9 +180,9 @@ describe("R-7.6: Entnahme", () => {
     const p = getPlayer(state, 0);
     // Zinsen +1 zu Rundenbeginn → 6, Entnahme 3 → Schatzkammer 3, Rundenvorrat 3.
     expect(eventsOf(state, "gold_withdrawn")).toEqual([expect.objectContaining({ player: 0, amount: 3, treasury: 3, phase: "reveal" })]);
-    // Ungenutztes Gold geht am Rundenende zurück (R-12.5): 3 + 3 = 6, Runde 2 Zinsen +1.
-    expect(eventsOf(state, "gold_deposited").filter((e) => e.player === 0)).toEqual([expect.objectContaining({ amount: 3, treasury: 6 })]);
-    expect(p.treasury).toBe(7);
+    // R-10.2: leere linke Front gewonnen → +2 Beute (5). Ungenutztes Gold geht am Rundenende zurück (R-12.5): 5 + 3 = 8, Runde 2 Zinsen +1.
+    expect(eventsOf(state, "gold_deposited").filter((e) => e.player === 0)).toEqual([expect.objectContaining({ amount: 3, treasury: 8 })]);
+    expect(p.treasury).toBe(9);
   });
 
   it("R-7.6: zu große und ungültige Beträge werden abgelehnt, die übrigen Aktionen laufen weiter", () => {
@@ -415,8 +416,8 @@ describe("R-11: Kaufen", () => {
     ]);
     expect(eventsOf(state, "card_bought")).toEqual([expect.objectContaining({ player: 0, cardId: "silver", phase: "reveal" })]);
     expect(p.discard.map((id) => getCard(state, id).cardId)).toContain("silver");
-    // 4 Gold − 3 für Silber = 1 eingezahlt; in Runde 2 noch keine Zinsen (1 < 5).
-    expect(p.treasury).toBe(1);
+    // R-10.2: +2 Beute der leeren linken Front; 4 Gold − 3 für Silber = 1 eingezahlt → 3; in Runde 2 noch keine Zinsen (3 < 5).
+    expect(p.treasury).toBe(3);
     expect(eventsOf(state, "gold_deposited").filter((e) => e.player === 0)).toEqual([
       expect.objectContaining({ amount: 1, round: 1, phase: "cleanup" }),
     ]);

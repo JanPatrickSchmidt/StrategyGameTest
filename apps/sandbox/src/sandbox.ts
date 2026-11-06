@@ -7,6 +7,7 @@
  */
 import {
   arenaToFront,
+  baseDamage,
   type CombatSim,
   type ConfigData,
   type FighterInit,
@@ -188,11 +189,8 @@ export function finishSandbox(run: SandboxRun): void {
   }
 }
 
-/** R-10.5: Grundschaden einer Runde aus `config.baseDamage`. */
-export function baseDamage(config: ConfigData, round: number): number {
-  const b = config.baseDamage;
-  return b.base + Math.max(0, round - b.rampStartsAfterRound) * b.perRound;
-}
+/** R-10.5: Grundschaden einer Runde, aus der Engine (E12a). */
+export { baseDamage };
 
 export interface SandboxOutcome {
   kind: SandboxOutcomeKind;

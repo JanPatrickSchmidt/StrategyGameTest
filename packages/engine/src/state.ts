@@ -408,6 +408,19 @@ export type GameEventPayload =
       survivors: UnitId[];
       winnerBreakthrough: number;
     }
+  /** R-10.1, R-10.2, R-10.5: Verlierer einer Front verliert Durchbruch des Siegers + Grundschaden. */
+  | {
+      type: "breakthrough_damage";
+      arena: string;
+      winner: PlayerIndex;
+      loser: PlayerIndex;
+      breakthrough: number;
+      baseDamage: number;
+      amount: number;
+      life: number;
+    }
+  /** R-10.2: Beute des Siegers einer leeren Front (danach `gold_gained`, R-10.3). */
+  | { type: "front_loot"; arena: string; player: PlayerIndex; amount: number }
   /** R-9.1, R-9.7: Ergebnis des Mittelkampfs (auch ohne Simulation); `holder` = Halter der Mitte. */
   | {
       type: "center_resolved";

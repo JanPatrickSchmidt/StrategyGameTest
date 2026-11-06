@@ -25,6 +25,7 @@ import { drawEndOfRound } from "./deck";
 import { resolveLeaderAbilities, returnShadowSteppedUnits } from "./leaderAbilities";
 import { autoChooseBranch, chooseBranch, grantRoundXp, levelUpLeaders, resetLeaderAbilities, setLeaderAbility } from "./leader";
 import { runCombatPhase } from "./center";
+import { runCombatResolution } from "./resolution";
 import { runRoundStartEffects } from "./aftermath";
 import { applyRoundStartMarks } from "./marks";
 import { applyRoundResonance, bonusInterestFor, countRoundResonance, payBonusInterest } from "./resonanceRound";
@@ -192,7 +193,8 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         enterPhase(state, "combatResolution");
         break;
       case "combatResolution":
-        // R-10 folgt in E12.
+        // R-10 (E12a): Durchbruch, Grundschaden, Beute.
+        runCombatResolution(state, data);
         enterPhase(state, "postCombatSpells");
         break;
       case "postCombatSpells":
