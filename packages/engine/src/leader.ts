@@ -125,6 +125,7 @@ export function resetLeaderAbilities(state: GameState): void {
   for (const p of state.players) {
     if (p.leaderAbility === null) continue;
     p.leaderAbility = null;
+    delete p.chosenFrontWinTrigger;
     emit(state, { type: "leader_ability_cleared", player: p.index });
   }
 }

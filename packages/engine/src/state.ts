@@ -7,7 +7,7 @@ import type { ActionTarget, ArenaHex, Planning, PlanningSection, RejectionReason
 import type { OffsetCoord } from "./hex";
 import type { RngState } from "./rng";
 import type { CombatEvent } from "./combat";
-import type { GoldDestination, Keyword, LeaderCategory, Stat, Trigger, UnitTarget } from "./dataTypes";
+import type { Effect, GoldDestination, Keyword, LeaderCategory, Stat, Trigger, UnitTarget } from "./dataTypes";
 
 /** R-1.1: genau 4 Spieler, Index 0–3. */
 export type PlayerIndex = 0 | 1 | 2 | 3;
@@ -155,6 +155,12 @@ export interface PlayerState {
    * keine). `null` = noch nicht gewählt. Wird beim Rundenende zurückgesetzt.
    */
   leaderAbility: ActionTarget | null;
+  /**
+   * E11c4b (Vex' „Beute“): verzögerter Auslöser `onFrontWinOfChosen` der in dieser Runde aufgelösten
+   * Anführer-Fähigkeit. Gewinnt der Spieler eine Front, an der eine der Einheiten `unitIds` teilnimmt, wirken
+   * `effects` einmal je gewonnener Front. Verfällt mit der Fähigkeit beim Aufräumen. Fehlt = keiner.
+   */
+  chosenFrontWinTrigger?: ChosenFrontWinTrigger;
   leader: LeaderState;
   /** Eigene Stapel des Klassen-Pools (R-4.5): Karten-ID → verbleibende Kopien. */
   classPool: Record<string, number>;
@@ -167,6 +173,14 @@ export interface PlayerState {
   eliminated: boolean;
   /** Platzierung, sobald feststehend (1 = beste). */
   placement: number | null;
+}
+
+/** E11c4b: vorgemerkter Auslöser `onFrontWinOfChosen` einer Anführer-Fähigkeit (Vex' „Beute“). */
+export interface ChosenFrontWinTrigger {
+  leaderId: string;
+  /** Gewählte Einheiten, die bei der Auflösung gültig waren (auch bei gescheiterter Bewegung, F45c, F46). */
+  unitIds: UnitId[];
+  effects: Effect[];
 }
 
 /** R-19.1: jede Zustandsänderung erzeugt ein Ereignis. */
@@ -351,7 +365,11 @@ export type GameEventPayload =
   | { type: "unit_shadow_stepped"; player: PlayerIndex; unitId: UnitId; from: UnitLocation; to: ArenaHex; cardId: string }
   /** R-16.6 (E11c4): nach dem Aufräumen zurück auf das Ausgangsfeld (belegt: nächstes freies Feld der Zone, sonst Reserve). */
   | { type: "unit_returned"; player: PlayerIndex; unitId: UnitId; from: ArenaHex; to: UnitLocation }
-  /** R-16.4/R-19.1: die gewählte Anführer-Fähigkeit verfällt beim Aufräumen. */
+  /** E11c4b: Auslöser `onFrontWinOfChosen` vorgemerkt (Vex' „Beute“) für die gewählten Einheiten. */
+  | { type: "leader_trigger_armed"; player: PlayerIndex; leaderId: string; trigger: "onFrontWinOfChosen"; unitIds: UnitId[] }
+  /** E11c4b: Auslöser `onFrontWinOfChosen` ausgelöst – der Spieler gewann die Front `arena` mit den Einheiten `unitIds`. */
+  | { type: "leader_trigger_fired"; player: PlayerIndex; leaderId: string; trigger: "onFrontWinOfChosen"; arena: string; unitIds: UnitId[] }
+  /** R-16.4/R-19.1: die gewählte Anführer-Fähigkeit verfällt beim Aufräumen (mit ihr ein vorgemerkter Auslöser). */
   | { type: "leader_ability_cleared"; player: PlayerIndex }
   /** R-7.7: Ast gewählt; `auto` = ohne Wahl der erste Ast. */
   | { type: "branch_chosen"; player: PlayerIndex; branchId: string; auto: boolean }
@@ -446,7 +464,8 @@ export interface FrontResult {
   /** Überlebende beider Seiten (bei leerer Front alle Einheiten des Siegers), nach ID aufsteigend. */
   survivors: UnitId[];
   /** R-10.1/R-10.2: Summe `breakthrough` der überlebenden Einheiten des Siegers (Tokens zählen), sonst 0. */
-  winnerBreakthrough: number;  /** R-14.4: im Kampf verwundet besiegte Einheiten (ohne Tokens), nach ID aufsteigend; nach dem Kampf verwundet. */
+  winnerBreakthrough: number;
+  /** R-14.4: im Kampf verwundet besiegte Einheiten (ohne Tokens), nach ID aufsteigend; nach dem Kampf verwundet. */
   wounded: UnitId[];
 }
 

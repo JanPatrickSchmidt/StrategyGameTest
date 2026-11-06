@@ -249,7 +249,23 @@ export function runFrontWinEffects(state: GameState, data: GameData, fronts: rea
       if (!unit || unit.owner !== winner) continue;
       runUnitTrigger(state, data, unit, "onFrontWin", r.arena, { player: winner, unitId: id, frontOpponent: loser, duringPlanning: false }, true);
     }
+    runChosenFrontWinTrigger(state, data, winner, loser, r);
   }
+}
+
+/**
+ * E11c4b (Vex' „Beute“, F46): Nimmt mindestens eine gewählte Einheit des Siegers an dieser Front teil (auch wenn
+ * sie im Kampf gestorben ist, auch bei leerer Front, F31), wirken die Effekte einmal für diese Front – direkt nach
+ * den `onFrontWin`-Effekten der Einheiten dieser Front. Gold geht sofort in die Schatzkammer (R-10.3).
+ */
+function runChosenFrontWinTrigger(state: GameState, data: GameData, winner: PlayerIndex, loser: PlayerIndex, r: FrontResult): void {
+  const trigger = getPlayer(state, winner).chosenFrontWinTrigger;
+  if (!trigger) return;
+  const unitIds = trigger.unitIds.filter((id) => r.participants.includes(id));
+  if (unitIds.length === 0) return;
+  emit(state, { type: "leader_trigger_fired", player: winner, leaderId: trigger.leaderId, trigger: "onFrontWinOfChosen", arena: r.arena, unitIds });
+  const ctx: StateEffectContext = { player: winner, unitId: unitIds[0] ?? null, frontOpponent: loser, duringPlanning: false };
+  for (const effect of trigger.effects) applyStateEffect(state, data, effect, ctx);
 }
 
 /** Kampf-Ergebnisse samt vorgemerkter Effekte einer Kampfphase. */

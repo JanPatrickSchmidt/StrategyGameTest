@@ -9,7 +9,7 @@
  *
  * E11c1: Rahmen und Kategorie `buff` (Brann, alle Äste). E11c2: Kategorie `damage` (Ilyra, alle Äste). E11c3:
  * Kategorie `summon` (Morgra, alle Äste) mit Feldkonflikt. E11c4a: Kategorie `move` (Vex, R-16.6), gemeinsam mit
- * `summon` geplant (Feldkonflikt über beide); der verzögerte Auslöser `onFrontWinOfChosen` (Beute) folgt in E11c4b.
+ * `summon` geplant (Feldkonflikt über beide). E11c4b: verzögerter Auslöser `onFrontWinOfChosen` (Beute).
  */
 import type { ActionTarget, ArenaHex } from "./actions";
 import { compareRowCol, neighbors } from "./hex";
@@ -251,6 +251,17 @@ function shadowStep(state: GameState, unit: Unit, hex: ArenaHex, cardId: string)
 }
 
 /**
+ * E11c4b (Vex' „Beute“, F46): merkt den Auslöser `onFrontWinOfChosen` für die gültigen gewählten Einheiten vor,
+ * auch wenn ihre Bewegung scheitert (R-1.9). Er wirkt nach den Kämpfen (`runFrontWinEffects` in `aftermath.ts`)
+ * und verfällt beim Aufräumen.
+ */
+function armFrontWinTrigger(state: GameState, player: PlayerIndex, leaderId: string, chosen: readonly Unit[], effects: readonly Effect[]): void {
+  const unitIds = chosen.map((u) => u.id);
+  getPlayer(state, player).chosenFrontWinTrigger = { leaderId, unitIds: [...unitIds], effects: JSON.parse(JSON.stringify(effects)) as Effect[] };
+  emit(state, { type: "leader_trigger_armed", player, leaderId, trigger: "onFrontWinOfChosen", unitIds });
+}
+
+/**
  * Kategorie `summon` und `move` (R-8.2; Morgra E11c3, Vex E11c4). Gleichzeitig: Erst werden für alle Fähigkeiten
  * der Kategorie die Felder bestimmt (Beschwörungen nach `summonPlacements`, Bewegungen nach `plannedMoves`); will
  * mehr als eine Fähigkeit dasselbe freie Feld belegen, scheitern dort alle (`leader_ability_hex_conflict`),
@@ -309,6 +320,7 @@ function resolveSummonAndMoveAbilities(state: GameState, data: GameData, queue: 
       if (e.op === "summon") return kept.some((s) => s.effect === e && s.places.length > 0);
       if (e.op === "move") return moving.length > 0;
       if ((e.op === "buff" || e.op === "grantKeyword") && e.target === "chosenUnits") return chosen.length > 0;
+      if (e.op === "onFrontWinOfChosen") return chosen.length > 0;
       return false;
     });
     if (!hits) {
@@ -330,6 +342,8 @@ function resolveSummonAndMoveAbilities(state: GameState, data: GameData, queue: 
         for (const unit of chosen) addRoundBuff(state, unit, effect.stat, fixedAmount(effect.amount), duration, leader.id);
       } else if (effect.op === "grantKeyword" && effect.target === "chosenUnits") {
         for (const unit of chosen) addRoundKeyword(state, unit, effect.keyword, leader.id);
+      } else if (effect.op === "onFrontWinOfChosen" && chosen.length > 0) {
+        armFrontWinTrigger(state, player, leader.id, chosen, effect.effects);
       }
     }
   }

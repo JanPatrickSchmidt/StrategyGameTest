@@ -182,7 +182,7 @@ describe("E11c4a: Vex' Schattenschritt – Kategorie move (R-8.2, R-16.6)", () =
       }
     });
 
-    it("R-16.6: „Beute“ bewegt die Einheit auf allen Stufen (die Beute selbst folgt in E11c4b)", () => {
+    it("R-16.6: „Beute“ bewegt die Einheit auf allen Stufen (die Beute selbst: vexLoot.test.ts)", () => {
       for (const level of [2, 3, 4] as const) {
         const state = emptyBoard();
         const id = placeUnit(state, VEX, front("right", 2, 1));
