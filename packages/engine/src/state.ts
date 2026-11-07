@@ -442,6 +442,13 @@ export type GameEventPayload =
   | { type: "center_held"; player: PlayerIndex; streak: number; gold: number; cards: number; power: number }
   /** Machtpunkte gewonnen; `power` = neuer Stand. */
   | { type: "power_gained"; player: PlayerIndex; amount: number; power: number }
+  /** R-13.1: Einheit eines ausgeschiedenen Spielers verlässt das Spiel. */
+  | { type: "unit_removed"; player: PlayerIndex; unitId: UnitId; reason: "eliminated" }
+  /**
+   * R-13.1, R-13.2: Spieler scheidet nach der Kampfauswertung aus. `lifeBefore` = Leben vor dem Schaden der
+   * Kampfauswertung dieser Runde, `placement` = Platzierung (geteilt bei Gleichstand).
+   */
+  | { type: "player_eliminated"; player: PlayerIndex; life: number; lifeBefore: number; power: number; placement: number }
   /** R-9.1, R-9.7: Ergebnis des Mittelkampfs (auch ohne Simulation); `holder` = Halter der Mitte. */
   | {
       type: "center_resolved";

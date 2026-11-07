@@ -3,8 +3,8 @@
  *
  * E12a: Durchbruch-Schaden und Grundschaden an den Fronten (R-10.1, R-10.5) sowie die Beute bei leerer
  * Front (R-10.2, Gold sofort in die Schatzkammer nach R-10.3). E12b: Halteserie und Belohnung der Mitte
- * (R-10.4). E12c: Schwung und Trotz (R-10.6) und Anführer-XP für überlebte Kämpfe (R-10.8). Das Ausscheiden
- * folgt in E12d.
+ * (R-10.4). E12c: Schwung und Trotz (R-10.6) und Anführer-XP für überlebte Kämpfe (R-10.8). E12d: Ausscheiden
+ * und Platzierung (R-13.1, R-13.2); die Nachbarn berechnet R-2.2 danach aus dem aktiven Ring neu.
  */
 import type { ConfigData, GameData } from "./data";
 import { gainLeaderXp } from "./aftermath";
@@ -188,12 +188,69 @@ export function grantLeaderFightXp(state: GameState, data: GameData): void {
 }
 
 /**
+ * R-13.2: Platzierungen der Spieler, die in derselben Runde ausscheiden. Besser platziert ist, wer vor dem
+ * Schaden dieser Runde mehr Leben hatte, dann wer mehr Machtpunkte hat; sonst teilen sie sich die Platzierung
+ * (beide bekommen die bessere Zahl, die nächste wird übersprungen). `remaining` = Spieler, die nicht ausscheiden;
+ * sie sind alle besser platziert, die Ausscheidenden belegen also die Plätze ab `remaining + 1`.
+ */
+export function eliminationPlacements(
+  eliminated: readonly { player: PlayerIndex; lifeBefore: number; power: number }[],
+  remaining: number,
+): Map<PlayerIndex, number> {
+  const placements = new Map<PlayerIndex, number>();
+  for (const e of eliminated) {
+    const better = eliminated.filter(
+      (o) => o.lifeBefore > e.lifeBefore || (o.lifeBefore === e.lifeBefore && o.power > e.power),
+    ).length;
+    placements.set(e.player, remaining + 1 + better);
+  }
+  return placements;
+}
+
+/**
+ * R-13.1, R-13.2: Nach der Kampfauswertung scheiden alle aktiven Spieler mit Leben ≤ 0 aus. Ihre Einheiten
+ * (auch der Anführer) verlassen das Spiel, ihr Sitz bleibt leer; Nachbarn und Paarungen ergeben sich danach aus
+ * dem aktiven Ring (R-2.2). `lifeBefore` = Leben je Spieler vor dem Schaden dieser Kampfauswertung (Index =
+ * Spielerindex). Ereignisse je Spieler (nach Spielerindex): `unit_removed` je Einheit, dann `player_eliminated`.
+ */
+export function eliminatePlayers(state: GameState, lifeBefore: readonly number[]): void {
+  const active = state.players.filter((p) => !p.eliminated);
+  const out = active.filter((p) => p.life <= 0);
+  if (out.length === 0) return;
+  const placements = eliminationPlacements(
+    out.map((p) => ({ player: p.index, lifeBefore: lifeBefore[p.index] ?? p.life, power: p.power })),
+    active.length - out.length,
+  );
+  for (const p of out) {
+    for (const unit of Object.values(state.units)) {
+      if (unit.owner !== p.index) continue;
+      delete state.units[unit.id];
+      emit(state, { type: "unit_removed", player: p.index, unitId: unit.id, reason: "eliminated" });
+    }
+    delete p.chosenFrontWinTrigger;
+    const placement = placements.get(p.index) ?? active.length;
+    p.eliminated = true;
+    p.placement = placement;
+    emit(state, {
+      type: "player_eliminated",
+      player: p.index,
+      life: p.life,
+      lifeBefore: lifeBefore[p.index] ?? p.life,
+      power: p.power,
+      placement,
+    });
+  }
+}
+
+/**
  * R-10: Kampfauswertung in der Phase `combatResolution`: Fronten (E12a), Mitte (E12b), Schwung und Trotz,
- * Anführer-XP (E12c).
+ * Anführer-XP (E12c), danach Ausscheiden und Platzierung (E12d, R-13.1, R-13.2).
  */
 export function runCombatResolution(state: GameState, data: GameData): void {
+  const lifeBefore = state.players.map((p) => p.life);
   resolveFrontDamage(state, data);
   resolveCenterHold(state, data);
   resolveStreaks(state, data);
   grantLeaderFightXp(state, data);
+  eliminatePlayers(state, lifeBefore);
 }
