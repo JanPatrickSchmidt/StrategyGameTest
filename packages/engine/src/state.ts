@@ -427,6 +427,18 @@ export type GameEventPayload =
    * R-10.4: Halter der Mitte mit neuer Serienlänge und fälliger Belohnung (`cards` = Bonuskarten beim
    * nächsten Nachziehen, R-12.6). Gold folgt als `gold_gained`, Machtpunkte als `power_gained`.
    */
+  /** R-10.6: Ausgang der Runde nach den Frontkämpfen und die Serien danach. */
+  | {
+      type: "round_outcome";
+      player: PlayerIndex;
+      outcome: "won" | "lost" | "neutral";
+      wins: number;
+      losses: number;
+      winStreak: number;
+      lossStreak: number;
+    }
+  /** R-10.6: Bonusgold der laufenden Serie (danach `gold_gained`, R-10.3). */
+  | { type: "streak_gold"; player: PlayerIndex; kind: "win" | "loss"; streak: number; amount: number }
   | { type: "center_held"; player: PlayerIndex; streak: number; gold: number; cards: number; power: number }
   /** Machtpunkte gewonnen; `power` = neuer Stand. */
   | { type: "power_gained"; player: PlayerIndex; amount: number; power: number }

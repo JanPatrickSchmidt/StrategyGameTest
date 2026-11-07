@@ -164,7 +164,7 @@ describe("R-10.4: Mitte im Rundenablauf", () => {
     expect(heldIn(state, 4)).toEqual([expect.objectContaining({ streak: 4, gold: 2, cards: 1, power: 1 })]);
   });
 
-  it("R-10.4: Reihenfolge der Ereignisse: center_held, gold_gained, power_gained", () => {
+  it("R-10.4: Reihenfolge der Ereignisse: center_held, gold_gained, power_gained (danach Schwung/Trotz, R-10.6)", () => {
     const state = emptyBoard();
     placeUnit(state, 0, center(2));
     getPlayer(state, 0).centerStreak = 2;
@@ -173,7 +173,7 @@ describe("R-10.4: Mitte im Rundenablauf", () => {
       .filter((e) => e.round === 1 && e.phase === "combatResolution")
       .map((e) => e.type)
       .filter((t) => t !== "phase_started");
-    expect(types).toEqual(["center_held", "gold_gained", "power_gained"]);
+    expect(types).toEqual(["center_held", "gold_gained", "power_gained", "round_outcome", "round_outcome", "round_outcome", "round_outcome"]);
   });
 
   it("R-10.4: hält ein anderer Spieler die Mitte, fällt die Serie auf 0", () => {

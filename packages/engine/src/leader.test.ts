@@ -16,6 +16,18 @@ function eventsOf<T extends GameEvent["type"]>(state: GameState, type: T): Extra
   return state.log.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 }
 
+/**
+ * Stellt alle Anführer in die Reserve: Dann kämpft niemand, und es gibt nur die XP am Rundenende (R-12.3),
+ * keine XP für überlebte Kämpfe (R-10.8, eigene Tests in `streaks.test.ts`).
+ */
+function leadersToReserve(state: GameState): GameState {
+  for (const p of state.players) {
+    const leader = state.units[p.leader.unitId];
+    if (leader) leader.location = { zone: "reserve", slot: 0 };
+  }
+  return state;
+}
+
 /** Spielt eine leere Runde bis zur Planung der nächsten Runde. */
 function playEmptyRound(state: GameState): void {
   expect(advance(state, data).waitingFor).toBe("planning");
@@ -62,7 +74,7 @@ describe("R-12.3: Anführer-XP am Rundenende", () => {
   });
 
   it("R-12.3: im Rundenlauf in der Phase cleanup", () => {
-    const state = newGame();
+    const state = leadersToReserve(newGame());
     playEmptyRound(state);
     expect(state.players.map((p) => p.leader.xp)).toEqual([2, 2, 2, 2]);
     for (const e of eventsOf(state, "leader_xp_gained")) expect(e).toEqual(expect.objectContaining({ round: 1, phase: "cleanup" }));
@@ -104,7 +116,7 @@ describe("R-6.6: Anführer-Aufstieg zu Rundenbeginn", () => {
   });
 
   it("R-6.6/R-12.3: im Rundenlauf – nach 2 Runden 4 XP, Aufstieg auf Stufe 2 zu Beginn von Runde 3", () => {
-    const state = newGame();
+    const state = leadersToReserve(newGame());
     playEmptyRound(state); // Runde 1 → 2 XP
     expect(getPlayer(state, 0).leader.level).toBe(1);
     playEmptyRound(state); // Runde 2 → 4 XP; Runde 3 beginnt: Aufstieg

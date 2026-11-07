@@ -3,9 +3,11 @@
  *
  * E12a: Durchbruch-Schaden und Grundschaden an den Fronten (R-10.1, R-10.5) sowie die Beute bei leerer
  * Front (R-10.2, Gold sofort in die Schatzkammer nach R-10.3). E12b: Halteserie und Belohnung der Mitte
- * (R-10.4). Schwung/Trotz und Anführer-XP folgen in E12c, das Ausscheiden in E12d.
+ * (R-10.4). E12c: Schwung und Trotz (R-10.6) und Anführer-XP für überlebte Kämpfe (R-10.8). Das Ausscheiden
+ * folgt in E12d.
  */
 import type { ConfigData, GameData } from "./data";
+import { gainLeaderXp } from "./aftermath";
 import { gainGoldAfterPlanning } from "./economy";
 import { emit, type FrontResult, type GameState, getPlayer, type PlayerIndex } from "./state";
 
@@ -102,8 +104,96 @@ export function resolveCenterHold(state: GameState, data: GameData): void {
   }
 }
 
-/** R-10: Kampfauswertung in der Phase `combatResolution`: Fronten (E12a), dann die Mitte (E12b). */
+/** R-10.6: Ausgang einer Runde für einen Spieler nach seinen Frontkämpfen. */
+export type RoundOutcome = "won" | "lost" | "neutral";
+
+/**
+ * R-10.6: Zählt gewonnene und verlorene Frontkämpfe eines Spielers in dieser Runde. Unentschieden und Fronten
+ * ohne Kampf zählen weder als Sieg noch als Niederlage; die Mitte zählt nicht. Mehr Siege als Niederlagen =
+ * gewonnen, umgekehrt verloren, sonst neutral.
+ */
+export function roundOutcome(state: GameState, player: PlayerIndex): { outcome: RoundOutcome; wins: number; losses: number } {
+  let wins = 0;
+  let losses = 0;
+  for (const result of state.frontResults) {
+    if (result.round !== state.round) continue;
+    if (result.winner === player) wins += 1;
+    else if (frontLoser(result) === player) losses += 1;
+  }
+  const outcome: RoundOutcome = wins > losses ? "won" : losses > wins ? "lost" : "neutral";
+  return { outcome, wins, losses };
+}
+
+/**
+ * R-10.6: Bonusgold für eine Serie der Länge `streak` = `gold` des Eintrags aus `config.streakGold` mit dem
+ * größten `minStreak` ≤ `streak`, sonst 0. Gilt für Sieges- und Niederlagenserien gleich.
+ */
+export function streakGold(config: ConfigData, streak: number): number {
+  let best: ConfigData["streakGold"][number] | null = null;
+  for (const entry of config.streakGold) {
+    if (entry.minStreak <= streak && (best === null || entry.minStreak > best.minStreak)) best = entry;
+  }
+  return best?.gold ?? 0;
+}
+
+/**
+ * R-10.6: Schwung und Trotz. Für jeden nicht ausgeschiedenen Spieler (Prioritätsreihenfolge spielt keine Rolle,
+ * es wird nach Spielerindex abgehandelt): gewonnene Runde → Siegesserie +1, Niederlagenserie 0; verlorene Runde
+ * umgekehrt; neutrale Runde → beide Serien unverändert. Danach Bonusgold für die laufende Serie sofort in die
+ * Schatzkammer (R-10.3), auch in einer neutralen Runde (F49, R-1.9). Ereignisse `round_outcome`, dann
+ * `streak_gold` und `gold_gained`.
+ */
+export function resolveStreaks(state: GameState, data: GameData): void {
+  for (const p of state.players) {
+    if (p.eliminated) continue;
+    const { outcome, wins, losses } = roundOutcome(state, p.index);
+    if (outcome === "won") {
+      p.winStreak += 1;
+      p.lossStreak = 0;
+    } else if (outcome === "lost") {
+      p.lossStreak += 1;
+      p.winStreak = 0;
+    }
+    emit(state, { type: "round_outcome", player: p.index, outcome, wins, losses, winStreak: p.winStreak, lossStreak: p.lossStreak });
+    const kind = p.winStreak > 0 ? "win" : p.lossStreak > 0 ? "loss" : null;
+    if (kind === null) continue;
+    const streak = kind === "win" ? p.winStreak : p.lossStreak;
+    const amount = streakGold(data.config, streak);
+    if (amount <= 0) continue;
+    emit(state, { type: "streak_gold", player: p.index, kind, streak, amount });
+    gainGoldAfterPlanning(state, p.index, amount);
+  }
+}
+
+/**
+ * R-10.8: Ein Anführer, der in dieser Runde an einem Kampf teilgenommen und ihn überlebt hat, erhält
+ * `config.leader.xpPerSurvivedFight` XP (je solchem Kampf; ein Anführer steht in einer Runde nur in einer
+ * Arena). Wie bei den Einheiten-XP (F36) zählen auch die leere Front und die unbestrittene Mitte (F49).
+ * Reihenfolge: Fronten wie im Ergebnis, dann die Mitte. Ereignis `leader_xp_gained`.
+ */
+export function grantLeaderFightXp(state: GameState, data: GameData): void {
+  const amount = data.config.leader.xpPerSurvivedFight;
+  if (amount <= 0) return;
+  const fights: { participants: readonly number[]; survivors: readonly number[] }[] = state.frontResults.filter(
+    (r) => r.round === state.round,
+  );
+  if (state.centerResult !== null && state.centerResult.round === state.round) fights.push(state.centerResult);
+  for (const fight of fights) {
+    for (const p of state.players) {
+      if (p.eliminated) continue;
+      const id = p.leader.unitId;
+      if (fight.participants.includes(id) && fight.survivors.includes(id)) gainLeaderXp(state, p.index, amount);
+    }
+  }
+}
+
+/**
+ * R-10: Kampfauswertung in der Phase `combatResolution`: Fronten (E12a), Mitte (E12b), Schwung und Trotz,
+ * Anführer-XP (E12c).
+ */
 export function runCombatResolution(state: GameState, data: GameData): void {
   resolveFrontDamage(state, data);
   resolveCenterHold(state, data);
+  resolveStreaks(state, data);
+  grantLeaderFightXp(state, data);
 }
