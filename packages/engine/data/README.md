@@ -12,6 +12,7 @@ Die Engine liest alle Spielinhalte und Zahlen aus diesen Dateien. Code enthält 
 
 ## Konfiguration (Auszug)
 
+- `center.rewards` (R-10.4, E12b): Liste `{ streak, gold, cards, power }`. Der Halter der Mitte (Ergebnis des Mittelkampfs dieser Runde) erhöht `centerStreak` um 1, alle anderen Spieler (ohne Halter alle) setzen ihre Serie auf 0 (Ereignis `center_streak_reset`). Es gilt der Eintrag mit der größten `streak` ≤ der neuen Serienlänge (der längste gilt für alle längeren Serien; Reihenfolge der Liste egal). `gold` geht sofort in die Schatzkammer (R-10.3, `gold_gained`), `cards` erhöht `nextRound.cards` (Bonuskarten beim Nachziehen am Rundenende, R-12.6), `power` gibt sofort Machtpunkte (`power_gained`). Ausgewertet in `src/resolution.ts` direkt nach dem Front-Schaden (E12a); Ereignis `center_held` mit Serie und Belohnung.
 - `leaderStart` (R-4.4): Startfeld des Anführers beim Aufbau, z. B. `{ "zone": "left", "cell": { "col": 2, "row": 1 } }`. `zone` ist `left` oder `right` (nur Frontzonen haben Felder); `cell` sind Offset-Koordinaten der Frontzone und müssen innerhalb von `arenas.frontZone` liegen (Spalte 0 bis `cols − 1`, Zeile 0 bis `rows − 1`). Gilt für alle Spieler.
 
 ## Karten

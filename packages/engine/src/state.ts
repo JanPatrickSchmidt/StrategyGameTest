@@ -421,6 +421,15 @@ export type GameEventPayload =
     }
   /** R-10.2: Beute des Siegers einer leeren Front (danach `gold_gained`, R-10.3). */
   | { type: "front_loot"; arena: string; player: PlayerIndex; amount: number }
+  /** R-10.4: Halteserie eines Spielers, der die Mitte nicht hält, fällt von `previous` auf 0. */
+  | { type: "center_streak_reset"; player: PlayerIndex; previous: number }
+  /**
+   * R-10.4: Halter der Mitte mit neuer Serienlänge und fälliger Belohnung (`cards` = Bonuskarten beim
+   * nächsten Nachziehen, R-12.6). Gold folgt als `gold_gained`, Machtpunkte als `power_gained`.
+   */
+  | { type: "center_held"; player: PlayerIndex; streak: number; gold: number; cards: number; power: number }
+  /** Machtpunkte gewonnen; `power` = neuer Stand. */
+  | { type: "power_gained"; player: PlayerIndex; amount: number; power: number }
   /** R-9.1, R-9.7: Ergebnis des Mittelkampfs (auch ohne Simulation); `holder` = Halter der Mitte. */
   | {
       type: "center_resolved";
