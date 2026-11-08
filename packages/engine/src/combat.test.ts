@@ -475,3 +475,44 @@ describe("Ganzer Kampf mit echten Daten", () => {
     expect(res.survivors.every((id) => id <= 4)).toBe(true);
   });
 });
+
+describe("Anführer im Kampf (R-16.5)", () => {
+  function leaderInit(id: number, team: number, leaderId: string, pos: OffsetCoord): FighterInit {
+    return fighterFromData(data, { id, team, kind: "leader", sourceId: leaderId, stars: 1, pos });
+  }
+
+  it("R-16.5: Vex (Schurke) springt in Tick 0 auf ein freies Feld neben dem entferntesten Gegner (R-9.4)", () => {
+    expect(data.leaders.get("vex")?.class).toBe("rogue");
+    const start = { col: 2, row: 1 };
+    const near = { col: 2, row: 3 };
+    const far = { col: 2, row: 5 };
+    const vex = leaderInit(1, 0, "vex", start);
+    expect(vex.behavior).toBe("backlineJump");
+    const sim = createCombat(config, SIZE, [vex, fighter(2, 1, near), fighter(3, 1, far)]);
+    stepCombat(sim);
+    const expected = neighbors(far, SIZE).sort(compareRowCol)[0];
+    expect(ofType(sim.events, "combat_unit_jumped")).toEqual([
+      { type: "combat_unit_jumped", tick: 0, unit: 1, from: start, to: expected, target: 3 },
+    ]);
+    expect(get(sim, 1).targetId).toBe(3);
+    expect(hexDistance(get(sim, 1).pos, far)).toBe(1);
+  });
+
+  it("R-16.5: Brann (Krieger) wird bei gleichem Hex-Abstand als Ziel gewählt (Abstand −1, R-9.4)", () => {
+    expect(data.leaders.get("brann")?.class).toBe("warrior");
+    const me = { col: 2, row: 0 };
+    const a = { col: 1, row: 1 };
+    const b = { col: 2, row: 1 };
+    expect(hexDistance(me, a)).toBe(hexDistance(me, b));
+    // Brann hat mehr Leben und die größere ID: ohne Krieger-Regel würde Einheit 2 gewählt.
+    const brann = leaderInit(3, 1, "brann", b);
+    expect(brann.behavior).toBe("taunt");
+    const sim = createCombat(config, SIZE, [fighter(1, 0, me), fighter(2, 1, a, { hp: 1 }), brann]);
+    expect(bestTarget(sim, get(sim, 1))?.id).toBe(3);
+
+    // Einen Schritt weiter weg gilt Brann als gleich nah (2 − 1 = 1); dann entscheiden die Lebenspunkte.
+    const far = cellAtDistance(me, 2, [a]);
+    const sim2 = createCombat(config, SIZE, [fighter(1, 0, me), fighter(2, 1, a, { hp: 999 }), leaderInit(3, 1, "brann", far)]);
+    expect(bestTarget(sim2, get(sim2, 1))?.id).toBe(3);
+  });
+});
