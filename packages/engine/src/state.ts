@@ -196,13 +196,18 @@ export type GameEventPayload =
   | { type: "phase_started"; phase: Phase }
   | { type: "round_started" }
   /** Öffentlich nur, dass eingereicht wurde; der Inhalt bleibt bis zum Aufdecken privat (R-18.2). */
-  | { type: "planning_submitted"; player: PlayerIndex; actionCount: number }
+  | { type: "planning_submitted"; player: PlayerIndex }
+  /** R-18.2: Eingangsbestätigung mit Aktionszahl, nur für den Besitzer sichtbar. */
+  | { type: "planning_received"; player: PlayerIndex; actionCount: number }
   /** R-7.9: keine Planung eingereicht → leere Abschnitte. */
   | { type: "submission_timeout"; player: PlayerIndex }
   | { type: "submission_rejected"; player: PlayerIndex; reason: RejectionReason }
-  /** R-8.1: Planungen werden öffentlich. */
+  /**
+   * R-8.1: die Planung wird wirksam. Nur für den Besitzer sichtbar (R-18.2): Sie nennt auch abgelehnte
+   * Aktionen und damit Handkarten. Öffentlich werden Brett, Zauber und Anführer-Fähigkeit über die Einzelereignisse.
+   */
   | { type: "planning_revealed"; player: PlayerIndex; planning: Planning }
-  /** R-7: ungültige Aktion wird übersprungen. `index` = Position im Abschnitt `section`. */
+  /** R-7: ungültige Aktion wird übersprungen. `index` = Position im Abschnitt `section`. Nur für den Besitzer sichtbar (R-18.2, F52). */
   | {
       type: "action_rejected";
       player: PlayerIndex;

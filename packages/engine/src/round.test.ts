@@ -3,7 +3,7 @@ import type { Planning, PlanningAction } from "./actions";
 import { loadGameData } from "./data";
 import { activePlayersInPriority, advance, priorityOrder, ROUND_PHASES, submitPlanning } from "./round";
 import { createGame, defaultLeaders } from "./setup";
-import { type GameState, getPlayer, PLAYER_INDICES } from "./state";
+import { type GameEvent, type GameState, getPlayer, PLAYER_INDICES, type PlayerIndex } from "./state";
 
 const data = loadGameData();
 const newGame = (seed = 3): GameState => createGame(data, defaultLeaders(data), seed);
@@ -21,6 +21,21 @@ function playEmptyRound(state: GameState): void {
   expect(advance(state, data).waitingFor).toBe("planning");
   submitAllEmpty(state);
   expect(advance(state, data).waitingFor).toBe("planning");
+}
+
+function visibleFor(e: GameEvent, viewer: PlayerIndex): boolean {
+  return e.visibleTo === undefined || e.visibleTo.includes(viewer);
+}
+
+/** Kommt die Karteninstanz in einem Feld `cardInstanceId`/`cardInstanceIds` vor (beliebig tief)? */
+function mentionsCardInstance(value: unknown, id: number): boolean {
+  if (Array.isArray(value)) return value.some((v) => mentionsCardInstance(v, id));
+  if (typeof value !== "object" || value === null) return false;
+  return Object.entries(value).some(([key, v]) => {
+    if (key === "cardInstanceId" && v === id) return true;
+    if (key === "cardInstanceIds" && Array.isArray(v) && v.includes(id)) return true;
+    return mentionsCardInstance(v, id);
+  });
 }
 
 function phasesOfRound(state: GameState, round: number): string[] {
@@ -209,7 +224,7 @@ describe("R-7: Eingaben und Ablehnungen", () => {
     expect(submitPlanning(state, 1, { play: [], shop: [] } as unknown as Planning)).toEqual({ ok: false, reason: "malformed" });
     expect(submitPlanning(state, 1, null as unknown as Planning)).toEqual({ ok: false, reason: "malformed" });
     expect(submitPlanning(state, 1, {})).toEqual({ ok: true });
-    expect(state.log.filter((e) => e.type === "planning_submitted").map((e) => (e.type === "planning_submitted" ? e.actionCount : -1))).toEqual([1, 0]);
+    expect(state.log.filter((e) => e.type === "planning_received").map((e) => (e.type === "planning_received" ? e.actionCount : -1))).toEqual([1, 0]);
   });
 
   it("unbekannte Spieler und kaputte Planungen werden abgelehnt", () => {
@@ -234,14 +249,18 @@ describe("R-7: Eingaben und Ablehnungen", () => {
     ]);
   });
 
-  it("R-18.2/R-8.1: Planungsinhalt ist bis zum Aufdecken privat, dann öffentlich", () => {
+  it("R-18.2/R-8.1: Planungsinhalt ist privat; beim Aufdecken erfährt nur der Besitzer seine ganze Planung", () => {
     const state = newGame();
     advance(state, data);
     const actions: PlanningAction[] = [{ type: "withdraw", amount: 2 }];
     submitPlanning(state, 0, { play: actions });
     const submitted = state.log.filter((e) => e.type === "planning_submitted");
-    expect(submitted).toEqual([expect.objectContaining({ player: 0, actionCount: 1 })]);
-    expect(JSON.stringify(submitted)).not.toContain("withdraw");
+    expect(submitted).toEqual([expect.objectContaining({ player: 0 })]);
+    expect(submitted[0]?.visibleTo).toBeUndefined();
+    expect(submitted[0]).not.toHaveProperty("actionCount");
+    const received = state.log.filter((e) => e.type === "planning_received");
+    expect(received).toEqual([expect.objectContaining({ player: 0, actionCount: 1, visibleTo: [0] })]);
+    expect(JSON.stringify([...submitted, ...received])).not.toContain("withdraw");
     // Spätere Änderung am übergebenen Array wirkt nicht auf die eingereichte Planung.
     actions.push({ type: "withdraw", amount: 5 });
     for (const p of [1, 2, 3] as const) submitPlanning(state, p, EMPTY);
@@ -251,7 +270,57 @@ describe("R-7: Eingaben und Ablehnungen", () => {
     expect(revealed[0]).toEqual(
       expect.objectContaining({ phase: "reveal", planning: { play: [{ type: "withdraw", amount: 2 }], buy: [], position: [] } }),
     );
-    expect(revealed[0]?.visibleTo).toBeUndefined();
+    expect(revealed.map((e) => e.visibleTo)).toEqual([[0], [1], [2], [3]]);
+  });
+
+  it("R-18.2: vor dem Aufdecken sieht kein Spieler die Aktionszahl eines anderen", () => {
+    const state = newGame();
+    advance(state, data);
+    submitPlanning(state, 0, { play: [{ type: "withdraw", amount: 1 }, { type: "withdraw", amount: 1 }], buy: [{ type: "buy", cardId: "silver" }] });
+    submitPlanning(state, 1, { position: [{ type: "withdraw", amount: 1 }] });
+    submitPlanning(state, 2, EMPTY);
+    expect(state.phase).toBe("planning");
+    for (const viewer of PLAYER_INDICES) {
+      const seen = state.log.filter((e) => visibleFor(e, viewer) && "actionCount" in e);
+      for (const e of seen) expect(e.type === "planning_received" && e.player === viewer).toBe(true);
+      // Ein Spieler sieht für jeden anderen nur, dass er eingereicht hat.
+      const others = state.log.filter((e) => visibleFor(e, viewer) && "player" in e && e.player !== viewer && e.round === 1 && e.phase === "planning");
+      expect(others.map((e) => e.type).every((t) => t === "planning_submitted")).toBe(true);
+    }
+    expect(state.log.filter((e) => e.type === "planning_received").map((e) => e.visibleTo)).toEqual([[0], [1], [2]]);
+  });
+
+  it("R-18.2: eine abgelehnte playUnit-Aktion verrät die Handkarte keinem anderen Spieler", () => {
+    const state = newGame();
+    advance(state, data);
+    const p = getPlayer(state, 0);
+    p.roundGold = 0;
+    p.treasury = 0;
+    const card = state.nextCardInstanceId++;
+    state.cards[card] = { id: card, cardId: "bounty_hunter", owner: 0 };
+    p.hand.push(card);
+    submitPlanning(state, 0, {
+      play: [{ type: "playUnit", cardInstanceId: card, to: { zone: "left", cell: { col: 0, row: 0 } } }],
+      position: [{ type: "setSpell", cardInstanceId: card, slot: "pre", target: { kind: "none" } }],
+    });
+    for (const pl of [1, 2, 3] as const) submitPlanning(state, pl, EMPTY);
+    advance(state, data);
+    const rejected = state.log.filter((e) => e.type === "action_rejected");
+    expect(rejected.map((e) => (e.type === "action_rejected" ? [e.section, e.reason] : null))).toEqual([
+      ["play", "notEnoughGold"],
+      ["position", "wrongSection"],
+    ]);
+    expect(rejected.every((e) => e.visibleTo?.length === 1 && e.visibleTo[0] === 0)).toBe(true);
+    // Bis die Hand am Rundenende öffentlich abgelegt wird (R-12.1, R-18.1), bleibt die Karte privat.
+    const discardIndex = state.log.findIndex((e) => e.type === "hand_discarded" && e.player === 0);
+    expect(discardIndex).toBeGreaterThan(-1);
+    const beforeDiscard = state.log.slice(0, discardIndex);
+    for (const viewer of [1, 2, 3] as const) {
+      const seen = beforeDiscard.filter((e) => visibleFor(e, viewer));
+      expect(seen.filter((e) => mentionsCardInstance(e, card))).toEqual([]);
+    }
+    // Der Besitzer selbst sieht seine Planung und die Ablehnung.
+    expect(beforeDiscard.some((e) => visibleFor(e, 0) && e.type === "planning_revealed" && mentionsCardInstance(e, card))).toBe(true);
   });
 
   it("R-11: unbekannte Käufe werden abgelehnt und gemeldet", () => {

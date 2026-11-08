@@ -131,7 +131,8 @@ export function submitPlanning(state: GameState, player: number, planning: Parti
   if (!normalized) return reject(state, player, "malformed");
   state.pendingPlanning[player] = normalized;
   const actionCount = PLANNING_SECTIONS.reduce((n, section) => n + normalized[section].length, 0);
-  emit(state, { type: "planning_submitted", player: player as PlayerIndex, actionCount });
+  emit(state, { type: "planning_submitted", player: player as PlayerIndex });
+  emit(state, { type: "planning_received", player: player as PlayerIndex, actionCount }, [player as PlayerIndex]);
   return { ok: true };
 }
 
@@ -261,7 +262,7 @@ function runRoundStart(state: GameState, data: GameData): void {
 function runReveal(state: GameState, data: GameData): void {
   const order = activePlayersInPriority(state);
   for (const p of order) {
-    emit(state, { type: "planning_revealed", player: p, planning: structuredCopy(state.pendingPlanning[p] ?? emptyPlanning()) });
+    emit(state, { type: "planning_revealed", player: p, planning: structuredCopy(state.pendingPlanning[p] ?? emptyPlanning()) }, [p]);
   }
   const purchases = startPurchases(state);
   for (const p of order) {
@@ -272,7 +273,7 @@ function runReveal(state: GameState, data: GameData): void {
         if (reason) {
           const type = (action as { type?: unknown } | null)?.type;
           const name = typeof type === "string" ? type : String(type);
-          emit(state, { type: "action_rejected", player: p, section, index, action: name, reason });
+          emit(state, { type: "action_rejected", player: p, section, index, action: name, reason }, [p]);
         }
         // R-7.8: Verschmelzen nach jeder Aktion, also schon beim Ausspielen.
         mergeUnits(state, p);
