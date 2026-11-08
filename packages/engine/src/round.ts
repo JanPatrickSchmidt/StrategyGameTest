@@ -42,6 +42,7 @@ import {
   startPurchases,
   withdraw,
 } from "./economy";
+import { checkEndOfRoundVictory, checkPowerVictory } from "./victory";
 import { emit, type GameState, getPlayer, type Phase, PLAYER_INDICES, type PlayerIndex } from "./state";
 
 /** R-5: Reihenfolge der Phasen einer Runde. */
@@ -195,6 +196,11 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
       case "combatResolution":
         // R-10 (E12a): Durchbruch, Grundschaden, Beute.
         runCombatResolution(state, data);
+        // R-13.3 (E12e): Machtsieg sofort am Ende der Kampfauswertung.
+        if (checkPowerVictory(state, data)) {
+          enterPhase(state, "gameOver");
+          break;
+        }
         enterPhase(state, "postCombatSpells");
         break;
       case "postCombatSpells":
@@ -207,8 +213,8 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         enterPhase(state, "victoryCheck");
         break;
       case "victoryCheck":
-        // R-13 folgt in E12.
-        if (isGameOver(state)) {
+        // R-13.4, R-13.5 (E12e): letzter Spieler, alle ausgeschieden, Rundenlimit.
+        if (checkEndOfRoundVictory(state, data)) {
           enterPhase(state, "gameOver");
           break;
         }
@@ -221,11 +227,6 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         return { waitingFor: "nothing", gameOver: true };
     }
   }
-}
-
-/** Vorläufig: Die Partie endet, wenn höchstens ein aktiver Spieler übrig ist (R-13.4). */
-function isGameOver(state: GameState): boolean {
-  return state.players.filter((p) => !p.eliminated).length <= 1;
 }
 
 /**

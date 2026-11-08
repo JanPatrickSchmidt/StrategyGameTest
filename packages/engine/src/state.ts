@@ -449,6 +449,11 @@ export type GameEventPayload =
    * Kampfauswertung dieser Runde, `placement` = Platzierung (geteilt bei Gleichstand).
    */
   | { type: "player_eliminated"; player: PlayerIndex; life: number; lifeBefore: number; power: number; placement: number }
+  /**
+   * R-13.3–R-13.5: Die Partie ist zu Ende. `reason` = Siegart, `winners` = Spieler auf Platz 1 (bei geteiltem
+   * Platz mehrere), `placements` = Platzierung aller Spieler nach Spielerindex.
+   */
+  | { type: "game_ended"; reason: VictoryReason; winners: PlayerIndex[]; placements: number[] }
   /** R-9.1, R-9.7: Ergebnis des Mittelkampfs (auch ohne Simulation); `holder` = Halter der Mitte. */
   | {
       type: "center_resolved";
@@ -530,6 +535,20 @@ export interface CenterResult {
   wounded: UnitId[];
 }
 
+/**
+ * R-13: Siegart. `power` = Machtsieg (R-13.3), `lastPlayer` = letzter Spieler (R-13.4), `allEliminated` = alle
+ * übrigen Spieler scheiden in derselben Runde aus (Platz 1 nach R-13.2), `roundLimit` = Rundenlimit (R-13.5).
+ */
+export type VictoryReason = "power" | "lastPlayer" | "allEliminated" | "roundLimit";
+
+/** R-13: Ergebnis einer beendeten Partie. */
+export interface GameResult {
+  reason: VictoryReason;
+  /** Runde, in der die Partie endete. */
+  round: number;
+  winners: PlayerIndex[];
+}
+
 export interface GameState {
   seed: number;
   rng: RngState;
@@ -549,6 +568,8 @@ export interface GameState {
   frontResults: FrontResult[];
   /** Ergebnis des Mittelkampfs der zuletzt gespielten Kampfphase (R-9, für E12); `null` vor dem ersten Kampf. */
   centerResult: CenterResult | null;
+  /** R-13: Ergebnis der Partie; `null`, solange sie läuft. */
+  result: GameResult | null;
   /** Ereignisprotokoll (R-19), in Entstehungsreihenfolge. */
   log: GameEvent[];
 }

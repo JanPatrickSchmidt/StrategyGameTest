@@ -87,7 +87,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
             - [x] **E11c4a Schattenschritt** (2026-11-05) – `move` nach `participatingFreeHex` (R-16.6, gegnerische Hälfte und Mitte), Rückkehr nach dem Aufräumen, Feldkonflikt mit Beschwörungen, Äste „Doppelt“ und „Hinterhalt“ (Buffs, Erstschlag), „Beute“ ohne Gold. Abnahme: Tests zu R-16.6 und je Ast und Stufe.
             - [x] **E11c4b Beute (`onFrontWinOfChosen`)** (2026-11-06) – verzögerter Auslöser: gewinnt die Front, in der eine gewählte Einheit kämpft, bekommt Vex 2/3/4 Gold sofort in die Schatzkammer (R-10.3). Abnahme: Tests je Stufe, auch Mitte/verlorene Front/leere Front.
     - [x] **E11d Abnahme E11** (2026-11-06) – Test jedes Asts jedes Anführers auf jeder Stufe (R-16.2), R-16.3 und R-16.4 im Rundenablauf. Abnahme: wie E11.
-- [ ] **E12 Auswertung, Ausscheiden, Sieg**
+- [x] **E12 Auswertung, Ausscheiden, Sieg** (2026-11-08)
   - Durchbruch, leere Front, Grundschaden, Mitte, Schwung und Trotz, XP (R-10), Ausscheiden, Platzierung, Machtsieg, Rundenlimit (R-13), Nachbarn neu berechnen (R-2).
   - Abnahme: Tests zu allen genannten Regeln.
   - Aufgeteilt (2026-11-06):
@@ -95,7 +95,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
     - [x] **E12b Mitte (R-10.4, R-12.6)** (2026-11-07) – Halteserie, Gold (R-10.3), +1 Karte beim Nachziehen am Rundenende, sofort +1 Machtpunkt ab Serie 3; Belohnungen aus `config.center.rewards`. Abnahme: Tests je Serienlänge, Serie zurücksetzen bei anderen Spielern und ohne Halter.
     - [x] **E12c Schwung und Trotz, Anführer-XP (R-10.6, R-10.8)** (2026-11-07) – Runde gewonnen/verloren/neutral nach Frontkämpfen, Serien, Bonusgold aus `config.streakGold`; Anführer +1 XP bei Teilnahme und Überleben. Abnahme: Tests zu R-10.6 (alle Stufen, neutrale Runde) und R-10.8.
     - [x] **E12d Ausscheiden und Platzierung (R-13.1, R-13.2, R-2.2–R-2.5)** (2026-11-07) – nach der Kampfauswertung ausscheiden (Einheiten verlassen das Spiel), Platzierung mit Gleichständen (Leben vor dem Schaden der Runde, Machtpunkte, geteilt), Nachbarn im nächsten Kampf neu. Abnahme: Tests zu R-13.1, R-13.2 und Paarungen nach dem Ausscheiden.
-    - [ ] **E12e Sieg und Rundenlimit (R-13.3–R-13.5), Abnahme E12** – Machtsieg am Ende der Kampfauswertung, letzter Spieler, Rundenlimit aus `config.maxRounds`, Platzierung der übrigen; Partie über mehrere Runden bis zum Ende. Abnahme: wie E12.
+    - [x] **E12e Sieg und Rundenlimit (R-13.3–R-13.5), Abnahme E12** (2026-11-08) – Machtsieg am Ende der Kampfauswertung, letzter Spieler, Rundenlimit aus `config.maxRounds`, Platzierung der übrigen; Partie über mehrere Runden bis zum Ende. Abnahme: wie E12.
 - [ ] **E13 Sichtfilter und Ereignisprotokoll**
   - Sicht pro Spieler (R-18), gefilterte Ereignisse (R-19).
   - Abnahme: Test, dass keine fremde Hand und keine fremde Deckreihenfolge in einer Sicht oder einem gefilterten Ereignis auftaucht.

@@ -109,6 +109,7 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
     nextUnitId: 1,
     frontResults: [],
     centerResult: null,
+    result: null,
     log: [],
   };
   emit(state, { type: "game_created", seed, leaders: [...leaders] });

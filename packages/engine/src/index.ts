@@ -23,3 +23,4 @@ export * from "./resonance";
 export * from "./resonanceRound";
 export * from "./unitXp";
 export * from "./resolution";
+export * from "./victory";
