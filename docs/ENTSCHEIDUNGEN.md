@@ -4,6 +4,7 @@ Getroffene Entscheidungen mit Datum und Begründung. Neueste oben.
 
 | Datum | Entscheidung | Begründung | Von |
 | --- | --- | --- | --- |
+| 2026-11-09 | E13: Der Seed steht nicht mehr im Ereignis `game_created` (nur noch in `GameState.seed`); die Spielersicht (`playerView`) enthält weder Seed noch Zufallsgenerator-Zustand. | Mit Seed bzw. Generator-Zustand und der deterministischen Engine ließe sich jede Mischung und damit jede fremde Hand vorausberechnen (R-18.2, R-18.3). Wiederholungen nutzen weiter `state.seed`. | Claude |
 | 2026-10-31 | Entwicklungsabhängigkeit **esbuild** für die Kampf-Sandbox (D1): bündelt Engine und Oberfläche in eine einzige HTML-Datei (`npm run build:sandbox`). Die gebaute Datei `docs/play/sandbox.html` wird mit eingecheckt, weil GitHub Pages direkt aus `/docs` ausliefert. | Ein Werkzeug ohne weitere Abhängigkeiten, schnell, kann TypeScript und JSON direkt; spart eine eigene Build-Kette | Claude |
 | 2026-10-29 | F19: Blutzoll nur, wenn danach mindestens 1 Leben bleibt. F20: Opfer dürfen auch aus der Reserve kommen und verwundet sein. F21: Genesung durch Reserve, wenn die Einheit einen ganzen Kampf in der Reserve verbracht hat (Stichzeitpunkt Kampfbeginn statt Aufdecken). Spec R-6.5 und R-14.6 angepasst. | F19/F20 entsprachen der Standardlösung; F21 verschiebt den Stichzeitpunkt auf den Kampf | Jan |
 | 2026-10-29 | F18: Keine Obergrenze für die Zahl der Käufe, Limit nur pro Stapel (R-11.3); Satz in R-11.2 angepasst. | Klarstellung, Umsetzung war schon so | Jan |

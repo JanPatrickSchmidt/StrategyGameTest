@@ -112,7 +112,8 @@ export function createGame(data: GameData, leaders: readonly string[] = defaultL
     result: null,
     log: [],
   };
-  emit(state, { type: "game_created", seed, leaders: [...leaders] });
+  // R-18.3: der Seed steht nicht im Protokoll – mit ihm ließe sich jede Mischung vorausberechnen (bleibt in `state.seed`).
+  emit(state, { type: "game_created", leaders: [...leaders] });
   emit(state, { type: "supply_created", piles: { ...state.supply } });
 
   for (const index of PLAYER_INDICES) {

@@ -192,7 +192,8 @@ interface EventBase {
 }
 
 export type GameEventPayload =
-  | { type: "game_created"; seed: number; leaders: string[] }
+  /** Öffentlich; ohne Seed (R-18.3, E13), der Seed steht nur in `GameState.seed`. */
+  | { type: "game_created"; leaders: string[] }
   | { type: "phase_started"; phase: Phase }
   | { type: "round_started" }
   /** Öffentlich nur, dass eingereicht wurde; der Inhalt bleibt bis zum Aufdecken privat (R-18.2). */
