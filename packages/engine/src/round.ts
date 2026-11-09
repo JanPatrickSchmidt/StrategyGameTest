@@ -43,7 +43,7 @@ import {
   withdraw,
 } from "./economy";
 import { checkEndOfRoundVictory, checkPowerVictory } from "./victory";
-import { emit, type GameState, getPlayer, type Phase, PLAYER_INDICES, type PlayerIndex } from "./state";
+import { cloneState, emit, type GameState, getPlayer, type Phase, PLAYER_INDICES, type PlayerIndex, type UnitId } from "./state";
 
 /** R-5: Reihenfolge der Phasen einer Runde. */
 export const ROUND_PHASES: readonly Phase[] = [
@@ -284,6 +284,67 @@ function runReveal(state: GameState, data: GameData): void {
   }
   finishPurchases(purchases, state);
   state.pendingPlanning = PLAYER_INDICES.map(() => null);
+}
+
+/**
+ * Planungsentwurf für Bots und Werkzeuge (E14): führt die Aktionen **eines** Spielers auf einer Kopie des
+ * Zustands genau so aus wie das Aufdecken (R-8.1): Abschnitt für Abschnitt (`play`, `buy`, `position`, R-5),
+ * Verschmelzen nach jeder Aktion (R-7.8), automatische Astwahl nach `play` (R-7.7). Angenommene Aktionen
+ * landen in `planning`, abgelehnte nicht. Der Originalzustand bleibt unverändert, der Entwurf erzeugt
+ * keine Ereignisse im Spiel.
+ *
+ * Planungen anderer Spieler kennt der Entwurf nicht; beim echten Aufdecken kann eine Aktion daher noch
+ * scheitern, z. B. wenn sich Zustände durch frühere Spieler ändern. Heute betrifft die Ausführung anderer
+ * Spieler die eigene Planung nicht (Käufe richten sich nach dem Stand zu Rundenbeginn, R-11.3).
+ */
+export class PlanningDraft {
+  /** Arbeitskopie nach den bisher angenommenen Aktionen (ohne Ereignisprotokoll der Partie). */
+  readonly state: GameState;
+  readonly planning: Planning = emptyPlanning();
+  /**
+   * Einheiten, die es zu Beginn der Planung schon gab. Nur sie dürfen Bots in Aktionen nennen: IDs neu
+   * ausgespielter Einheiten vergibt erst das Aufdecken, und Spieler mit früherer Priorität (R-1.7)
+   * bekommen ihre IDs zuerst – die ID aus dem Entwurf wäre dann eine andere.
+   */
+  readonly initialUnitIds: ReadonlySet<UnitId>;
+  private readonly purchases: PurchaseSession;
+  private sectionIndex = 0;
+
+  constructor(
+    source: GameState,
+    private readonly data: GameData,
+    readonly player: PlayerIndex,
+  ) {
+    if (source.phase !== "planning") throw new RangeError(`Planungsentwurf nur in der Planungsphase, nicht in ${source.phase}`);
+    if (getPlayer(source, player).eliminated) throw new RangeError(`Spieler ${player} ist ausgeschieden`);
+    this.state = cloneState({ ...source, log: [] });
+    this.initialUnitIds = new Set(Object.values(source.units).map((u) => u.id));
+    this.purchases = startPurchases(this.state);
+  }
+
+  /** Aktueller Abschnitt; frühere Abschnitte sind abgeschlossen. */
+  get section(): PlanningSection {
+    return PLANNING_SECTIONS[this.sectionIndex] as PlanningSection;
+  }
+
+  /** Schließt Abschnitte ab, bis `section` erreicht ist (wie beim Aufdecken: nach `play` die Astwahl). */
+  enter(section: PlanningSection): void {
+    const target = PLANNING_SECTIONS.indexOf(section);
+    if (target < this.sectionIndex) throw new RangeError(`Abschnitt ${section} ist schon abgeschlossen`);
+    while (this.sectionIndex < target) {
+      if (this.section === "play") autoChooseBranch(this.state, this.data, this.player);
+      this.sectionIndex += 1;
+    }
+  }
+
+  /** Versucht eine Aktion im aktuellen Abschnitt. `null` = angenommen und übernommen, sonst der Ablehnungsgrund. */
+  attempt(action: PlanningAction): RejectionReason | null {
+    const reason = executePlanningAction(this.state, this.data, this.purchases, this.player, this.section, action);
+    if (reason) return reason;
+    mergeUnits(this.state, this.player);
+    this.planning[this.section].push(structuredCopy(action));
+    return null;
+  }
 }
 
 /** Führt eine Planungsaktion aus. Gibt bei Ablehnung den Grund zurück (R-7). */
