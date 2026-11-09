@@ -27,5 +27,6 @@ export * from "./victory";
 export * from "./view";
 export * from "./bots/bot";
 export * from "./bots/candidates";
+export * from "./bots/greedyBot";
 export * from "./bots/randomBot";
 export * from "./bots/runner";

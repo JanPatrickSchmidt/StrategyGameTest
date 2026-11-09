@@ -102,11 +102,11 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
 - [x] **E13 Sichtfilter und Ereignisprotokoll** (2026-11-09)
   - Sicht pro Spieler (R-18), gefilterte Ereignisse (R-19).
   - Abnahme: Test, dass keine fremde Hand und keine fremde Deckreihenfolge in einer Sicht oder einem gefilterten Ereignis auftaucht.
-- [ ] **E14 Bots**
+- [x] **E14 Bots** (2026-11-09)
   - `RandomBot` (nur gültige Aktionen, zufällig über den Seed) und `GreedyBot` (einfache Heuristik: Board füllen, stärkste bezahlbare Karte kaufen, Zauber auf Feld mit den meisten Gegnern, Mitte besetzen wenn Board stark genug).
   - Abnahme: Beide Bots spielen vollständige Partien.
   - [x] **E14a** Planungsentwurf (`PlanningDraft`), Kandidaten-Erzeugung, `RandomBot`, `playBotGame`; RandomBots spielen vollständige Partien ohne abgelehnte Aktionen.
-  - [ ] **E14b** `GreedyBot` (Heuristik wie oben) auf Basis von `PlanningDraft`; Abnahme: vier GreedyBots und gemischte Tische spielen vollständige Partien, GreedyBot gewinnt gegen RandomBots klar häufiger als ein Viertel der Partien.
+  - [x] **E14b** (2026-11-09) `GreedyBot` (Heuristik wie oben) auf Basis von `PlanningDraft`; Abnahme: vier GreedyBots und gemischte Tische spielen vollständige Partien, GreedyBot gewinnt gegen RandomBots klar häufiger als ein Viertel der Partien.
 - [ ] **E15 Simulations-Werkzeug**
   - `tools/sim`: N Partien mit Seeds, Bot-Mix und Anführer-Verteilung; Ausgabe als CSV (eine Zeile pro Partie und Spieler: Seed, Anführer, Bot, Platz, Siegart, Runden, Leben am Ende, Machtpunkte, Käufe nach Karte).
   - Abnahme: `npm run sim -- --games 100` erzeugt eine gültige CSV.
