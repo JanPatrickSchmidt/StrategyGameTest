@@ -5,6 +5,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { loadGameData } from "@game/engine";
+import { checkAcceptance, formatAcceptance } from "./acceptance";
 import { parseArgs, runSimulation, summarize, toCsv } from "./sim";
 
 function main(argv: readonly string[]): number {
@@ -13,7 +14,7 @@ function main(argv: readonly string[]): number {
     options = parseArgs(argv);
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-    process.stderr.write("Aufruf: npm run sim -- --games 100 [--seed 1] [--bots greedy|random|greedy,random,random,random] [--leaders random|rotate|brann,ilyra,vex,morgra] [--no-rotate-bots] [--out datei.csv|-]\n");
+    process.stderr.write("Aufruf: npm run sim -- --games 100 [--seed 1] [--bots greedy|random|greedy,random,random,random] [--leaders random|rotate|brann,ilyra,vex,morgra] [--no-rotate-bots] [--check] [--out datei.csv|-]\n");
     return 2;
   }
   const data = loadGameData();
@@ -30,6 +31,11 @@ function main(argv: readonly string[]): number {
     process.stderr.write(`CSV geschrieben: ${out}\n`);
   }
   process.stderr.write(`${summarize(result)}\nDauer: ${seconds.toFixed(1)} s\n`);
+  if (options.check) {
+    const report = checkAcceptance(data, result, options.games);
+    process.stderr.write(`${formatAcceptance(report, data.config.maxRounds)}\n`);
+    if (!report.passed) return 1;
+  }
   return result.failures.length > 0 ? 1 : 0;
 }
 

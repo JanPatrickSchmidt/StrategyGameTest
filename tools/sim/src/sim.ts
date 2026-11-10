@@ -66,8 +66,21 @@ export interface SimFailure {
   message: string;
 }
 
+/** Kennzahlen einer beendeten Partie für die Abnahme (E16a); nicht Teil der CSV. */
+export interface SimGame {
+  game: number;
+  seed: number;
+  rounds: number;
+  victory: string;
+  /** Phase am Ende (erwartet `gameOver`). */
+  phase: string;
+  /** Anzahl `action_rejected`-Ereignisse; Bots planen mit `PlanningDraft`, erwartet 0. */
+  rejectedActions: number;
+}
+
 export interface SimResult {
   rows: SimRow[];
+  games: SimGame[];
   failures: SimFailure[];
   /** Spalten der Käufe in fester Reihenfolge (Datenreihenfolge). */
   buyColumns: string[];
@@ -148,6 +161,7 @@ export function runSimulation(data: GameData, options: SimOptions): SimResult {
   if (!Number.isInteger(options.games) || options.games < 1) throw new RangeError(`--games muss eine positive ganze Zahl sein, erhalten: ${options.games}`);
   const buyColumns = buyableCardIds(data);
   const rows: SimRow[] = [];
+  const games: SimGame[] = [];
   const failures: SimFailure[] = [];
   for (let game = 0; game < options.games; game++) {
     const seed = (options.seed + game) >>> 0;
@@ -157,11 +171,19 @@ export function runSimulation(data: GameData, options: SimOptions): SimResult {
       const bots = kinds.map((kind, p) => createBot(kind, botSeed(seed, p)));
       const state = playBotGame(data, { seed, bots, leaders });
       rows.push(...rowsOfGame(state, data, game, leaders, kinds, buyColumns));
+      games.push({
+        game,
+        seed,
+        rounds: state.result?.round ?? state.round,
+        victory: state.result?.reason ?? "none",
+        phase: state.phase,
+        rejectedActions: state.log.filter((e) => e.type === "action_rejected").length,
+      });
     } catch (error) {
       failures.push({ game, seed, message: error instanceof Error ? error.message : String(error) });
     }
   }
-  return { rows, failures, buyColumns };
+  return { rows, games, failures, buyColumns };
 }
 
 const BASE_COLUMNS = ["game", "seed", "player", "leader", "bot", "placement", "winner", "victory", "rounds", "life", "power", "eliminated", "buys_total"] as const;
@@ -222,14 +244,16 @@ export function summarize(result: SimResult): string {
   return lines.join("\n");
 }
 
-/** Befehlszeile: `--games N --seed S --bots greedy[,random,…] --leaders random|rotate|id,id,id,id --no-rotate-bots --out DATEI`. */
+/** Befehlszeile: `--games N --seed S --bots greedy[,random,…] --leaders random|rotate|id,id,id,id --no-rotate-bots --check --out DATEI`. */
 export interface CliOptions extends SimOptions {
   /** Zieldatei; `-` = Standardausgabe; `null` = Vorgabe des CLI. */
   out: string | null;
+  /** Abnahmeprüfung (E16a) ausführen; Exit-Code 1 bei Befund. */
+  check: boolean;
 }
 
 export function parseArgs(args: readonly string[]): CliOptions {
-  const options: CliOptions = { ...DEFAULT_SIM_OPTIONS, bots: [...DEFAULT_SIM_OPTIONS.bots], out: null };
+  const options: CliOptions = { ...DEFAULT_SIM_OPTIONS, bots: [...DEFAULT_SIM_OPTIONS.bots], out: null, check: false };
   const value = (i: number, flag: string): string => {
     const v = args[i + 1];
     if (v === undefined || v.startsWith("--")) throw new Error(`${flag} braucht einen Wert`);
@@ -265,6 +289,9 @@ export function parseArgs(args: readonly string[]): CliOptions {
       }
       case "--no-rotate-bots":
         options.rotateBots = false;
+        break;
+      case "--check":
+        options.check = true;
         break;
       case "--out":
         options.out = value(i, flag);

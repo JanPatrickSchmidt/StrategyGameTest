@@ -114,6 +114,9 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
   - 1.000 Partien (GreedyBot) laufen ohne Ausnahme und enden innerhalb des Rundenlimits.
   - Ein unabhängiger Prüf-Agent vergleicht Spec und Tests und listet Regeln ohne Test; Lücken werden geschlossen.
   - Eintrag in `docs/STATUS.md`: „M2 abgenommen“.
+  - [x] **E16a** (2026-11-10) Abnahme-Lauf: `npm run accept:m2` spielt 1.000 GreedyBot-Partien (Seeds 1–1000) und prüft je Partie: keine Ausnahme, Ende in `gameOver` mit Ergebnis, höchstens `config.maxRounds` Runden (R-13.5), keine abgelehnten Aktionen, gültige Plätze (R-13.2); Exit-Code 1 bei Befund. Abnahme: Lauf bestanden, Tests „E16a: …“.
+  - [ ] **E16b** Prüf-Agent: unabhängiger Abgleich Spec (`docs/spec/regeln-prototyp.md`) gegen Tests; Bericht `docs/berichte/` mit allen Regel-Kennungen ohne Test. Abnahme: Bericht liegt vor, Lücken als Teilaufgaben E16c… im Backlog.
+  - [ ] **E16c** Lücken aus E16b schließen (ggf. weiter aufteilen), danach Eintrag „M2 abgenommen“ in `docs/STATUS.md`.
 
 ## Meilenstein M3: Spielbarer Prototyp im Browser
 

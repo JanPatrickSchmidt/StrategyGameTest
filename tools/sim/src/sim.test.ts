@@ -122,10 +122,10 @@ describe("Simulations-Werkzeug (E15)", () => {
   });
 
   it("E15: Befehlszeile", () => {
-    expect(parseArgs([])).toEqual({ ...DEFAULT_SIM_OPTIONS, out: null });
+    expect(parseArgs([])).toEqual({ ...DEFAULT_SIM_OPTIONS, out: null, check: false });
     expect(parseArgs(["--games", "100"]).games).toBe(100);
     const parsed = parseArgs(["--games", "5", "--seed", "0", "--bots", "greedy,random,random,random", "--leaders", "rotate", "--no-rotate-bots", "--out", "-"]);
-    expect(parsed).toEqual({ games: 5, seed: 0, bots: ["greedy", "random", "random", "random"], leaders: { kind: "rotate" }, rotateBots: false, out: "-" });
+    expect(parsed).toEqual({ games: 5, seed: 0, bots: ["greedy", "random", "random", "random"], leaders: { kind: "rotate" }, rotateBots: false, out: "-", check: false });
     expect(parseArgs(["--leaders", "brann,ilyra,vex,morgra"]).leaders).toEqual({ kind: "fixed", leaders: ["brann", "ilyra", "vex", "morgra"] });
     expect(() => parseArgs(["--games"])).toThrow(/Wert/);
     expect(() => parseArgs(["--games", "0"])).toThrow(/mindestens 1/);
