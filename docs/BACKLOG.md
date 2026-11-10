@@ -107,7 +107,7 @@ Ziel: Die komplette Spiellogik des Mini-Sets läuft ohne Grafik, getestet, mit B
   - Abnahme: Beide Bots spielen vollständige Partien.
   - [x] **E14a** Planungsentwurf (`PlanningDraft`), Kandidaten-Erzeugung, `RandomBot`, `playBotGame`; RandomBots spielen vollständige Partien ohne abgelehnte Aktionen.
   - [x] **E14b** (2026-11-09) `GreedyBot` (Heuristik wie oben) auf Basis von `PlanningDraft`; Abnahme: vier GreedyBots und gemischte Tische spielen vollständige Partien, GreedyBot gewinnt gegen RandomBots klar häufiger als ein Viertel der Partien.
-- [ ] **E15 Simulations-Werkzeug**
+- [x] **E15 Simulations-Werkzeug** (2026-11-10)
   - `tools/sim`: N Partien mit Seeds, Bot-Mix und Anführer-Verteilung; Ausgabe als CSV (eine Zeile pro Partie und Spieler: Seed, Anführer, Bot, Platz, Siegart, Runden, Leben am Ende, Machtpunkte, Käufe nach Karte).
   - Abnahme: `npm run sim -- --games 100` erzeugt eine gültige CSV.
 - [ ] **E16 Abnahme M2**

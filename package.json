@@ -3,12 +3,14 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "tools/*"
   ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/sandbox --noEmit",
-    "build:sandbox": "node apps/sandbox/build.mjs"
+    "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/sandbox --noEmit && tsc -p tools/sim --noEmit",
+    "build:sandbox": "node apps/sandbox/build.mjs",
+    "sim": "node tools/sim/run.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

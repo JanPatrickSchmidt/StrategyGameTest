@@ -62,6 +62,7 @@ Lieber eine Aufgabe sauber abschließen als drei anfangen.
 | `npm test` | Alle Tests |
 | `npm run typecheck` | TypeScript-Prüfung |
 | `npm run build:sandbox` | Kampf-Sandbox nach `docs/play/sandbox.html` bauen (nach Änderungen an Engine, Daten oder `apps/sandbox` neu bauen und mit committen) |
+| `npm run sim -- --games 100` | Simulation mit Bots (`tools/sim`), CSV nach `sim-output/`; Optionen siehe `docs/STATUS.md` „Zum Ausprobieren“ |
 
 ## Commits
 
