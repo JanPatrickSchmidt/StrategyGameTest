@@ -285,6 +285,20 @@ export type GameEventPayload =
   | { type: "life_paid"; player: PlayerIndex; amount: number; life: number; cardInstanceId: CardInstanceId }
   /** R-14.6 `sacrifice`: eigene Karten-Einheit geopfert, ihre Karteninstanzen gehen auf den Ablagestapel. */
   | { type: "unit_sacrificed"; player: PlayerIndex; unitId: UnitId; cardInstanceIds: CardInstanceId[]; from: UnitLocation }
+  /**
+   * R-14.5 (E16c2a): Einheit vernichtet – sie verlässt das Brett (bzw. die Reserve), ihre Karteninstanzen gehen auf
+   * den Ablagestapel ihres Besitzers (leer bei Tokens, die einfach verschwinden). `cardId` = auslösende Karte.
+   */
+  | {
+      type: "unit_destroyed";
+      player: PlayerIndex;
+      unitId: UnitId;
+      kind: UnitKind;
+      sourceId: string;
+      cardInstanceIds: CardInstanceId[];
+      from: UnitLocation;
+      cardId: string;
+    }
   /** R-6.5: verwundete Einheit ist nach einer ganzen Runde in der Reserve genesen. */
   | { type: "unit_recovered"; player: PlayerIndex; unitId: UnitId }
   /** R-7.2 */

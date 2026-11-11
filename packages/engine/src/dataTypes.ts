@@ -108,6 +108,7 @@ export type Effect =
     }
   | { op: "move"; target: UnitTarget }
   | { op: "wound"; target: UnitTarget }
+  | { op: "destroy"; target: UnitTarget }
   | { op: "gainGold"; amount: Amount; when: Timing; to?: GoldDestination }
   | { op: "stealGold"; amount: Amount; from: PlayerTarget }
   | { op: "giveCurse"; to: PlayerTarget }

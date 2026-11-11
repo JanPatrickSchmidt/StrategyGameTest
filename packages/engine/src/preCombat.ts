@@ -20,8 +20,8 @@ import { neighborsOf } from "./seating";
 import { arenaSize, isArenaHexFree, locationArenaHex, sameArenaHex, unitArenaHex } from "./targets";
 import { fightsThisRound } from "./wounds";
 
-/** Effekt-Bausteine, die Vorkampf-Zauber wirken lassen (E11b1–E11b4). */
-export const PRE_COMBAT_OPS: ReadonlySet<Effect["op"]> = new Set(["shield", "buff", "grantKeyword", "wound", "damage", "summon"]);
+/** Effekt-Bausteine, die Vorkampf-Zauber wirken lassen (E11b1–E11b4, `destroy` seit E16c2a). */
+export const PRE_COMBAT_OPS: ReadonlySet<Effect["op"]> = new Set(["shield", "buff", "grantKeyword", "wound", "damage", "summon", "destroy"]);
 
 /**
  * R-8.5: gültige Einheiten eines Vorkampf-Zaubers zum Zeitpunkt der Auflösung. `hexAlly` = die eigene, nicht

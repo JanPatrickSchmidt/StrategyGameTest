@@ -400,13 +400,13 @@ function hasOp(effects: readonly Effect[], ...ops: string[]): boolean {
 }
 
 /**
- * Feldziele: Schaden und Verwunden auf das Feld mit den meisten Gegnern (Nachbarfelder zählen schwächer), nur
+ * Feldziele: Schaden, Verwunden und Vernichten auf das Feld mit den meisten Gegnern (Nachbarfelder zählen schwächer), nur
  * wenn dort ein Gegner steht; Schutz und Schlüsselwörter auf das Feld der stärksten eigenen Einheit.
  */
 function hexTargets(draft: PlanningDraft, data: GameData, effects: readonly Effect[]): ActionTarget[] {
   const { enemy, own } = hexOccupancy(draft, data);
   const hexes = allArenaHexes(data.config);
-  if (hasOp(effects, "damage", "wound")) {
+  if (hasOp(effects, "damage", "wound", "destroy")) {
     const scored = hexes
       .map((hex) => {
         const size = arenaSize(data.config, hex.arena);

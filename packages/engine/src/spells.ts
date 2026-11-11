@@ -29,6 +29,7 @@ import {
 } from "./preCombat";
 import { checkTarget } from "./targets";
 import { emit, type GameState, getCard, getPlayer, type PlayerIndex, type SetSpell, type SpellSlot, type Unit } from "./state";
+import { destroyUnit } from "./destroy";
 import { woundUnit } from "./wounds";
 
 const SLOTS: readonly SpellSlot[] = ["pre", "post"];
@@ -217,6 +218,10 @@ function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedS
   const targetsOf = (effect: SpellCard["effects"][number]): Unit[] => {
     if (!("target" in effect) || typeof effect.target !== "string") return [];
     if (effect.op === "damage") return preCombatEnemies(state, data.config, player, spell, effect.target);
+    if (effect.op === "destroy") {
+      // R-14.5 (E16c2a): Karten-Einheiten und Tokens; Anführer erst mit E16c2b (Rückkehr in der übernächsten Planung).
+      return preCombatEnemies(state, data.config, player, spell, effect.target).filter((u) => u.kind !== "leader");
+    }
     if (effect.op === "wound") {
       return preCombatEnemies(state, data.config, player, spell, effect.target).filter((u) => !isUnwoundable(state, data, u));
     }
@@ -258,6 +263,10 @@ function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedS
         case "wound":
           // R-14.4: sofort verwundet, nimmt an keinem Kampf dieser Runde teil.
           woundUnit(state, unit, { cardId: card.id });
+          break;
+        case "destroy":
+          // R-14.5: verlässt sofort das Brett; schon von einem früheren Effekt vernichtet → nichts mehr zu tun.
+          if (state.units[unit.id] !== undefined) destroyUnit(state, unit, card.id);
           break;
         case "damage": {
           // R-14.2, R-9.5: wie Fähigkeitsschaden durch Schild und Panzer; bleibt für alle Kämpfe der Runde.

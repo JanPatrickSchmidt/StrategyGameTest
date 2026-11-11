@@ -260,6 +260,7 @@ const EFFECT_PARAMS: Record<EffectOp, Fields> = {
   },
   move: { target: req(unitTarget) },
   wound: { target: req(unitTarget) },
+  destroy: { target: req(unitTarget) },
   gainGold: { amount: req(amount), when: req(oneOf(TIMINGS, "when")), to: opt(oneOf(GOLD_DESTINATIONS, "to")) },
   stealGold: { amount: req(amount), from: req(oneOf(PLAYER_TARGETS, "from")) },
   giveCurse: { to: req(oneOf(PLAYER_TARGETS, "to")) },
