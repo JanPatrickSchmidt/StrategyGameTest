@@ -165,6 +165,8 @@ export const REJECTION_REASONS = [
   "tooManyTargets",
   /** R-7.4: Anführer-Fähigkeit wurde in dieser Runde schon gewählt. */
   "abilityAlreadySet",
+  /** R-14.5: der Anführer ist vernichtet und in dieser Planung nicht verfügbar. */
+  "leaderUnavailable",
   /** R-7.7: Anführer hat Stufe 2 noch nicht erreicht oder schon einen Ast. */
   "branchNotAvailable",
   /** R-7.7: Ast gehört nicht zu diesem Anführer. */

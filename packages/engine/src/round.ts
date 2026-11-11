@@ -22,6 +22,7 @@ import {
 import type { GameData } from "./data";
 import { healUnit, markReserveRest, moveUnit, playUnit, recoverInReserve } from "./board";
 import { drawEndOfRound } from "./deck";
+import { returnDestroyedLeaders } from "./destroy";
 import { resolveLeaderAbilities, returnShadowSteppedUnits } from "./leaderAbilities";
 import { autoChooseBranch, chooseBranch, grantRoundXp, levelUpLeaders, resetLeaderAbilities, setLeaderAbility } from "./leader";
 import { runCombatPhase } from "./center";
@@ -250,6 +251,8 @@ function runRoundStart(state: GameState, data: GameData): void {
   payInterest(state, data.config);
   payBonusInterest(state, bonusInterest);
   recoverInReserve(state);
+  // R-14.5 (E16c2b): vernichtete Anführer kehren zur übernächsten Planung zurück (nach Resonanz und Genesung).
+  returnDestroyedLeaders(state, data);
   levelUpLeaders(state, data.config);
   playResources(state, data);
 }

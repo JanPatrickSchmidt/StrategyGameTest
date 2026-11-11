@@ -109,6 +109,12 @@ export interface LeaderState {
   xp: number;
   level: 1 | 2 | 3 | 4;
   branchId: string | null;
+  /**
+   * R-14.5 (E16c2b): Der Anführer wurde vernichtet und ist nicht auf dem Brett. Er kehrt zu Beginn dieser Runde
+   * zurück (Runde der Vernichtung + 2, also zur übernächsten Planung). Bis dahin keine Anführer-Fähigkeit und
+   * keine Anführer-XP. Fehlt = Anführer ist verfügbar.
+   */
+  returnsInRound?: number;
 }
 
 /** Boni, die in der nächsten Runde fällig werden (R-6.2, R-6.3, R-10.3/4/6). */
@@ -298,6 +304,8 @@ export type GameEventPayload =
       cardInstanceIds: CardInstanceId[];
       from: UnitLocation;
       cardId: string;
+      /** Nur bei Anführern (E16c2b): Runde, zu deren Beginn er zurückkehrt. */
+      returnsInRound?: number;
     }
   /** R-6.5: verwundete Einheit ist nach einer ganzen Runde in der Reserve genesen. */
   | { type: "unit_recovered"; player: PlayerIndex; unitId: UnitId }
@@ -384,6 +392,8 @@ export type GameEventPayload =
   /** R-16.6 (E11c4): Schattenschritt – die Einheit kämpft in dieser Runde von `to` aus (Arena-Feld aus Sicht des Besitzers). */
   | { type: "unit_shadow_stepped"; player: PlayerIndex; unitId: UnitId; from: UnitLocation; to: ArenaHex; cardId: string }
   /** R-16.6 (E11c4): nach dem Aufräumen zurück auf das Ausgangsfeld (belegt: nächstes freies Feld der Zone, sonst Reserve). */
+  /** R-14.5 (E16c2b): vernichteter Anführer kehrt zu Rundenbeginn aufs Brett zurück (gleiche Einheiten-ID). */
+  | { type: "leader_returned"; player: PlayerIndex; unitId: UnitId; leaderId: string; location: UnitLocation }
   | { type: "unit_returned"; player: PlayerIndex; unitId: UnitId; from: ArenaHex; to: UnitLocation }
   /** E11c4b: Auslöser `onFrontWinOfChosen` vorgemerkt (Vex' „Beute“) für die gewählten Einheiten. */
   | { type: "leader_trigger_armed"; player: PlayerIndex; leaderId: string; trigger: "onFrontWinOfChosen"; unitIds: UnitId[] }

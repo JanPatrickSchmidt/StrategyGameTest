@@ -233,7 +233,8 @@ export class GreedyBot implements Bot {
 
   private setLeaderAbility(draft: PlanningDraft, data: GameData): void {
     const p = getPlayer(draft.state, draft.player);
-    if (p.leaderAbility !== null) return;
+    // R-14.5: vernichteter Anführer → keine Fähigkeit in dieser Planung.
+    if (p.leaderAbility !== null || p.leader.returnsInRound !== undefined) return;
     const leader = data.leaders.get(p.leader.leaderId);
     if (!leader) return;
     const params = leaderAbilityParams(leader, p.leader.level, p.leader.branchId);

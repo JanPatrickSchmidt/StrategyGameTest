@@ -112,7 +112,8 @@ export function stealGold(state: GameState, to: PlayerIndex, from: PlayerIndex, 
 export function gainLeaderXp(state: GameState, player: PlayerIndex, amount: number): void {
   if (amount <= 0) return;
   const p = getPlayer(state, player);
-  if (p.eliminated) return;
+  // R-14.5 (E16c2b): ein vernichteter Anführer sammelt keine XP, bis er zurück ist.
+  if (p.eliminated || p.leader.returnsInRound !== undefined) return;
   p.leader.xp += amount;
   emit(state, { type: "leader_xp_gained", player, amount, xp: p.leader.xp });
 }

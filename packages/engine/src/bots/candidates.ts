@@ -145,7 +145,7 @@ function positionCandidates(draft: PlanningDraft, data: GameData, rng: RngState)
     for (const to of locations) result.push({ type: "moveUnit", unitId: u.id, to });
   }
   const leader = data.leaders.get(p.leader.leaderId);
-  if (leader && p.leaderAbility === null) {
+  if (leader && p.leaderAbility === null && p.leader.returnsInRound === undefined) {
     const params = leaderAbilityParams(leader, p.leader.level, p.leader.branchId);
     for (const target of targetCandidates(draft, data, params.target, rng)) result.push({ type: "setLeaderAbility", target });
   }

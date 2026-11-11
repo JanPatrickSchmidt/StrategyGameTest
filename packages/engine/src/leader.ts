@@ -24,7 +24,8 @@ export function grantRoundXp(state: GameState, config: ConfigData): void {
   const amount = config.leader.xpPerRound;
   if (amount <= 0) return;
   for (const p of state.players) {
-    if (p.eliminated) continue;
+    // R-14.5 (E16c2b): ein vernichteter Anführer sammelt keine XP, bis er zurück ist.
+    if (p.eliminated || p.leader.returnsInRound !== undefined) continue;
     p.leader.xp += amount;
     emit(state, { type: "leader_xp_gained", player: p.index, amount, xp: p.leader.xp });
   }
@@ -108,6 +109,8 @@ export function autoChooseBranch(state: GameState, data: GameData, player: Playe
 export function setLeaderAbility(state: GameState, data: GameData, player: PlayerIndex, target: unknown): RejectionReason | null {
   const p = getPlayer(state, player);
   if (p.leaderAbility !== null) return "abilityAlreadySet";
+  // R-14.5 (E16c2b): vernichtet → in dieser Planung keine Anführer-Fähigkeit.
+  if (p.leader.returnsInRound !== undefined) return "leaderUnavailable";
   const params = leaderAbilityParams(leaderData(data, p.leader), p.leader.level, p.leader.branchId);
   const checked = checkTarget(state, data, player, params.target, params.limits, target, { allowNone: true });
   if (typeof checked === "string") return checked;

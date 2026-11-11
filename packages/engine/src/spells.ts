@@ -217,11 +217,8 @@ function resolvePreCombatSpell(state: GameState, data: GameData, queued: QueuedS
   }
   const targetsOf = (effect: SpellCard["effects"][number]): Unit[] => {
     if (!("target" in effect) || typeof effect.target !== "string") return [];
-    if (effect.op === "damage") return preCombatEnemies(state, data.config, player, spell, effect.target);
-    if (effect.op === "destroy") {
-      // R-14.5 (E16c2a): Karten-Einheiten und Tokens; Anführer erst mit E16c2b (Rückkehr in der übernächsten Planung).
-      return preCombatEnemies(state, data.config, player, spell, effect.target).filter((u) => u.kind !== "leader");
-    }
+    // R-14.5 (E16c2a/b): `destroy` trifft Karten-Einheiten, Tokens und Anführer wie Schaden.
+    if (effect.op === "damage" || effect.op === "destroy") return preCombatEnemies(state, data.config, player, spell, effect.target);
     if (effect.op === "wound") {
       return preCombatEnemies(state, data.config, player, spell, effect.target).filter((u) => !isUnwoundable(state, data, u));
     }

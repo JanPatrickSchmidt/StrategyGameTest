@@ -4,6 +4,7 @@ import { boardCount, unitAt } from "./board";
 import { parseGameData, rawGameData } from "./data";
 import { destroyUnit } from "./destroy";
 import { frontParticipants } from "./fronts";
+import { GreedyBot } from "./bots/greedyBot";
 import { advance, submitPlanning } from "./round";
 import { createGame, defaultLeaders } from "./setup";
 import { resolvePreCombatSpells } from "./spells";
@@ -188,18 +189,12 @@ describe("R-14.5 Vernichten (E16c2a, Effekt-Baustein destroy)", () => {
     expect(resolved).toEqual(expect.objectContaining({ outcome: "emptyFront", winner: 0, survivors: [own] }));
   });
 
-  it("R-14.5, R-8.5: auf ein Feld ohne gegnerische Karten-Einheit oder Token (leer oder nur Anführer) verpufft der Zauber", () => {
+  it("R-14.5, R-8.5: auf ein Feld ohne gegnerische Einheit verpufft der Zauber", () => {
     const state = emptyBoard();
-    const leaderId = getPlayer(state, 1).leader.unitId;
-    const leader = state.units[leaderId] as Unit;
-    leader.location = front("left", 0, 0);
-    setPre(state, 0, DOOM, enemyHex(state, leaderId, "right"));
     setPre(state, 0, DOOM, { kind: "hexes", hexes: [{ arena: "right", cell: { col: 4, row: 4 } }] });
     resolvePreCombatSpells(state, data);
-    expect(eventsOf(state, "spell_fizzled").map((e) => e.reason)).toEqual(["noValidTarget", "noValidTarget"]);
+    expect(eventsOf(state, "spell_fizzled").map((e) => e.reason)).toEqual(["noValidTarget"]);
     expect(eventsOf(state, "unit_destroyed")).toEqual([]);
-    // Anführer werden erst mit E16c2b vernichtet (Rückkehr in der übernächsten Planung).
-    expect(state.units[leaderId]).toBe(leader);
   });
 
   it("R-14.5: verwundete Einheiten kämpfen nicht und sind kein gültiges Ziel", () => {
@@ -225,13 +220,128 @@ describe("R-14.5 Vernichten (E16c2a, Effekt-Baustein destroy)", () => {
     expect(getPlayer(state, 1).discard.filter((id) => id === instance)).toHaveLength(1);
   });
 
-  it("R-14.5: destroyUnit weist Anführer (bis E16c2b) und Einheiten außerhalb des Bretts zurück", () => {
+  it("R-14.5: destroyUnit weist Einheiten außerhalb des Bretts zurück", () => {
     const state = emptyBoard();
-    const leader = state.units[getPlayer(state, 0).leader.unitId] as Unit;
-    expect(() => destroyUnit(state, leader, DOOM)).toThrow(RangeError);
     const id = placeUnit(state, 0, front("left", 0, 0), "recruit");
     const u = state.units[id] as Unit;
     destroyUnit(state, u, DOOM);
     expect(() => destroyUnit(state, u, DOOM)).toThrow(RangeError);
+  });
+});
+
+describe("R-14.5 vernichteter Anführer (E16c2b)", () => {
+  /** Spieler 1 stellt seinen Anführer auf Feld (2, 2) der linken Zone, Spieler 0 vernichtet ihn in Runde 1. */
+  function destroyedInRoundOne(): { state: GameState; leaderId: UnitId; from: number } {
+    const state = emptyBoard();
+    const leaderId = getPlayer(state, 1).leader.unitId;
+    (state.units[leaderId] as Unit).location = front("left", 2, 2);
+    setPre(state, 0, DOOM, enemyHex(state, leaderId, "right"));
+    const from = state.log.length;
+    for (const p of PLAYER_INDICES) submitPlanning(state, p, EMPTY);
+    advance(state, data);
+    return { state, leaderId, from };
+  }
+
+  function playEmptyRound(state: GameState, planning1: Planning = EMPTY): void {
+    for (const p of PLAYER_INDICES) submitPlanning(state, p, p === 1 ? planning1 : EMPTY);
+    advance(state, data);
+  }
+
+  it("R-14.5: ein vernichteter Anführer verlässt das Brett, kämpft nicht und kehrt erst in der übernächsten Runde zurück", () => {
+    const { state, leaderId, from } = destroyedInRoundOne();
+    expect(state.round).toBe(2);
+    expect(state.units[leaderId]).toBeUndefined();
+    expect(getPlayer(state, 1).leader.returnsInRound).toBe(3);
+    expect(eventsOf(state, "unit_destroyed", from)).toEqual([
+      expect.objectContaining({ player: 1, unitId: leaderId, kind: "leader", cardInstanceIds: [], from: front("left", 2, 2), returnsInRound: 3 }),
+    ]);
+    const front01 = eventsOf(state, "front_resolved", from).find((e) => e.arena === "front:0-1");
+    expect(front01).toEqual(expect.objectContaining({ outcome: "noFight", survivors: [] }));
+    // Zu Beginn von Runde 2 ist er noch nicht zurück.
+    expect(eventsOf(state, "leader_returned")).toEqual([]);
+  });
+
+  it("R-14.5: in der nächsten Planung keine Anführer-Fähigkeit und kein Bewegen des Anführers", () => {
+    const { state, leaderId } = destroyedInRoundOne();
+    const from = state.log.length;
+    playEmptyRound(state, {
+      play: [],
+      buy: [],
+      position: [
+        { type: "moveUnit", unitId: leaderId, to: front("left", 2, 1) },
+        { type: "setLeaderAbility", target: { kind: "none" } },
+      ],
+    });
+    const rejected = eventsOf(state, "action_rejected", from).filter((e) => e.player === 1);
+    expect(rejected.map((e) => e.reason)).toEqual(["unknownUnit", "leaderUnavailable"]);
+    expect(eventsOf(state, "leader_ability_set", from).filter((e) => e.player === 1)).toEqual([]);
+  });
+
+  it("R-14.5: solange der Anführer vernichtet ist, sammelt er keine Anführer-XP (Rundenende, Kampf, Effekte)", () => {
+    const { state } = destroyedInRoundOne();
+    const p1 = getPlayer(state, 1);
+    const xpBefore = eventsOf(state, "leader_xp_gained").filter((e) => e.player === 1 && e.round === 1);
+    expect(xpBefore).toEqual([]);
+    const xp = p1.leader.xp;
+    playEmptyRound(state);
+    expect(p1.leader.xp).toBe(xp);
+    expect(eventsOf(state, "leader_xp_gained").filter((e) => e.player === 1)).toEqual([]);
+    // Andere Anführer bekommen ihre XP wie gewohnt.
+    expect(getPlayer(state, 0).leader.xp).toBeGreaterThan(0);
+  });
+
+  it("R-14.5, R-4.4: zu Beginn der übernächsten Runde kehrt er auf sein Startfeld zurück und ist wieder verfügbar", () => {
+    const { state, leaderId } = destroyedInRoundOne();
+    playEmptyRound(state);
+    expect(state.round).toBe(3);
+    const leader = state.units[leaderId];
+    expect(leader).toEqual(expect.objectContaining({ id: leaderId, owner: 1, kind: "leader", wounded: false, location: front("left", 2, 1) }));
+    expect(getPlayer(state, 1).leader.returnsInRound).toBeUndefined();
+    expect(eventsOf(state, "leader_returned")).toEqual([
+      expect.objectContaining({ round: 3, player: 1, unitId: leaderId, location: front("left", 2, 1) }),
+    ]);
+    const from = state.log.length;
+    playEmptyRound(state, { play: [], buy: [], position: [{ type: "setLeaderAbility", target: { kind: "none" } }] });
+    expect(eventsOf(state, "action_rejected", from).filter((e) => e.player === 1)).toEqual([]);
+    expect(eventsOf(state, "leader_xp_gained", from).filter((e) => e.player === 1).length).toBeGreaterThan(0);
+  });
+
+  it("R-14.5: ist das Startfeld belegt, kehrt er auf das erste freie Feld der Zone zurück", () => {
+    const { state, leaderId } = destroyedInRoundOne();
+    placeUnit(state, 1, front("left", 2, 1), "recruit");
+    placeUnit(state, 1, front("left", 0, 0), "recruit");
+    playEmptyRound(state);
+    expect(state.units[leaderId]?.location).toEqual(front("left", 1, 0));
+  });
+
+  it("R-14.5: GreedyBot-Partien laufen mit vernichteten Anführern durch", () => {
+    for (const seed of [1, 2, 3]) {
+      const state = createGame(data, defaultLeaders(data), seed);
+      const bots = PLAYER_INDICES.map((p) => new GreedyBot(seed * 4 + p + 1));
+      let destroyed = false;
+      for (let step = 0; step < config.maxRounds + 2; step++) {
+        const result = advance(state, data);
+        if (result.waitingFor === "nothing") break;
+        if (!destroyed && state.round === 2) {
+          // Alle vier Anführer zu Beginn der Planung von Runde 2 vernichten.
+          for (const p of PLAYER_INDICES) {
+            const leader = state.units[getPlayer(state, p).leader.unitId];
+            if (leader) destroyUnit(state, leader, DOOM);
+          }
+          destroyed = true;
+        }
+        for (const p of [...result.players].sort((a, b) => a - b)) {
+          const planning = (bots[p] as GreedyBot).plan(state, data, p);
+          expect(submitPlanning(state, p, planning).ok).toBe(true);
+        }
+      }
+      expect(state.result).not.toBeNull();
+      expect(eventsOf(state, "leader_ability_set").filter((e) => e.round === 2 || e.round === 3)).toEqual([]);
+      if (state.round >= 4) {
+        const returned = eventsOf(state, "leader_returned");
+        expect(returned.every((e) => e.round === 4)).toBe(true);
+        expect(returned.length).toBeGreaterThan(0);
+      }
+    }
   });
 });
