@@ -82,6 +82,11 @@ export type AdvanceResult =
 export interface AdvanceOptions {
   /** R-7.9: Wer bis jetzt keine Planung eingereicht hat, plant leere Abschnitte. */
   timeout?: boolean;
+  /**
+   * Beobachter für Werkzeuge und Tests (E16c3, R-19.1): wird am Ende jeder Phase aufgerufen, direkt bevor die
+   * nächste beginnt, mit dem Zustand am Phasenende. Darf den Zustand nicht verändern.
+   */
+  onPhaseEnd?: (state: Readonly<GameState>, phase: Phase) => void;
 }
 
 function checkSubmission(state: GameState, player: number): RejectionReason | null {
@@ -151,14 +156,17 @@ function enterPhase(state: GameState, phase: Phase): void {
  */
 export function advance(state: GameState, data: GameData, options: AdvanceOptions = {}): AdvanceResult {
   let timeout = options.timeout === true;
+  const finish = (): void => options.onPhaseEnd?.(state, state.phase);
   for (;;) {
     switch (state.phase) {
       case "setup":
+        finish();
         enterPhase(state, "roundStart");
         break;
       case "roundStart":
         runRoundStart(state, data);
         state.pendingPlanning = PLAYER_INDICES.map(() => null);
+        finish();
         enterPhase(state, "planning");
         break;
       case "planning": {
@@ -171,21 +179,25 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
           }
         }
         timeout = false;
+        finish();
         enterPhase(state, "reveal");
         break;
       }
       case "reveal":
         runReveal(state, data);
+        finish();
         enterPhase(state, "leaderAbilities");
         break;
       case "leaderAbilities":
         // R-8.2 (E11c): Anführer-Fähigkeiten nach Kategorien.
         resolveLeaderAbilities(state, data);
+        finish();
         enterPhase(state, "preCombatSpells");
         break;
       case "preCombatSpells":
         // R-8.3 (E11b1): Vorkampf-Zauber nach Tempo und Prioritätsreihenfolge.
         resolvePreCombatSpells(state, data);
+        finish();
         enterPhase(state, "combat");
         break;
       case "combat":
@@ -193,6 +205,7 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         markReserveRest(state);
         // R-9: alle Frontkämpfe (E8b) und der Mittelkampf (E9) auf demselben Ausgangszustand.
         runCombatPhase(state, data);
+        finish();
         enterPhase(state, "combatResolution");
         break;
       case "combatResolution":
@@ -200,26 +213,32 @@ export function advance(state: GameState, data: GameData, options: AdvanceOption
         runCombatResolution(state, data);
         // R-13.3 (E12e): Machtsieg sofort am Ende der Kampfauswertung.
         if (checkPowerVictory(state, data)) {
+          finish();
           enterPhase(state, "gameOver");
           break;
         }
+        finish();
         enterPhase(state, "postCombatSpells");
         break;
       case "postCombatSpells":
         // R-8.4 (E11a): Nachkampf-Zauber nach Tempo und Prioritätsreihenfolge.
         resolvePostCombatSpells(state, data);
+        finish();
         enterPhase(state, "cleanup");
         break;
       case "cleanup":
         runCleanup(state, data);
+        finish();
         enterPhase(state, "victoryCheck");
         break;
       case "victoryCheck":
         // R-13.4, R-13.5 (E12e): letzter Spieler, alle ausgeschieden, Rundenlimit.
         if (checkEndOfRoundVictory(state, data)) {
+          finish();
           enterPhase(state, "gameOver");
           break;
         }
+        finish();
         state.round += 1;
         state.phase = "roundStart";
         emit(state, { type: "round_started" });

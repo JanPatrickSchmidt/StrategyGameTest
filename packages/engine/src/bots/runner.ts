@@ -3,7 +3,7 @@
  * Planung seines Bots (in Spielerreihenfolge), dann weiter bis zum Spielende (R-13).
  */
 import type { GameData } from "../data";
-import { advance, submitPlanning } from "../round";
+import { advance, submitPlanning, type AdvanceOptions } from "../round";
 import { createGame, defaultLeaders } from "../setup";
 import type { GameState } from "../state";
 import type { Bot } from "./bot";
@@ -13,6 +13,10 @@ export interface BotGameOptions {
   /** Ein Bot je Spieler, Index = Spieler. */
   bots: readonly Bot[];
   leaders?: readonly string[];
+  /** Beobachter am Ende jeder Phase (E16c3), wird an `advance` weitergereicht. */
+  onPhaseEnd?: AdvanceOptions["onPhaseEnd"];
+  /** Beobachter direkt nach `createGame`, vor dem ersten `advance` (E16c3). */
+  onGameCreated?: (state: Readonly<GameState>) => void;
 }
 
 /** Spielt eine Partie vollständig und gibt den Endzustand zurück (`state.result` ist gesetzt). */
@@ -21,10 +25,12 @@ export function playBotGame(data: GameData, options: BotGameOptions): GameState 
     throw new RangeError(`Es werden genau ${data.config.players} Bots benötigt, erhalten: ${options.bots.length}`);
   }
   const state = createGame(data, options.leaders ?? defaultLeaders(data), options.seed);
+  options.onGameCreated?.(state);
+  const advanceOptions: AdvanceOptions = options.onPhaseEnd ? { onPhaseEnd: options.onPhaseEnd } : {};
   // Jede Runde wartet höchstens einmal auf Planungen; mehr Durchläufe als Runden bedeuten einen Fehler.
   const maxSteps = data.config.maxRounds + 2;
   for (let step = 0; step < maxSteps; step++) {
-    const result = advance(state, data);
+    const result = advance(state, data, advanceOptions);
     if (result.waitingFor === "nothing") return state;
     for (const player of [...result.players].sort((a, b) => a - b)) {
       const bot = options.bots[player] as Bot;
