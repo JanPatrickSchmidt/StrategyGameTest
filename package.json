@@ -8,8 +8,10 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/sandbox --noEmit && tsc -p tools/sim --noEmit",
+    "typecheck": "tsc -p packages/engine --noEmit && tsc -p apps/sandbox --noEmit && tsc -p apps/client --noEmit && tsc -p tools/sim --noEmit",
     "build:sandbox": "node apps/sandbox/build.mjs",
+    "dev:client": "npm run dev -w @game/client",
+    "build:client": "npm run build -w @game/client",
     "sim": "node tools/sim/run.mjs",
     "check:spec": "node tools/sim/run.mjs --entry specCoverageCli",
     "accept:m2": "node tools/sim/run.mjs --games 1000 --seed 1 --bots greedy --check --out sim-output/abnahme-m2.csv"
