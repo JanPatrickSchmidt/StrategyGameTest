@@ -14,7 +14,9 @@
  *   Kugel), verwundete Einheiten grau gedämpft und geneigt. Nach jeder Runde werden die Figuren abgeglichen:
  *   neue entstehen, verschwundene werden entfernt, bewegte versetzt.
  *
- * Lebens- und Sternanzeige folgen mit C2c.
+ * - Lebens- und Sternanzeige (C2c): über jeder Figur ein kleines Schild mit Sternen (Anführer: Stufe) und
+ *   Lebenspunkten (`unitBadgeText`), immer zur Kamera gedreht und über dem Brett gezeichnet, damit es nicht
+ *   von Figuren verdeckt wird; an jeder Sitz-Ecke Name und Lebenspunkte des Spielers (`seatLabelText`).
  * Farbwelt nach `docs/stil/visuelle-richtung.md`: gedeckter Untergrund, dunkle Hex-Linien, gedämpfte
  * Spielerfarben, warmes Hauptlicht mit kühlem Gegenlicht.
  */
@@ -36,8 +38,8 @@ import {
 } from "@babylonjs/core";
 import type { GameData, PlayerIndex, PlayerView, UnitId } from "@game/engine";
 import { type BoardLayout, buildBoardLayout, frontPairsFor, type LayoutConfig, locationPosition, seatAngle } from "./boardLayout";
-import { playerName } from "./stateText";
-import { type FigureShape, figureSourceKey, type UnitFigure, unitFigures } from "./unitFigures";
+import { playerName, seatLabelText } from "./stateText";
+import { type FigureShape, figureSourceKey, unitBadgeText, type UnitFigure, unitFigures } from "./unitFigures";
 
 /** Gedämpfte, klar unterscheidbare Spielerfarben (Platz 1–4). */
 export const PLAYER_COLORS: readonly string[] = ["#4f7fa8", "#a8513f", "#5f8a4f", "#b08a3a"];
@@ -94,6 +96,70 @@ function makeLabel(scene: Scene, name: string, text: string, color: string, widt
   plane.material = mat;
   plane.billboardMode = TransformNode.BILLBOARDMODE_ALL;
   return plane;
+}
+
+/** Textschild, dessen Text sich nach jeder Runde ändern kann (C2c). Zeichnet nur neu, wenn sich etwas ändert. */
+interface TextBadge {
+  mesh: Mesh;
+  setText(text: string, textColor: string, background: string): void;
+  dispose(): void;
+}
+
+function makeTextBadge(scene: Scene, name: string, width: number, pixelWidth: number, aspect = 4): TextBadge {
+  const pixelHeight = Math.round(pixelWidth / aspect);
+  const texture = new DynamicTexture(`${name}Tex`, { width: pixelWidth, height: pixelHeight }, scene, true);
+  texture.hasAlpha = true;
+  const mat = new StandardMaterial(`${name}Mat`, scene);
+  mat.diffuseTexture = texture;
+  mat.emissiveColor = new Color3(1, 1, 1);
+  mat.disableLighting = true;
+  mat.useAlphaFromDiffuseTexture = true;
+  mat.backFaceCulling = false;
+  const plane = MeshBuilder.CreatePlane(name, { width, height: width / aspect }, scene);
+  plane.material = mat;
+  plane.billboardMode = TransformNode.BILLBOARDMODE_ALL;
+  plane.isPickable = false;
+  let last = "";
+  return {
+    mesh: plane,
+    setText(text: string, textColor: string, background: string): void {
+      const key = `${text}|${textColor}|${background}`;
+      if (key === last) return;
+      last = key;
+      const ctx = texture.getContext();
+      ctx.clearRect(0, 0, pixelWidth, pixelHeight);
+      ctx.fillStyle = background;
+      ctx.fillRect(0, pixelHeight * 0.1, pixelWidth, pixelHeight * 0.8);
+      // Schrift so groß wie möglich, aber verkleinert, falls der Text sonst nicht auf das Schild passt.
+      let fontPx = Math.round(pixelHeight * 0.62);
+      const font = (px: number): string => `700 ${px}px system-ui, sans-serif`;
+      ctx.font = font(fontPx);
+      const measured = ctx.measureText(text).width;
+      if (measured > pixelWidth * 0.94) fontPx = Math.floor((fontPx * pixelWidth * 0.94) / measured);
+      texture.drawText(text, null, Math.round(pixelHeight * 0.5 + fontPx * 0.36), font(fontPx), textColor, null, true, true);
+    },
+    dispose(): void {
+      plane.dispose(false, true);
+    },
+  };
+}
+
+/** Breite des Anzeigeschilds über einer Figur bei Kameraabstand `BADGE_REFERENCE_RADIUS` (C2c). */
+const BADGE_WIDTH = 1.7;
+/**
+ * Die Schilde wachsen mit dem Kameraabstand mit (höchstens bis `BADGE_MAX_SCALE`), damit sie auch in der
+ * Gesamtansicht lesbar bleiben, und schrumpfen beim Heranzoomen nicht unter ihre Grundgröße.
+ */
+const BADGE_REFERENCE_RADIUS = 24;
+const BADGE_MAX_SCALE = 1.9;
+
+/** Höhe des Anzeigeschilds über dem Fuß der Figur, je Form (C2c). */
+const BADGE_HEIGHT: Record<FigureShape, number> = { leader: 2.85, melee: 1.75, ranged: 2.1, token: 1.35 };
+
+/** Dunkler Hintergrund des Schilds mit einem Hauch Spielerfarbe, damit man den Besitzer auch am Schild erkennt. */
+function badgeBackground(owner: number): string {
+  const c = Color3.Lerp(new Color3(0.08, 0.07, 0.06), playerColor(owner), 0.45);
+  return `rgba(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)},0.88)`;
 }
 
 /** Höhe der Figuren über dem Brett (Oberkante der Felder). */
@@ -208,7 +274,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     }
     return source;
   }
-  const figures = new Map<UnitId, { mesh: InstancedMesh; key: string }>();
+  const figures = new Map<UnitId, { mesh: InstancedMesh; key: string; badge: TextBadge }>();
 
   function updateFigures(view: PlayerView, built: BoardLayout): void {
     const current = unitFigures(options.data, view, built);
@@ -219,12 +285,18 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
       let entry = figures.get(figure.unitId);
       if (entry && entry.key !== key) {
         entry.mesh.dispose();
+        entry.badge.dispose();
         entry = undefined;
       }
       if (!entry) {
-        entry = { mesh: figureSource(figure).createInstance(`unit${figure.unitId}`), key };
+        const badge = makeTextBadge(scene, `badge${figure.unitId}`, BADGE_WIDTH, 256, 3);
+        // Eigene Zeichengruppe: Schilde liegen immer über Brett und Figuren und bleiben lesbar.
+        badge.mesh.renderingGroupId = 1;
+        entry = { mesh: figureSource(figure).createInstance(`unit${figure.unitId}`), key, badge };
         figures.set(figure.unitId, entry);
       }
+      entry.badge.setText(unitBadgeText(figure), figure.wounded ? "#c9c2b6" : "#fbf3e2", badgeBackground(figure.owner));
+      entry.badge.mesh.position.set(figure.position.x, FIGURE_BASE + BADGE_HEIGHT[figure.shape], figure.position.z);
       const mesh = entry.mesh;
       mesh.position.set(figure.position.x, FIGURE_BASE, figure.position.z);
       // Verwundete liegen leicht schräg, damit man sie auch ohne Farbe erkennt.
@@ -234,6 +306,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     for (const [id, entry] of figures) {
       if (seen.has(id)) continue;
       entry.mesh.dispose();
+      entry.badge.dispose();
       figures.delete(id);
     }
   }
@@ -242,6 +315,8 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
   let boardKey = "";
   let layout: BoardLayout | null = null;
   const pillars: { mesh: Mesh; material: StandardMaterial }[] = [];
+  /** C2c: Beschriftung je Sitz mit Name und Lebenspunkten, wird in `update` neu beschrieben. */
+  const seatLabels = new Map<number, TextBadge>();
   /** Meshes mit eigenem Material oder eigener Textur, die beim Neuaufbau samt Material entsorgt werden. */
   const ownedMeshes: Mesh[] = [];
 
@@ -249,6 +324,8 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     // Gemeinsame Materialien der Felder bleiben erhalten; nur Beschriftungen und Säulen haben eigene.
     for (const own of ownedMeshes) own.dispose(false, true);
     ownedMeshes.length = 0;
+    for (const label of seatLabels.values()) label.dispose();
+    seatLabels.clear();
     boardRoot?.dispose(false, false);
     pillars.length = 0;
     const root = new TransformNode("board", scene);
@@ -309,14 +386,18 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
         r.material = reserveMat;
         r.position.set(pos.x, 0.03, pos.z);
       }
-      const text = `${playerName(p as PlayerIndex, view.viewer)}${view.players[p]?.eliminated ? " (raus)" : ""}`;
-      const label = makeLabel(scene, `seat${p}`, text, PLAYER_COLORS[p] ?? "#ece6dc", 5);
-      label.parent = root;
-      ownedMeshes.push(label);
-      label.position.set(mesh.position.x, 3.6, mesh.position.z);
+      const label = makeTextBadge(scene, `seat${p}`, 5.5, 512);
+      label.mesh.parent = root;
+      label.mesh.position.set(mesh.position.x, 4.1, mesh.position.z);
+      seatLabels.set(p, label);
     }
     camera.radius = built.radius * 1.75;
   }
+
+  scene.onBeforeRenderObservable.add(() => {
+    const scale = Math.min(BADGE_MAX_SCALE, Math.max(1, camera.radius / BADGE_REFERENCE_RADIUS));
+    for (const entry of figures.values()) entry.badge.mesh.scaling.setAll(scale);
+  });
 
   const onResize = (): void => engine.resize();
   window.addEventListener("resize", onResize);
@@ -336,6 +417,11 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
         pillar.mesh.scaling.y = height;
         pillar.mesh.position.y = height / 2;
         pillar.material.diffuseColor = entry.eliminated ? GREY : playerColor(entry.index);
+        seatLabels.get(entry.index)?.setText(
+          seatLabelText(entry, view.viewer),
+          entry.eliminated ? "#b8b2a8" : Color3.Lerp(playerColor(entry.index), Color3.White(), 0.45).toHexString(),
+          "rgba(20,18,16,0.8)",
+        );
       }
       if (layout) updateFigures(view, layout);
       const holder = view.centerResult?.holder ?? null;

@@ -51,6 +51,12 @@ export function playerName(player: PlayerIndex, viewer: PlayerIndex): string {
   return player === viewer ? "Du" : `Bot ${player + 1}`;
 }
 
+/** C2c: Beschriftung an der Sitz-Ecke: Name und Lebenspunkte, ausgeschiedene Spieler mit „raus“. */
+export function seatLabelText(entry: Pick<PlayerView["players"][number], "index" | "life" | "eliminated">, viewer: PlayerIndex): string {
+  const name = playerName(entry.index, viewer);
+  return entry.eliminated ? `${name} · raus` : `${name} · ${entry.life}♥`;
+}
+
 function cardName(data: GameData, cardId: string): string {
   return data.cards.get(cardId)?.name ?? cardId;
 }
