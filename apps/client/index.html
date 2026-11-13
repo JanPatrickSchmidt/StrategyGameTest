@@ -21,7 +21,7 @@
   button.primary { background: var(--accent); border-color: var(--accent); color: #1d1b18; font-weight: 600; }
   input#seed { width: 6em; }
   label.inline { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
-  #board { width: 100%; height: 280px; display: block; border-radius: 8px; touch-action: none; outline: none; }
+  #board { width: 100%; height: min(70vh, 560px); display: block; border-radius: 8px; touch-action: none; outline: none; }
   #message { margin: 8px 0 0; color: var(--accent); font-weight: 600; }
   #state { margin: 0; font: 0.85rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>
@@ -29,7 +29,7 @@
 <body>
 <main>
   <h1>Partie gegen 3 Bots</h1>
-  <p class="hint">Grundgerüst (C1): Die echte Engine läuft im Browser, die Gegner sind GreedyBots. Eigene Züge kommen mit der Planungsoberfläche (C3); bis dahin kannst du eine Runde auslassen oder den Autopiloten für dich planen lassen.</p>
+  <p class="hint">Die echte Engine läuft im Browser, die Gegner sind GreedyBots. Das 3D-Brett (C2) zeigt die Mitte und die Frontarenen zwischen den Sitzen, die Zonen in der Farbe ihres Besitzers; ziehen dreht die Kamera, Mausrad oder zwei Finger zoomen. Einheiten auf dem Brett folgen mit C2b, eigene Züge mit der Planungsoberfläche (C3); bis dahin kannst du eine Runde auslassen oder den Autopiloten für dich planen lassen.</p>
   <div class="panel">
     <div class="row">
       <label class="inline">Seed <input id="seed" type="number" min="0" step="1"></label>

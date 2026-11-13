@@ -1,10 +1,10 @@
 /**
  * Einstieg des Browser-Clients (C1): startet eine Partie gegen 3 Bots, zeigt den Zustand als Text und
- * eine schlichte Babylon.js-Szene. Die Planungsoberfläche folgt mit C3.
+ * darüber das 3D-Brett (C2). Die Planungsoberfläche folgt mit C3.
  */
 import { loadGameData } from "@game/engine";
 import { createBoardScene, type BoardScene } from "./scene";
-import { GameSession } from "./session";
+import { GameSession, HUMAN } from "./session";
 import { formatState } from "./stateText";
 
 const data = loadGameData();
@@ -27,7 +27,12 @@ const buttons = {
 
 let scene: BoardScene | null = null;
 try {
-  scene = createBoardScene(element<HTMLCanvasElement>("board"), data.config.players, data.config.startingLife);
+  scene = createBoardScene(element<HTMLCanvasElement>("board"), {
+    layout: { ...data.config.arenas, reserveSlots: data.config.reserveSlots },
+    startLife: data.config.startingLife,
+    players: data.config.players,
+    viewer: HUMAN,
+  });
 } catch (error) {
   element<HTMLCanvasElement>("board").hidden = true;
   element<HTMLParagraphElement>("no-3d").hidden = false;
