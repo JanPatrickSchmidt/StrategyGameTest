@@ -28,6 +28,7 @@ const buttons = {
 let scene: BoardScene | null = null;
 try {
   scene = createBoardScene(element<HTMLCanvasElement>("board"), {
+    data,
     layout: { ...data.config.arenas, reserveSlots: data.config.reserveSlots },
     startLife: data.config.startingLife,
     players: data.config.players,

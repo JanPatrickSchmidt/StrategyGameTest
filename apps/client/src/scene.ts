@@ -9,7 +9,12 @@
  *   Reserve-Plätze und eine Beschriftung.
  * - Kamera schräg von oben aus der Ecke des Betrachters.
  *
- * Einheiten folgen mit C2b, Lebens- und Sternanzeige mit C2c.
+ * - Einheiten (C2b) als einfache Formen in Spielerfarbe auf ihren Feldern bzw. Reserve-Plätzen, Form nach
+ *   Einheitenart aus `unitFigures.ts` (Anführer hohe Figur mit Kopf, Nahkampf Block, Fernkampf Kegel, Token
+ *   Kugel), verwundete Einheiten grau gedämpft und geneigt. Nach jeder Runde werden die Figuren abgeglichen:
+ *   neue entstehen, verschwundene werden entfernt, bewegte versetzt.
+ *
+ * Lebens- und Sternanzeige folgen mit C2c.
  * Farbwelt nach `docs/stil/visuelle-richtung.md`: gedeckter Untergrund, dunkle Hex-Linien, gedämpfte
  * Spielerfarben, warmes Hauptlicht mit kühlem Gegenlicht.
  */
@@ -21,16 +26,18 @@ import {
   DynamicTexture,
   Engine,
   HemisphericLight,
-  type Mesh,
+  type InstancedMesh,
+  Mesh,
   MeshBuilder,
   Scene,
   StandardMaterial,
   TransformNode,
   Vector3,
 } from "@babylonjs/core";
-import type { PlayerIndex, PlayerView } from "@game/engine";
+import type { GameData, PlayerIndex, PlayerView, UnitId } from "@game/engine";
 import { type BoardLayout, buildBoardLayout, frontPairsFor, type LayoutConfig, locationPosition, seatAngle } from "./boardLayout";
 import { playerName } from "./stateText";
+import { type FigureShape, figureSourceKey, type UnitFigure, unitFigures } from "./unitFigures";
 
 /** Gedämpfte, klar unterscheidbare Spielerfarben (Platz 1–4). */
 export const PLAYER_COLORS: readonly string[] = ["#4f7fa8", "#a8513f", "#5f8a4f", "#b08a3a"];
@@ -39,7 +46,7 @@ const STONE = new Color3(0.42, 0.39, 0.35);
 const EDGE = new Color3(0.11, 0.1, 0.09);
 const GREY = new Color3(0.3, 0.3, 0.3);
 /** Anteil der Spielerfarbe an den Zonenfeldern. */
-const ZONE_TINT = 0.55;
+const ZONE_TINT = 0.42;
 const TILE_HEIGHT = 0.12;
 
 export interface BoardScene {
@@ -48,6 +55,8 @@ export interface BoardScene {
 }
 
 export interface BoardSceneOptions {
+  /** Spieldaten (für die Form der Einheiten nach Kartenwerten). */
+  data: GameData;
   layout: Omit<LayoutConfig, "hexSize">;
   startLife: number;
   players: number;
@@ -85,6 +94,43 @@ function makeLabel(scene: Scene, name: string, text: string, color: string, widt
   plane.material = mat;
   plane.billboardMode = TransformNode.BILLBOARDMODE_ALL;
   return plane;
+}
+
+/** Höhe der Figuren über dem Brett (Oberkante der Felder). */
+const FIGURE_BASE = TILE_HEIGHT + 0.02;
+
+/** Baut die Grundform einer Figur, Fuß auf y = 0. */
+function buildFigureMesh(scene: Scene, name: string, shape: FigureShape): Mesh {
+  switch (shape) {
+    case "leader": {
+      const body = MeshBuilder.CreateCylinder(`${name}Body`, { diameterTop: 0.55, diameterBottom: 1.0, height: 1.5, tessellation: 8 }, scene);
+      body.position.y = 0.75;
+      const head = MeshBuilder.CreateSphere(`${name}Head`, { diameter: 0.62, segments: 8 }, scene);
+      head.position.y = 1.78;
+      const merged = Mesh.MergeMeshes([body, head], true, true);
+      if (!merged) throw new Error("Figur konnte nicht gebaut werden");
+      merged.name = name;
+      return merged;
+    }
+    case "melee": {
+      const block = MeshBuilder.CreateBox(name, { width: 0.85, depth: 0.85, height: 0.95 }, scene);
+      block.position.y = 0.475;
+      block.bakeCurrentTransformIntoVertices();
+      return block;
+    }
+    case "ranged": {
+      const cone = MeshBuilder.CreateCylinder(name, { diameterTop: 0, diameterBottom: 0.95, height: 1.3, tessellation: 12 }, scene);
+      cone.position.y = 0.65;
+      cone.bakeCurrentTransformIntoVertices();
+      return cone;
+    }
+    case "token": {
+      const ball = MeshBuilder.CreateSphere(name, { diameter: 0.6, segments: 8 }, scene);
+      ball.position.y = 0.3;
+      ball.bakeCurrentTransformIntoVertices();
+      return ball;
+    }
+  }
 }
 
 export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneOptions): BoardScene {
@@ -138,6 +184,58 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
       tileSources.set(mat, source);
     }
     return source;
+  }
+
+  // Figuren: eine unsichtbare Vorlage je Form, Besitzer und Verwundung, jede Einheit eine Instanz davon.
+  const figureSources = new Map<string, Mesh>();
+  function figureSource(figure: UnitFigure): Mesh {
+    const key = figureSourceKey(figure);
+    let source = figureSources.get(key);
+    if (!source) {
+      source = buildFigureMesh(scene, `figure-${key}`, figure.shape);
+      // Figuren kräftiger als die Zonen darunter, damit sie sich auch auf eigenem Grund abheben.
+      const bright = playerColor(figure.owner).scale(1.25);
+      const color = figure.wounded ? Color3.Lerp(bright, GREY, 0.65) : bright;
+      const mat = material(scene, `figure-${key}Mat`, color);
+      mat.specularColor = new Color3(0.12, 0.12, 0.12);
+      mat.emissiveColor = color.scale(0.18);
+      source.material = mat;
+      source.renderOutline = true;
+      source.outlineColor = EDGE;
+      source.outlineWidth = 0.03;
+      source.isVisible = false;
+      figureSources.set(key, source);
+    }
+    return source;
+  }
+  const figures = new Map<UnitId, { mesh: InstancedMesh; key: string }>();
+
+  function updateFigures(view: PlayerView, built: BoardLayout): void {
+    const current = unitFigures(options.data, view, built);
+    const seen = new Set<UnitId>();
+    for (const figure of current) {
+      seen.add(figure.unitId);
+      const key = figureSourceKey(figure);
+      let entry = figures.get(figure.unitId);
+      if (entry && entry.key !== key) {
+        entry.mesh.dispose();
+        entry = undefined;
+      }
+      if (!entry) {
+        entry = { mesh: figureSource(figure).createInstance(`unit${figure.unitId}`), key };
+        figures.set(figure.unitId, entry);
+      }
+      const mesh = entry.mesh;
+      mesh.position.set(figure.position.x, FIGURE_BASE, figure.position.z);
+      // Verwundete liegen leicht schräg, damit man sie auch ohne Farbe erkennt.
+      mesh.rotation.z = figure.wounded ? 0.45 : 0;
+      mesh.rotation.y = figure.shape === "melee" ? Math.PI / 4 - seatAngle(figure.owner) : 0;
+    }
+    for (const [id, entry] of figures) {
+      if (seen.has(id)) continue;
+      entry.mesh.dispose();
+      figures.delete(id);
+    }
   }
 
   let boardRoot: TransformNode | null = null;
@@ -239,6 +337,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
         pillar.mesh.position.y = height / 2;
         pillar.material.diffuseColor = entry.eliminated ? GREY : playerColor(entry.index);
       }
+      if (layout) updateFigures(view, layout);
       const holder = view.centerResult?.holder ?? null;
       centerFreeMat.diffuseColor = holder === null ? STONE : Color3.Lerp(STONE, playerColor(holder), 0.3);
     },
