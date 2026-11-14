@@ -23,13 +23,20 @@
   label.inline { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
   #board { width: 100%; height: min(70vh, 560px); display: block; border-radius: 8px; touch-action: none; outline: none; }
   #message { margin: 8px 0 0; color: var(--accent); font-weight: 600; }
+  select { font: inherit; border-radius: 8px; border: 1px solid var(--line); background: #3a3631; color: var(--ink); padding: 8px; min-height: 40px; max-width: 100%; }
+  #planning .gold { margin: 8px 0 2px; font-weight: 600; }
+  #planning .row { margin-top: 6px; }
+  .plan-list { margin: 4px 0; padding-left: 1.4em; }
+  .plan-list li { margin: 2px 0; }
+  .plan-list button.small { min-height: 28px; padding: 2px 8px; }
+  .rejected { color: #e08a6a; }
   #state { margin: 0; font: 0.85rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
 <main>
   <h1>Partie gegen 3 Bots</h1>
-  <p class="hint">Die echte Engine läuft im Browser, die Gegner sind GreedyBots. Das 3D-Brett (C2) zeigt die Mitte und die Frontarenen zwischen den Sitzen, die Zonen in der Farbe ihres Besitzers; ziehen dreht die Kamera, Mausrad oder zwei Finger zoomen. Einheiten stehen als Formen in Spielerfarbe auf ihren Feldern (hohe Figur mit Kopf = Anführer, Block = Nahkampf, Kegel = Fernkampf, Kugel = Token, grau und schräg = verwundet), die Reserve an deiner Sitz-Ecke. Eigene Züge mit der Planungsoberfläche (C3); bis dahin kannst du eine Runde auslassen oder den Autopiloten für dich planen lassen.</p>
+  <p class="hint">Die echte Engine läuft im Browser, die Gegner sind GreedyBots. Das 3D-Brett (C2) zeigt die Mitte und die Frontarenen zwischen den Sitzen, die Zonen in der Farbe ihres Besitzers; ziehen dreht die Kamera, Mausrad oder zwei Finger zoomen. Einheiten stehen als Formen in Spielerfarbe auf ihren Feldern (hohe Figur mit Kopf = Anführer, Block = Nahkampf, Kegel = Fernkampf, Kugel = Token, grau und schräg = verwundet), die Reserve an deiner Sitz-Ecke. Unten planst du deinen Zug (C3a): Schritte Ausspielen, Kaufen, Aufstellen, frei wechselbar bis zum Bestätigen; das Brett zeigt dabei die Vorschau. Felder heißen wie beim Schach aus deiner Sicht (Spalte a–e, Reihe 1 = hinten, 3 = an der Front). Alternativ: Runde auslassen oder den Autopiloten planen lassen.</p>
   <div class="panel">
     <div class="row">
       <label class="inline">Seed <input id="seed" type="number" min="0" step="1"></label>
@@ -45,6 +52,10 @@
   <div class="panel">
     <canvas id="board"></canvas>
     <p id="no-3d" class="hint" hidden>3D-Anzeige in diesem Browser nicht verfügbar (WebGL fehlt); der Text unten funktioniert trotzdem.</p>
+  </div>
+  <div class="panel">
+    <h2 style="font-size:1.05rem;margin:0">Deine Planung</h2>
+    <div id="planning"></div>
   </div>
   <div class="panel">
     <pre id="state"></pre>

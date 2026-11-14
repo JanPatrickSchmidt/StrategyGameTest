@@ -3,9 +3,8 @@
  *
  * Spieler 0 ist der Mensch, die Spieler 1–3 sind Bots (GreedyBot). Die Engine läuft vollständig lokal.
  * `GameSession` treibt die Partie mit `advance` voran, lässt die Bots ihre Planung einreichen und hält an,
- * sobald die Planung des Menschen fehlt oder die Partie vorbei ist. Eine eigene Planungsoberfläche gibt es
- * erst mit C3; bis dahin kann der Mensch eine leere Planung einreichen (R-7.9) oder den Autopiloten
- * (GreedyBot für Spieler 0) planen lassen.
+ * sobald die Planung des Menschen fehlt oder die Partie vorbei ist. Der Mensch plant mit `planner()` (C3a),
+ * reicht eine leere Planung ein (R-7.9) oder lässt den Autopiloten (GreedyBot für Spieler 0) planen.
  */
 import {
   advance,
@@ -22,6 +21,7 @@ import {
   submitPlanning,
   type SubmitResult,
 } from "@game/engine";
+import { PlanBuilder } from "./planner";
 
 /** Der Mensch spielt immer auf Platz 0. */
 export const HUMAN: PlayerIndex = 0;
@@ -69,6 +69,12 @@ export class GameSession {
     const result = submitPlanning(this.state, HUMAN, planning);
     if (result.ok) this.run();
     return result;
+  }
+
+  /** C3a: neuer Planungsentwurf für die laufende Planung des Menschen. */
+  planner(): PlanBuilder {
+    if (this.currentStatus !== "waitingForHuman") throw new RangeError("Keine Planung offen");
+    return new PlanBuilder(this.state, this.data, HUMAN);
   }
 
   /** R-7.9: leere Planung (der Mensch tut in dieser Runde nichts). */

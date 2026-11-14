@@ -1,9 +1,10 @@
 /**
  * Einstieg des Browser-Clients (C1): startet eine Partie gegen 3 Bots, zeigt den Zustand als Text und
- * darüber das 3D-Brett (C2). Die Planungsoberfläche folgt mit C3.
+ * darüber das 3D-Brett (C2) und die Planungsleiste (C3a). Während der Planung zeigt das Brett die Vorschau.
  */
 import { loadGameData } from "@game/engine";
 import { createBoardScene, type BoardScene } from "./scene";
+import { PlanningPanel } from "./planningPanel";
 import { GameSession, HUMAN } from "./session";
 import { formatState } from "./stateText";
 
@@ -49,15 +50,38 @@ function seedFromUrl(): number {
 let session = new GameSession(data, { seed: seedFromUrl() });
 seedInput.value = String(session.options.seed);
 
+const planning = new PlanningPanel(element<HTMLDivElement>("planning"), data, {
+  onChange: (preview, note) => {
+    scene?.update(preview);
+    message.textContent = note || `Runde ${preview.round}: Planung läuft, noch nicht bestätigt.`;
+  },
+  onConfirm: () =>
+    guarded(() => {
+      const builder = planning.active;
+      if (!builder) return "Keine Planung offen.";
+      const result = session.submitHuman(builder.planning());
+      return result.ok ? "" : `Planung abgelehnt: ${result.reason}`;
+    }),
+});
+
+/** Partie und Runde der offenen Planung; ein neuer Entwurf entsteht nur, wenn sich das ändert. */
+let planningFor: { session: GameSession; round: number } | null = null;
+
 function render(note = ""): void {
   const view = session.view();
   stateText.textContent = formatState(data, view);
-  scene?.update(view);
   const waiting = session.status === "waitingForHuman";
+  // Neue Planung nach jeder Runde (bzw. neuer Partie); das Brett zeigt die Vorschau des Entwurfs.
+  const current = waiting ? { session, round: view.round } : null;
+  if (current?.session !== planningFor?.session || current?.round !== planningFor?.round) {
+    planningFor = current;
+    planning.start(waiting ? session.planner() : null);
+  }
+  scene?.update(planning.active ? planning.active.preview() : view);
   buttons.pass.disabled = !waiting;
   buttons.autopilot.disabled = !waiting;
   buttons.toEnd.disabled = !waiting;
-  message.textContent = note || (waiting ? `Runde ${view.round}: deine Planung fehlt.` : "Die Partie ist beendet.");
+  message.textContent = note || (waiting ? `Runde ${view.round}: plane deinen Zug und bestätige ihn.` : "Die Partie ist beendet.");
 }
 
 function guarded(action: () => string | void): void {
