@@ -9,7 +9,9 @@
  * markiert statt still zu verschwinden.
  */
 import {
+  type ActionTarget,
   allLocations,
+  checkTarget,
   type CardData,
   emptyPlanning,
   type GameData,
@@ -24,11 +26,13 @@ import {
   type PlayerView,
   playerView,
   type RejectionReason,
+  type TargetSpec,
   type Unit,
   type UnitId,
   type UnitLocation,
 } from "@game/engine";
 import { locationName } from "./fieldNames";
+import { targetText } from "./targetText";
 
 export const STEP_NAMES: Record<PlanningSection, string> = {
   play: "Ausspielen",
@@ -45,6 +49,13 @@ const REASON_TEXTS: Partial<Record<RejectionReason, string>> = {
   cellOccupied: "Feld besetzt",
   capacityExceeded: "Kapazität erreicht (R-3.6)",
   sameLocation: "Einheit steht schon dort",
+  notASpellCard: "keine Zauberkarte",
+  wrongSlot: "falscher Zauber-Slot",
+  slotFull: "Zauber-Slot schon belegt",
+  invalidTarget: "Ziel nicht erlaubt",
+  tooManyTargets: "zu viele Ziele",
+  tooManyCards: "zu viele Karten gewählt",
+  invalidCardChoice: "Karte nicht wählbar",
   unknownUnit: "Einheit gibt es nicht",
   wrongSection: "in diesem Schritt nicht erlaubt",
   invalidLocation: "Ort gibt es nicht",
@@ -203,6 +214,14 @@ export class PlanBuilder {
     return this.actions.play.findIndex((a) => a.type === "playUnit" && unit.cardInstanceIds.includes(a.cardInstanceId));
   }
 
+  /**
+   * C3c1: Prüft ein Ziel gegen eine Ziel-Angabe (R-14.2) auf dem Stand des Entwurfs, allein über die Engine
+   * (`checkTarget`). Liefert das geprüfte Ziel oder den Ablehnungsgrund; ändert nichts.
+   */
+  checkTarget(spec: TargetSpec, target: ActionTarget): ActionTarget | RejectionReason {
+    return checkTarget(this.draft.state, this.data, this.player, spec, {}, target);
+  }
+
   /** Orte ohne eigene Einheit im Entwurf (Ziele für Ausspielen und Bewegen; den Rest prüft die Engine). */
   freeLocations(): UnitLocation[] {
     const taken = new Set(
@@ -304,7 +323,7 @@ export function describeAction(data: GameData, before: PlayerView, action: Plann
     case "moveUnit":
       return `${unitName(action.unitId)} bewegen → ${locationName(data.config, player, action.to)}`;
     case "setSpell":
-      return `Zauber ${cardName(action.cardInstanceId)} legen (${action.slot === "pre" ? "vor" : "nach"} dem Kampf)`;
+      return `Zauber ${cardName(action.cardInstanceId)} legen (${action.slot === "pre" ? "vor" : "nach"} dem Kampf) → ${targetText(data, before, action.target)}`;
     case "setLeaderAbility":
       return "Anführer-Fähigkeit wählen";
     case "heal":

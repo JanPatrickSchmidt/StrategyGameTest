@@ -4,9 +4,10 @@
  * Hand, Ortsauswahl mit Feldnamen (R-3.8), Liste der geplanten Aktionen und Bestätigen.
  * Die Logik liegt in `planner.ts`; hier wird nur gezeichnet und weitergereicht.
  */
-import { type GameData, PLANNING_SECTIONS, type PlanningAction, type PlayerView, type UnitId, type UnitLocation } from "@game/engine";
+import { type GameData, PLANNING_SECTIONS, type PlanningAction, type PlayerView, type RejectionReason, type UnitId, type UnitLocation } from "@game/engine";
 import { applyTarget, type BoardSelection, isRelocatable, targetLocations, validSelection } from "./boardInput";
 import { locationName } from "./fieldNames";
+import { addSpell, SLOT_LABELS, spellTargetChoice, type TargetChoice } from "./spellTargets";
 import {
   type CardEntry,
   describeAction,
@@ -52,6 +53,8 @@ export class PlanningPanel {
   private before: PlayerView | null = null;
   /** Auswahl für das 3D-Brett (C3b): Handkarte oder eigene Einheit. */
   private selection: BoardSelection = null;
+  /** C3c1: gewählte Zauberkarte der Hand, deren Ziel gerade gewählt wird. */
+  private spellCard: number | null = null;
 
   constructor(
     private readonly root: HTMLElement,
@@ -64,6 +67,7 @@ export class PlanningPanel {
     this.builder = builder;
     this.before = builder ? builder.preview() : null;
     this.selection = null;
+    this.spellCard = null;
     this.render();
   }
 
@@ -156,6 +160,7 @@ export class PlanningPanel {
       button.addEventListener("click", () => {
         builder.setStep(step);
         this.selection = null;
+        this.spellCard = null;
         this.change();
       });
       steps.append(button);
@@ -185,15 +190,25 @@ export class PlanningPanel {
     if (hand.length === 0) row.append(el("span", { className: "hint", textContent: "leer" }));
     for (const entry of hand) {
       const isUnit = entry.card.type === "unit";
+      const isSpell = entry.card.type === "spell";
+      const chosen = isUnit
+        ? this.selection?.kind === "card" && entry.instanceId === this.selection.cardInstanceId
+        : this.spellCard === entry.instanceId;
       const button = el("button", {
         textContent: cardText(entry),
-        className: this.selection?.kind === "card" && entry.instanceId === this.selection.cardInstanceId ? "primary" : "",
-        disabled: !isUnit,
-        title: isUnit ? "Einheit ausspielen" : "Zauber legen kommt mit C3c",
+        className: chosen ? "primary" : "",
+        disabled: !isUnit && !isSpell,
+        title: isUnit ? "Einheit ausspielen" : isSpell ? "Zauber legen" : "",
       });
       button.addEventListener("click", () => {
-        const already = this.selection?.kind === "card" && this.selection.cardInstanceId === entry.instanceId;
-        this.selection = already ? null : { kind: "card", cardInstanceId: entry.instanceId };
+        if (isSpell) {
+          this.selection = null;
+          this.spellCard = chosen ? null : entry.instanceId;
+          this.change(this.spellCard !== null ? "Zauber gewählt: unten das Ziel wählen und legen." : "");
+          return;
+        }
+        this.spellCard = null;
+        this.selection = chosen ? null : { kind: "card", cardInstanceId: entry.instanceId };
         this.change(this.selection ? "Karte gewählt: freies Feld auf dem Brett anklicken oder unten den Ort wählen." : "");
       });
       row.append(button);
@@ -202,7 +217,11 @@ export class PlanningPanel {
 
     const selection = this.selection;
     const selected = selection?.kind === "card" ? hand.find((c) => c.instanceId === selection.cardInstanceId) : undefined;
-    if (selected) {
+    const spell = this.spellCard !== null ? hand.find((c) => c.instanceId === this.spellCard && c.card.type === "spell") : undefined;
+    if (spell && spell.card.type === "spell") {
+      const choice = spellTargetChoice(this.data, builder, spell.instanceId);
+      if (choice) this.renderSpellTarget(builder, spell.instanceId, `${spell.card.name} (${SLOT_LABELS[spell.card.slot]})`, choice);
+    } else if (selected) {
       const locations = builder.freeLocations();
       const select = locationSelect(this.data, view, locations);
       const go = el("button", { textContent: "Ausspielen" });
@@ -213,8 +232,74 @@ export class PlanningPanel {
       this.root.append(el("div", { className: "row" }, el("span", { textContent: `${selected.card.name} nach` }), select, go));
     } else {
       this.root.append(
-        el("p", { className: "hint", textContent: "Einheitenkarte wählen, dann ein hervorgehobenes Feld auf dem Brett anklicken (oder den Ort hier wählen). Zauber, Genesen und Entnahme folgen mit C3c." }),
+        el("p", {
+          className: "hint",
+          textContent:
+            "Einheitenkarte wählen, dann ein hervorgehobenes Feld auf dem Brett anklicken (oder den Ort hier wählen). Zauberkarte wählen, dann ihr Ziel. Genesen und Entnahme folgen mit C3c2.",
+        }),
       );
+    }
+  }
+
+  /** C3c1: Zielwahl eines Zaubers: ohne Ziel, eine Wahl aus der Liste oder eigene Karten ankreuzen (R-14.8). */
+  private renderSpellTarget(builder: PlanBuilder, cardInstanceId: number, title: string, choice: TargetChoice): void {
+    const go = el("button", { textContent: "Zauber legen" });
+    const done = (reason: RejectionReason | null): void => {
+      if (!reason) this.spellCard = null;
+      this.change(reason ? `Nicht möglich: ${reasonText(reason)}` : "Zauber gelegt.");
+    };
+    const row = el("div", { className: "row" }, el("span", { textContent: title }));
+    switch (choice.kind) {
+      case "none":
+        row.append(el("span", { className: "hint", textContent: "ohne Ziel" }), go);
+        go.addEventListener("click", () => done(addSpell(this.data, builder, cardInstanceId, { kind: "none" })));
+        this.root.append(row);
+        return;
+      case "single": {
+        if (choice.options.length === 0) {
+          row.append(el("span", { className: "hint", textContent: "kein gültiges Ziel" }));
+          this.root.append(row);
+          return;
+        }
+        const select = el("select");
+        const groups = new Map<string, HTMLOptGroupElement>();
+        for (const [i, option] of choice.options.entries()) {
+          const node = el("option", { value: String(i), textContent: option.label });
+          if (option.group) {
+            let group = groups.get(option.group);
+            if (!group) {
+              group = el("optgroup", { label: option.group });
+              groups.set(option.group, group);
+              select.append(group);
+            }
+            group.append(node);
+          } else select.append(node);
+        }
+        go.addEventListener("click", () => {
+          const option = choice.options[Number(select.value)];
+          if (option) done(addSpell(this.data, builder, cardInstanceId, option.target));
+        });
+        row.append(el("span", { textContent: "Ziel" }), select, go);
+        this.root.append(row);
+        return;
+      }
+      case "ownCards": {
+        const boxes: { box: HTMLInputElement; id: number }[] = [];
+        const list = el("div", { className: "row card-choice" });
+        for (const card of choice.cards) {
+          const box = el("input", { type: "checkbox" });
+          boxes.push({ box, id: card.instanceId });
+          list.append(el("label", {}, box, ` ${card.name} (${card.from === "deck" ? "Deck" : "Ablage"})`));
+        }
+        go.addEventListener("click", () => {
+          const ids = boxes.filter((b) => b.box.checked).map((b) => b.id);
+          done(addSpell(this.data, builder, cardInstanceId, { kind: "ownCards", cardInstanceIds: ids }));
+        });
+        row.append(el("span", { className: "hint", textContent: `bis zu ${choice.max} Karten entfernen (auch keine)` }), go);
+        this.root.append(row);
+        this.root.append(choice.cards.length > 0 ? list : el("p", { className: "hint", textContent: "Deck und Ablagestapel sind leer." }));
+        return;
+      }
     }
   }
 
