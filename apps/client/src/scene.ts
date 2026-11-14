@@ -17,6 +17,10 @@
  * - Lebens- und Sternanzeige (C2c): über jeder Figur ein kleines Schild mit Sternen (Anführer: Stufe) und
  *   Lebenspunkten (`unitBadgeText`), immer zur Kamera gedreht und über dem Brett gezeichnet, damit es nicht
  *   von Figuren verdeckt wird; an jeder Sitz-Ecke Name und Lebenspunkte des Spielers (`seatLabelText`).
+ * - Bedienung (C3b): `setMarkers` hebt freie Zielorte als leuchtende Felder hervor und markiert die gewählte
+ *   Einheit mit einem Ring. Klick auf eine Figur oder ein Feld und Ziehen einer eigenen Figur werden über
+ *   `BoardInputHandlers` gemeldet; welcher eigene Ort getroffen wurde, bestimmt `nearestLocation`. Während eine
+ *   Figur gezogen wird, dreht sich die Kamera nicht.
  * Farbwelt nach `docs/stil/visuelle-richtung.md`: gedeckter Untergrund, dunkle Hex-Linien, gedämpfte
  * Spielerfarben, warmes Hauptlicht mit kühlem Gegenlicht.
  */
@@ -29,15 +33,18 @@ import {
   Engine,
   HemisphericLight,
   type InstancedMesh,
+  Matrix,
   Mesh,
   MeshBuilder,
+  PointerEventTypes,
   Scene,
   StandardMaterial,
   TransformNode,
   Vector3,
 } from "@babylonjs/core";
-import type { GameData, PlayerIndex, PlayerView, UnitId } from "@game/engine";
-import { type BoardLayout, buildBoardLayout, frontPairsFor, type LayoutConfig, locationPosition, seatAngle } from "./boardLayout";
+import type { GameData, PlayerIndex, PlayerView, UnitId, UnitLocation } from "@game/engine";
+import { type BoardLayout, buildBoardLayout, frontPairsFor, type LayoutConfig, locationPosition, seatAngle, type WorldPoint } from "./boardLayout";
+import { nearestLocation } from "./boardInput";
 import { playerName, seatLabelText } from "./stateText";
 import { type FigureShape, figureSourceKey, unitBadgeText, type UnitFigure, unitFigures } from "./unitFigures";
 
@@ -53,8 +60,22 @@ const TILE_HEIGHT = 0.12;
 
 export interface BoardScene {
   update(view: PlayerView): void;
+  /** C3b: freie Zielorte des Betrachters hervorheben und die gewählte Einheit markieren. */
+  setMarkers(targets: readonly UnitLocation[], selectedUnit: UnitId | null): void;
   dispose(): void;
 }
+
+/** C3b: Eingaben auf dem Brett. Orte sind immer Orte des Betrachters (`null` = kein eigener Ort getroffen). */
+export interface BoardInputHandlers {
+  canDrag(unitId: UnitId): boolean;
+  onUnitClick(unitId: UnitId): void;
+  onLocationClick(location: UnitLocation | null): void;
+  onUnitDrop(unitId: UnitId, location: UnitLocation | null): void;
+}
+
+/** Ab so vielen Bildpunkten Bewegung gilt ein Druck als Ziehen statt Klick. */
+const DRAG_THRESHOLD_PX = 6;
+const ACCENT = Color3.FromHexString("#e0b04a");
 
 export interface BoardSceneOptions {
   /** Spieldaten (für die Form der Einheiten nach Kartenwerten). */
@@ -64,6 +85,8 @@ export interface BoardSceneOptions {
   players: number;
   /** Sitz des Betrachters; die Kamera schaut aus seiner Ecke. */
   viewer: PlayerIndex;
+  /** C3b: Bedienung auf dem Brett (ohne = nur Anzeige). */
+  input?: BoardInputHandlers;
 }
 
 function playerColor(player: number): Color3 {
@@ -292,7 +315,9 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
         const badge = makeTextBadge(scene, `badge${figure.unitId}`, BADGE_WIDTH, 256, 3);
         // Eigene Zeichengruppe: Schilde liegen immer über Brett und Figuren und bleiben lesbar.
         badge.mesh.renderingGroupId = 1;
-        entry = { mesh: figureSource(figure).createInstance(`unit${figure.unitId}`), key, badge };
+        const instance = figureSource(figure).createInstance(`unit${figure.unitId}`);
+        instance.metadata = { unitId: figure.unitId };
+        entry = { mesh: instance, key, badge };
         figures.set(figure.unitId, entry);
       }
       entry.badge.setText(unitBadgeText(figure), figure.wounded ? "#c9c2b6" : "#fbf3e2", badgeBackground(figure.owner));
@@ -397,7 +422,119 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
   scene.onBeforeRenderObservable.add(() => {
     const scale = Math.min(BADGE_MAX_SCALE, Math.max(1, camera.radius / BADGE_REFERENCE_RADIUS));
     for (const entry of figures.values()) entry.badge.mesh.scaling.setAll(scale);
+    // Auswahlring folgt der Figur (auch während sie gezogen wird) und pulsiert leicht.
+    const chosen = selectedUnit === null ? undefined : figures.get(selectedUnit);
+    selectionRing.isVisible = chosen !== undefined;
+    if (chosen) {
+      selectionRing.position.set(chosen.mesh.position.x, FIGURE_BASE + 0.03, chosen.mesh.position.z);
+      selectionRing.scaling.setAll(1 + 0.06 * Math.sin(performance.now() / 180));
+    }
   });
+
+  // C3b: Zielmarkierungen (leuchtende Felder) und Auswahlring.
+  const markerMat = material(scene, "markerMat", ACCENT);
+  markerMat.emissiveColor = ACCENT.scale(0.7);
+  markerMat.alpha = 0.55;
+  const markerSource = MeshBuilder.CreateCylinder("marker", { diameter: 2 * 0.72, height: 0.05, tessellation: 6 }, scene);
+  markerSource.material = markerMat;
+  markerSource.isPickable = false;
+  markerSource.isVisible = false;
+  const markers: InstancedMesh[] = [];
+  const selectionRing = MeshBuilder.CreateTorus("selectionRing", { diameter: 1.35, thickness: 0.12, tessellation: 32 }, scene);
+  const ringMat = material(scene, "ringMat", ACCENT);
+  ringMat.emissiveColor = ACCENT;
+  selectionRing.material = ringMat;
+  selectionRing.isPickable = false;
+  selectionRing.isVisible = false;
+  let selectedUnit: UnitId | null = null;
+  let markerTargets: readonly UnitLocation[] = [];
+
+  function drawMarkers(): void {
+    for (const m of markers) m.dispose();
+    markers.length = 0;
+    if (!layout) return;
+    for (const [i, loc] of markerTargets.entries()) {
+      const pos = locationPosition(layout, options.viewer, loc);
+      if (!pos) continue;
+      const m = markerSource.createInstance(`marker${i}`);
+      m.isPickable = false;
+      m.position.set(pos.x, TILE_HEIGHT + 0.05, pos.z);
+      // Felder der Frontarenen und der Mitte haben die Drehung ihrer Arena; Reserve-Plätze sind rund genug.
+      const arena = loc.zone === "center" ? layout.arenas.find((a) => a.kind === "center") : undefined;
+      m.rotation.y = Math.PI / 6 - (arena?.rotation ?? frontRotationFor(loc) ?? 0);
+      markers.push(m);
+    }
+  }
+
+  function frontRotationFor(loc: UnitLocation): number | undefined {
+    if (!layout || (loc.zone !== "left" && loc.zone !== "right")) return undefined;
+    const viewer = options.viewer;
+    return layout.arenas.find((a) => a.pair && (loc.zone === "right" ? a.pair.first : a.pair.second) === viewer)?.rotation;
+  }
+
+  /** Punkt auf Höhe der Figurenfüße unter dem Mauszeiger, `null`, wenn der Strahl die Ebene nicht trifft. */
+  function groundPoint(x: number, y: number): WorldPoint | null {
+    const ray = scene.createPickingRay(x, y, Matrix.Identity(), camera);
+    if (Math.abs(ray.direction.y) < 1e-6) return null;
+    const t = (FIGURE_BASE - ray.origin.y) / ray.direction.y;
+    if (t < 0) return null;
+    return { x: ray.origin.x + ray.direction.x * t, z: ray.origin.z + ray.direction.z * t };
+  }
+
+  function locationAt(x: number, y: number): UnitLocation | null {
+    const point = groundPoint(x, y);
+    return point && layout ? nearestLocation(options.data, layout, options.viewer, point, layoutConfig.hexSize) : null;
+  }
+
+  function unitAt(x: number, y: number): UnitId | null {
+    const hit = scene.pick(x, y, (m) => typeof (m.metadata as { unitId?: unknown } | null)?.unitId === "number");
+    const id = (hit?.pickedMesh?.metadata as { unitId?: number } | null)?.unitId;
+    return hit?.hit && typeof id === "number" ? id : null;
+  }
+
+  const input = options.input;
+  if (input) {
+    let down: { x: number; y: number } | null = null;
+    let drag: { unitId: UnitId; moved: boolean } | null = null;
+    scene.onPointerObservable.add((info) => {
+      const x = scene.pointerX;
+      const y = scene.pointerY;
+      if (info.type === PointerEventTypes.POINTERDOWN) {
+        if (info.event.button !== 0) return;
+        down = { x, y };
+        const unitId = unitAt(x, y);
+        if (unitId !== null && input.canDrag(unitId)) {
+          drag = { unitId, moved: false };
+          camera.detachControl();
+        }
+      } else if (info.type === PointerEventTypes.POINTERMOVE) {
+        if (!drag || !down) return;
+        if (!drag.moved && Math.hypot(x - down.x, y - down.y) < DRAG_THRESHOLD_PX) return;
+        drag.moved = true;
+        const point = groundPoint(x, y);
+        const figure = figures.get(drag.unitId);
+        if (point && figure) {
+          figure.mesh.position.set(point.x, FIGURE_BASE + 0.4, point.z);
+          figure.badge.mesh.position.set(point.x, FIGURE_BASE + 0.4 + 1.8, point.z);
+        }
+      } else if (info.type === PointerEventTypes.POINTERUP) {
+        const start = down;
+        const current = drag;
+        down = null;
+        drag = null;
+        if (current) {
+          camera.attachControl(canvas, true);
+          if (current.moved) input.onUnitDrop(current.unitId, locationAt(x, y));
+          else input.onUnitClick(current.unitId);
+          return;
+        }
+        if (!start || Math.hypot(x - start.x, y - start.y) >= DRAG_THRESHOLD_PX) return; // Kamera wurde gedreht
+        const unitId = unitAt(x, y);
+        if (unitId !== null) input.onUnitClick(unitId);
+        else input.onLocationClick(locationAt(x, y));
+      }
+    });
+  }
 
   const onResize = (): void => engine.resize();
   window.addEventListener("resize", onResize);
@@ -424,8 +561,14 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
         );
       }
       if (layout) updateFigures(view, layout);
+      drawMarkers();
       const holder = view.centerResult?.holder ?? null;
       centerFreeMat.diffuseColor = holder === null ? STONE : Color3.Lerp(STONE, playerColor(holder), 0.3);
+    },
+    setMarkers(targets: readonly UnitLocation[], unit: UnitId | null): void {
+      markerTargets = targets.slice();
+      selectedUnit = unit;
+      drawMarkers();
     },
     dispose(): void {
       window.removeEventListener("resize", onResize);

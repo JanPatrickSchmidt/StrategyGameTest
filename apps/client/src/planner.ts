@@ -137,6 +137,72 @@ export class PlanBuilder {
       .sort((a, b) => a.id - b.id);
   }
 
+  /**
+   * C3b: Einheiten, die direkt auf dem Brett versetzt werden dürfen: die bewegbaren (`movableUnits`) und neu
+   * ausgespielte, deren Ausspiel-Aktion in dieser Planung steht (ihr Zielort wird dann geändert).
+   */
+  relocatableUnits(): Unit[] {
+    return Object.values(this.draft.state.units)
+      .filter((u) => u.owner === this.player && (this.draft.initialUnitIds.has(u.id) || this.playIndexOf(u) >= 0))
+      .sort((a, b) => a.id - b.id);
+  }
+
+  /**
+   * C3b: Einheit auf dem Brett an einen neuen Ort setzen (Feld anklicken bzw. Einheit ziehen).
+   * - Einheit vom Beginn der Planung (R-7.2): frühere Bewegungen dieser Einheit werden ersetzt, damit die Liste
+   *   übersichtlich bleibt; zurück auf ihren Ausgangsort heißt einfach „nicht bewegen“. Wechselt in den Schritt
+   *   Aufstellen.
+   * - Neu ausgespielte Einheit (R-7.1): der Zielort ihrer Ausspiel-Aktion wird geändert; wechselt zu Ausspielen.
+   * Lehnt die Engine ab, bleibt alles wie vorher und der Grund wird zurückgegeben.
+   */
+  relocate(unitId: UnitId, to: UnitLocation): RejectionReason | null {
+    const unit = this.draft.state.units[unitId];
+    if (!unit || unit.owner !== this.player) return "unknownUnit";
+    if (this.draft.initialUnitIds.has(unitId)) {
+      const list = this.actions.position;
+      const saved = list.slice();
+      const kept = saved.filter((a) => !(a.type === "moveUnit" && a.unitId === unitId));
+      list.splice(0, list.length, ...kept);
+      const start = this.source.units[unitId]?.location;
+      let reason: RejectionReason | null = null;
+      if (!start || locationKey(start) !== locationKey(to)) {
+        list.push({ type: "moveUnit", unitId, to: { ...to } as UnitLocation });
+        this.replay();
+        reason = this.results.position[list.length - 1] ?? null;
+      } else {
+        this.replay();
+      }
+      if (reason) {
+        list.splice(0, list.length, ...saved);
+        this.replay();
+        return reason;
+      }
+      this.currentStep = "position";
+      return null;
+    }
+    const index = this.playIndexOf(unit);
+    if (index < 0) return "unknownUnit";
+    const list = this.actions.play;
+    const old = list[index];
+    if (!old || old.type !== "playUnit") return "unknownUnit";
+    list[index] = { ...old, to: { ...to } as UnitLocation };
+    this.replay();
+    const reason = this.results.play[index] ?? null;
+    if (reason) {
+      list[index] = old;
+      this.replay();
+      return reason;
+    }
+    this.currentStep = "play";
+    return null;
+  }
+
+  /** Index der Ausspiel-Aktion, aus der eine neue Einheit entstanden ist (`-1`, wenn keine). */
+  private playIndexOf(unit: Unit): number {
+    if (this.draft.initialUnitIds.has(unit.id)) return -1;
+    return this.actions.play.findIndex((a) => a.type === "playUnit" && unit.cardInstanceIds.includes(a.cardInstanceId));
+  }
+
   /** Orte ohne eigene Einheit im Entwurf (Ziele für Ausspielen und Bewegen; den Rest prüft die Engine). */
   freeLocations(): UnitLocation[] {
     const taken = new Set(

@@ -1,6 +1,7 @@
 /**
  * Einstieg des Browser-Clients (C1): startet eine Partie gegen 3 Bots, zeigt den Zustand als Text und
- * darüber das 3D-Brett (C2) und die Planungsleiste (C3a). Während der Planung zeigt das Brett die Vorschau.
+ * darüber das 3D-Brett (C2) und die Planungsleiste (C3a). Während der Planung zeigt das Brett die Vorschau;
+ * Einheiten lassen sich direkt auf dem Brett platzieren und bewegen (C3b).
  */
 import { loadGameData } from "@game/engine";
 import { createBoardScene, type BoardScene } from "./scene";
@@ -34,6 +35,13 @@ try {
     startLife: data.config.startingLife,
     players: data.config.players,
     viewer: HUMAN,
+    // Die Leiste entsteht erst weiter unten; die Brett-Eingaben werden bei Benutzung an sie weitergereicht.
+    input: {
+      canDrag: (unitId) => planning.canDrag(unitId),
+      onUnitClick: (unitId) => planning.clickUnit(unitId),
+      onLocationClick: (location) => planning.clickLocation(location),
+      onUnitDrop: (unitId, location) => planning.dropUnit(unitId, location),
+    },
   });
 } catch (error) {
   element<HTMLCanvasElement>("board").hidden = true;
@@ -53,6 +61,7 @@ seedInput.value = String(session.options.seed);
 const planning = new PlanningPanel(element<HTMLDivElement>("planning"), data, {
   onChange: (preview, note) => {
     scene?.update(preview);
+    scene?.setMarkers(planning.targets(), planning.selectedUnit());
     message.textContent = note || `Runde ${preview.round}: Planung läuft, noch nicht bestätigt.`;
   },
   onConfirm: () =>
@@ -78,6 +87,7 @@ function render(note = ""): void {
     planning.start(waiting ? session.planner() : null);
   }
   scene?.update(planning.active ? planning.active.preview() : view);
+  scene?.setMarkers(planning.targets(), planning.selectedUnit());
   buttons.pass.disabled = !waiting;
   buttons.autopilot.disabled = !waiting;
   buttons.toEnd.disabled = !waiting;
