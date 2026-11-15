@@ -13,6 +13,7 @@ import {
   type PlayerIndex,
   type UnitLocation,
 } from "./state";
+import { resolvePostCombatSpells, setSpell } from "./spells";
 import { eventsFor, isEventVisibleTo, playerView } from "./view";
 
 const data = loadGameData();
@@ -253,5 +254,51 @@ describe("E13: gefiltertes Ereignisprotokoll (R-19.3)", () => {
     expect(created).toBeDefined();
     expect(created).not.toHaveProperty("seed");
     expect(state.seed).toBe(123456);
+  });
+});
+
+describe("P8: Läutern verrät keinen fremden Deckinhalt (R-18.2a, R-19.3)", () => {
+  it("R-18.2a: Läutern vom Deck nennt fremden Spielern keine Karten", () => {
+    const state = startGame(41);
+    const p = getPlayer(state, 0);
+    const purify = state.nextCardInstanceId++;
+    state.cards[purify] = { id: purify, cardId: "purify", owner: 0 };
+    p.hand.push(purify);
+    p.treasury = 10;
+    const fromDeck = p.deck[0] as CardInstanceId;
+    const fromDiscard = p.deck[1] as CardInstanceId;
+    p.deck = p.deck.filter((id) => id !== fromDiscard);
+    p.discard.push(fromDiscard);
+    const from = state.log.length;
+    expect(setSpell(state, data, 0, purify, "post", { kind: "ownCards", cardInstanceIds: [fromDeck, fromDiscard] })).toBeNull();
+
+    // Gelegter Zauber: fremde Sicht kennt nur die Anzahl der gewählten Karten, der Besitzer alles.
+    for (const viewer of [1, 2, 3] as const) {
+      const spell = playerView(state, viewer).players[0]?.spells.post[0];
+      expect(spell).toMatchObject({ cardInstanceId: purify, target: { kind: "ownCards", cardInstanceIds: [] }, hiddenCards: 2 });
+      const set = eventsFor(state.log.slice(from), viewer).find((e) => e.type === "spell_set");
+      expect(set).toMatchObject({ target: { kind: "ownCards", cardInstanceIds: [] }, hiddenCards: 2 });
+    }
+    expect(playerView(state, 0).players[0]?.spells.post[0]).toMatchObject({ target: { kind: "ownCards", cardInstanceIds: [fromDeck, fromDiscard] } });
+    expect(playerView(state, 0).players[0]?.spells.post[0]).not.toHaveProperty("hiddenCards");
+
+    resolvePostCombatSpells(state, data);
+    for (const viewer of [1, 2, 3] as const) {
+      const seen = eventsFor(state.log.slice(from), viewer);
+      const trashed = seen.find((e) => e.type === "cards_trashed");
+      // Karte aus dem Ablagestapel darf genannt werden (R-18.1), die aus dem Deck nur als Anzahl.
+      expect(trashed).toMatchObject({ player: 0, cards: [{ cardInstanceId: fromDiscard, from: "discard" }], hiddenFromDeck: 1 });
+      expect(mentionedCards(seen).has(fromDeck)).toBe(false);
+      expect(JSON.stringify(seen)).not.toContain(`"cardInstanceId":${fromDeck},`);
+      // Das Protokoll in der Sicht ist genauso geschwärzt.
+      expect(playerView(state, viewer).log).toEqual(eventsFor(state.log, viewer));
+    }
+    // Der Besitzer sieht beide Karten mit Herkunft; der Zustand selbst bleibt unverändert.
+    const own = eventsFor(state.log.slice(from), 0).find((e) => e.type === "cards_trashed");
+    expect(own).toMatchObject({ cards: [{ cardInstanceId: fromDeck, from: "deck" }, { cardInstanceId: fromDiscard, from: "discard" }] });
+    expect(own).not.toHaveProperty("hiddenFromDeck");
+    const raw = state.log.slice(from).find((e) => e.type === "cards_trashed");
+    expect(raw).not.toHaveProperty("hiddenFromDeck");
+    expect(raw).toMatchObject({ cards: [{ cardInstanceId: fromDeck }, { cardInstanceId: fromDiscard }] });
   });
 });

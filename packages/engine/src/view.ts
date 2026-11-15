@@ -8,6 +8,7 @@
  */
 import type { Planning } from "./actions";
 import {
+  type SetSpell,
   type CardInstance,
   type CardInstanceId,
   type CenterResult,
@@ -96,7 +97,33 @@ export function isEventVisibleTo(event: GameEvent, viewer: PlayerIndex): boolean
 
 /** R-19.3: Ereignisprotokoll für einen Spieler – nur öffentliche und an ihn gerichtete Ereignisse, als Kopie. */
 export function eventsFor(log: readonly GameEvent[], viewer: PlayerIndex): GameEvent[] {
-  return copy(log.filter((e) => isEventVisibleTo(e, viewer)));
+  return copy(log.filter((e) => isEventVisibleTo(e, viewer))).map((e) => redactEvent(e, viewer));
+}
+
+/**
+ * R-18.2a, R-19.3 (P8): Läutern darf fremden Spielern keinen Deckinhalt verraten. In fremden Sichten nennt
+ * `spell_set` mit Ziel `ownCards` keine gewählten Karten (nur die Anzahl, Standard bis F58: Wahl verborgen),
+ * `cards_trashed` nennt nur Karten aus dem Ablagestapel (R-18.1) und für Karten aus dem Deck nur die Anzahl.
+ * Erwartet eine Kopie und verändert sie.
+ */
+function redactEvent(event: GameEvent, viewer: PlayerIndex): GameEvent {
+  if (event.type === "spell_set" && event.player !== viewer && event.target.kind === "ownCards") {
+    event.hiddenCards = event.target.cardInstanceIds.length;
+    event.target.cardInstanceIds = [];
+  } else if (event.type === "cards_trashed" && event.player !== viewer) {
+    const hidden = event.cards.filter((c) => c.from === "deck").length;
+    if (hidden > 0) {
+      event.cards = event.cards.filter((c) => c.from !== "deck");
+      event.hiddenFromDeck = hidden;
+    }
+  }
+  return event;
+}
+
+/** R-18.2a (P8): gelegter Zauber in einer fremden Sicht – gewählte eigene Karten nur als Anzahl. */
+function redactSpell(spell: SetSpell): SetSpell {
+  if (spell.target.kind !== "ownCards") return spell;
+  return { ...spell, target: { kind: "ownCards", cardInstanceIds: [] }, hiddenCards: spell.target.cardInstanceIds.length };
 }
 
 /** R-18.3: Sicht des Spielers `viewer` auf den Zustand, ohne fremde private Informationen. */
@@ -115,7 +142,7 @@ export function playerView(state: GameState, viewer: PlayerIndex): PlayerView {
       handSize: p.hand.length,
       playedCount: p.played.length,
       discard: [...p.discard],
-      spells: p.spells,
+      spells: p.index === viewer ? p.spells : { pre: p.spells.pre.map(redactSpell), post: p.spells.post.map(redactSpell) },
       leaderAbility: p.leaderAbility,
       leader: p.leader,
       classPool: p.classPool,
@@ -155,7 +182,7 @@ export function playerView(state: GameState, viewer: PlayerIndex): PlayerView {
     frontResults: state.frontResults,
     centerResult: state.centerResult,
     result: state.result,
-    log: state.log.filter((e) => isEventVisibleTo(e, viewer)),
+    log: eventsFor(state.log, viewer),
   });
 }
 

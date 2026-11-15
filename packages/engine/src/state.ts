@@ -137,6 +137,11 @@ export interface SetSpell {
   cardId: string;
   /** Geprüftes Ziel; mehrere Felder stehen immer als `hexes`. */
   target: ActionTarget;
+  /**
+   * Nur in fremden Sichten (R-18.2a, P8): Anzahl der gewählten eigenen Karten (Läutern), deren Instanzen dort
+   * entfernt sind. Im Zustand selbst nie gesetzt.
+   */
+  hiddenCards?: number;
 }
 
 export type SpellSlot = "pre" | "post";
@@ -238,8 +243,17 @@ export type GameEventPayload =
   | { type: "leader_xp_gained"; player: PlayerIndex; amount: number; xp: number }
   /** R-6.6: Anführer steigt eine Stufe auf (bei mehreren Stufen ein Ereignis je Stufe). */
   | { type: "leader_leveled_up"; player: PlayerIndex; level: 2 | 3 | 4; xp: number }
-  /** R-14.8: Karten dauerhaft aus dem Spiel entfernt (öffentlich, die Wahl wird beim Aufdecken ohnehin bekannt). */
-  | { type: "cards_trashed"; player: PlayerIndex; cards: { cardInstanceId: CardInstanceId; cardId: string; from: "deck" | "discard" }[] }
+  /**
+   * R-14.8: Karten dauerhaft aus dem Spiel entfernt. Öffentlich; fremde Sichten (`eventsFor`, `playerView`)
+   * nennen Karten aus dem Deck nicht, sondern nur ihre Anzahl in `hiddenFromDeck` (R-18.2a, P8).
+   */
+  | {
+      type: "cards_trashed";
+      player: PlayerIndex;
+      cards: { cardInstanceId: CardInstanceId; cardId: string; from: "deck" | "discard" }[];
+      /** Nur in fremden Sichten gesetzt: Anzahl der Karten aus dem Deck, die dort aus `cards` entfernt sind. */
+      hiddenFromDeck?: number;
+    }
   /** Privat: welche Karten gezogen wurden. */
   | { type: "cards_drawn"; player: PlayerIndex; cardInstanceIds: CardInstanceId[] }
   /** Öffentlich: wie viele Karten gezogen wurden (R-18.1 Handgröße). */
@@ -321,6 +335,11 @@ export type GameEventPayload =
       target: ActionTarget;
       paidFromRoundGold: number;
       paidFromTreasury: number;
+      /**
+       * Nur in fremden Sichten gesetzt (R-18.2a, P8): bei Ziel `ownCards` sind die gewählten Karten dort
+       * entfernt, es bleibt nur ihre Anzahl. Standard bis zur Antwort auf F58: verborgen.
+       */
+      hiddenCards?: number;
     }
   /** R-8.3/R-8.4: Zauber wird aufgelöst; danach folgen die Ereignisse seiner Effekte. */
   | { type: "spell_resolved"; player: PlayerIndex; cardInstanceId: CardInstanceId; cardId: string; slot: SpellSlot; tempo: number }
