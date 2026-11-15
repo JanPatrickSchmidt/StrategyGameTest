@@ -11,6 +11,7 @@
 import {
   type ActionTarget,
   allLocations,
+  type AltCost,
   checkTarget,
   type CardData,
   emptyPlanning,
@@ -59,6 +60,13 @@ const REASON_TEXTS: Partial<Record<RejectionReason, string>> = {
   unknownUnit: "Einheit gibt es nicht",
   wrongSection: "in diesem Schritt nicht erlaubt",
   invalidLocation: "Ort gibt es nicht",
+  notOwnUnit: "nicht deine Einheit",
+  notWounded: "Einheit ist nicht verwundet",
+  invalidAmount: "ungültiger Betrag",
+  noAltCost: "Karte hat keine alternativen Kosten",
+  notEnoughLife: "zu wenig Leben (mindestens 1 muss bleiben)",
+  wrongSacrificeCount: "falsche Zahl an Opfern",
+  invalidSacrifice: "Opfer nicht erlaubt",
 };
 
 export function reasonText(reason: RejectionReason): string {
@@ -318,16 +326,20 @@ export function describeAction(data: GameData, before: PlayerView, action: Plann
     return unit ? unitLabel(data, unit) : `Einheit ${id}`;
   };
   switch (action.type) {
-    case "playUnit":
-      return `${cardName(action.cardInstanceId)} ausspielen → ${locationName(data.config, player, action.to)}`;
+    case "playUnit": {
+      const text = `${cardName(action.cardInstanceId)} ausspielen → ${locationName(data.config, player, action.to)}`;
+      return action.useAltCost ? `${text} (${altPaymentText(data, before, action)})` : text;
+    }
     case "moveUnit":
       return `${unitName(action.unitId)} bewegen → ${locationName(data.config, player, action.to)}`;
     case "setSpell":
       return `Zauber ${cardName(action.cardInstanceId)} legen (${action.slot === "pre" ? "vor" : "nach"} dem Kampf) → ${targetText(data, before, action.target)}`;
     case "setLeaderAbility":
       return "Anführer-Fähigkeit wählen";
-    case "heal":
-      return `${unitName(action.unitId)} genesen`;
+    case "heal": {
+      const unit = before.units[action.unitId];
+      return `${unitName(action.unitId)} genesen${unit ? ` (${data.config.healCostPerStar * unit.stars} Gold)` : ""}`;
+    }
     case "withdraw":
       return `${action.amount} Gold aus der Schatzkammer entnehmen`;
     case "chooseBranch":
@@ -335,4 +347,26 @@ export function describeAction(data: GameData, before: PlayerView, action: Plann
     case "buy":
       return `${data.cards.get(action.cardId)?.name ?? action.cardId} kaufen`;
   }
+}
+
+/** R-14.6: Bezahlung einer Ausspiel-Aktion mit alternativen Kosten, z. B. „alternativ: 2 Gold + 1 Opfer: Söldner“. */
+function altPaymentText(data: GameData, before: PlayerView, action: Extract<PlanningAction, { type: "playUnit" }>): string {
+  const instance = before.cards[action.cardInstanceId];
+  const card = instance ? data.cards.get(instance.cardId) : undefined;
+  const alt = card?.type === "unit" ? card.altCost : undefined;
+  const victims = (action.sacrifice ?? []).map((id) => {
+    const unit = before.units[id];
+    return unit ? (data.cards.get(unit.sourceId)?.name ?? unit.sourceId) : `Einheit ${id}`;
+  });
+  const cost = `alternativ: ${alt ? altCostText(alt) : "kostenlos"}`;
+  return victims.length > 0 ? `${cost}: ${victims.join(", ")}` : cost;
+}
+
+/** R-14.6: Text alternativer Kosten, z. B. „2 Leben“ oder „2 Gold + 1 Opfer“. */
+export function altCostText(alt: AltCost): string {
+  const parts: string[] = [];
+  if (alt.gold) parts.push(`${alt.gold} Gold`);
+  if (alt.bloodToll) parts.push(`${alt.bloodToll} Leben`);
+  if (alt.sacrifice) parts.push(`${alt.sacrifice} Opfer`);
+  return parts.length > 0 ? parts.join(" + ") : "kostenlos";
 }

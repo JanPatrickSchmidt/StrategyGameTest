@@ -1,12 +1,14 @@
 /**
  * Planungsleiste im Browser (C3a): zeigt den Planungsentwurf (`PlanBuilder`) als schlichte HTML-Bedienung.
  * Schritte Ausspielen, Kaufen, Aufstellen (R-5) mit freiem Wechsel, Gold, automatisch ausgespielte Münzen,
- * Hand, Ortsauswahl mit Feldnamen (R-3.8), Liste der geplanten Aktionen und Bestätigen.
+ * Hand, Ortsauswahl mit Feldnamen (R-3.8), Liste der geplanten Aktionen und Bestätigen; seit C3c2 auch Genesen
+ * (R-7.5), Entnahme aus der Schatzkammer (R-7.6) und alternative Kosten beim Ausspielen (R-14.6).
  * Die Logik liegt in `planner.ts`; hier wird nur gezeichnet und weitergereicht.
  */
 import { type GameData, PLANNING_SECTIONS, type PlanningAction, type PlayerView, type RejectionReason, type UnitId, type UnitLocation } from "@game/engine";
 import { applyTarget, type BoardSelection, isRelocatable, targetLocations, validSelection } from "./boardInput";
 import { locationName } from "./fieldNames";
+import { addHeal, addWithdraw, healOptions, NORMAL_PAYMENT, type Payment, paymentChoice, playAction, playLocations, withdrawMax } from "./planExtras";
 import { addSpell, SLOT_LABELS, spellTargetChoice, type TargetChoice } from "./spellTargets";
 import {
   type CardEntry,
@@ -173,6 +175,8 @@ export class PlanningPanel {
       el("p", { className: "hint" }, `Automatisch ausgespielt (R-6.4): ${played.length > 0 ? played.map((c) => c.card.name).join(", ") : "nichts"}`),
     );
 
+    this.renderWithdraw(builder, view);
+
     if (builder.step === "play") this.renderPlay(builder, view);
     else if (builder.step === "buy") this.root.append(el("p", { className: "hint", textContent: "Kaufen kommt mit C5 (Königreich und Klassen-Pool). Bis dahin kannst du hier nichts kaufen." }));
     else this.renderPosition(builder, view);
@@ -221,13 +225,15 @@ export class PlanningPanel {
     if (spell && spell.card.type === "spell") {
       const choice = spellTargetChoice(this.data, builder, spell.instanceId);
       if (choice) this.renderSpellTarget(builder, spell.instanceId, `${spell.card.name} (${SLOT_LABELS[spell.card.slot]})`, choice);
-    } else if (selected) {
-      const locations = builder.freeLocations();
+    } else if (selected && selection?.kind === "card") {
+      const payment = selection.payment ?? NORMAL_PAYMENT;
+      this.renderPayment(builder, selected.instanceId, payment);
+      const locations = playLocations(builder, payment);
       const select = locationSelect(this.data, view, locations);
       const go = el("button", { textContent: "Ausspielen" });
       go.addEventListener("click", () => {
         const to = selectedLocation(select, locations);
-        if (to) this.add({ type: "playUnit", cardInstanceId: selected.instanceId, to });
+        if (to) this.add(playAction(selected.instanceId, to, payment));
       });
       this.root.append(el("div", { className: "row" }, el("span", { textContent: `${selected.card.name} nach` }), select, go));
     } else {
@@ -235,10 +241,80 @@ export class PlanningPanel {
         el("p", {
           className: "hint",
           textContent:
-            "Einheitenkarte wählen, dann ein hervorgehobenes Feld auf dem Brett anklicken (oder den Ort hier wählen). Zauberkarte wählen, dann ihr Ziel. Genesen und Entnahme folgen mit C3c2.",
+            "Einheitenkarte wählen, dann ein hervorgehobenes Feld auf dem Brett anklicken (oder den Ort hier wählen). Zauberkarte wählen, dann ihr Ziel.",
         }),
       );
     }
+    this.renderHeal(builder);
+  }
+
+  /** C3c2, R-14.6: Bezahlwahl für die gewählte Einheitenkarte (nur bei Karten mit alternativen Kosten). */
+  private renderPayment(builder: PlanBuilder, cardInstanceId: number, payment: Payment): void {
+    const choice = paymentChoice(this.data, builder, cardInstanceId);
+    if (!choice?.alt) return;
+    const alt = choice.alt;
+    const setPayment = (next: Payment): void => {
+      this.selection = { kind: "card", cardInstanceId, payment: next };
+      this.change(next.kind === "alt" && alt.sacrifice > 0 ? `Opfer wählen: genau ${alt.sacrifice}.` : "");
+    };
+    const mode = el("select");
+    mode.append(
+      el("option", { value: "normal", textContent: `normal: ${choice.normalText}`, selected: payment.kind === "normal" }),
+      el("option", { value: "alt", textContent: `alternativ: ${alt.text}`, selected: payment.kind === "alt" }),
+    );
+    mode.addEventListener("change", () => setPayment(mode.value === "alt" ? { kind: "alt", sacrifice: [] } : NORMAL_PAYMENT));
+    this.root.append(el("div", { className: "row" }, el("span", { textContent: "Bezahlen" }), mode));
+    if (payment.kind !== "alt" || alt.sacrifice === 0) return;
+    if (alt.candidates.length === 0) {
+      this.root.append(el("p", { className: "hint", textContent: "Keine eigene Karten-Einheit zum Opfern (Anführer und Tokens zählen nicht)." }));
+      return;
+    }
+    const list = el("div", { className: "row card-choice" }, el("span", { className: "hint", textContent: `Opfer (genau ${alt.sacrifice}):` }));
+    for (const option of alt.candidates) {
+      const box = el("input", { type: "checkbox", checked: payment.sacrifice.includes(option.unitId) });
+      box.addEventListener("change", () => {
+        const others = payment.sacrifice.filter((id) => id !== option.unitId);
+        setPayment({ kind: "alt", sacrifice: box.checked ? [...others, option.unitId] : others });
+      });
+      list.append(el("label", {}, box, ` ${option.label}`));
+    }
+    this.root.append(list);
+  }
+
+  /** C3c2, R-7.5: verwundete eigene Einheit genesen (1 Gold je Stern). */
+  private renderHeal(builder: PlanBuilder): void {
+    const options = healOptions(this.data, builder);
+    if (options.length === 0) return;
+    const select = el("select");
+    for (const option of options) select.append(el("option", { value: String(option.unitId), textContent: `${option.label} – ${option.cost} Gold` }));
+    const go = el("button", { textContent: "Genesen" });
+    go.addEventListener("click", () => {
+      const reason = addHeal(builder, Number(select.value));
+      this.change(reason ? `Nicht möglich: ${reasonText(reason)}` : "Genesung geplant.");
+    });
+    this.root.append(el("div", { className: "row" }, el("span", { textContent: "Verwundet:" }), select, go));
+  }
+
+  /** C3c2, R-7.6: Gold aus der Schatzkammer in den Rundenvorrat (in jedem Schritt). */
+  private renderWithdraw(builder: PlanBuilder, view: PlayerView): void {
+    const max = withdrawMax(view);
+    if (max <= 0) return;
+    const amount = el("input", { type: "number", min: "1", max: String(max), value: String(max), className: "amount" });
+    const go = el("button", { textContent: "Entnehmen" });
+    go.addEventListener("click", () => {
+      const reason = addWithdraw(builder, Number(amount.value));
+      this.change(reason ? `Nicht möglich: ${reasonText(reason)}` : "Entnahme geplant.");
+    });
+    this.root.append(
+      el(
+        "div",
+        { className: "row", title: "Fehlt beim Bezahlen Gold im Rundenvorrat, wird ohnehin aus der Schatzkammer genommen." },
+        el("span", { textContent: "Aus der Schatzkammer" }),
+        amount,
+        el("span", { textContent: "Gold" }),
+        go,
+      ),
+    );
   }
 
   /** C3c1: Zielwahl eines Zaubers: ohne Ziel, eine Wahl aus der Liste oder eigene Karten ankreuzen (R-14.8). */

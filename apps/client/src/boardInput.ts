@@ -9,10 +9,14 @@
  */
 import { allLocations, type GameData, type PlayerIndex, type RejectionReason, type UnitId, type UnitLocation } from "@game/engine";
 import { type BoardLayout, locationPosition, type WorldPoint } from "./boardLayout";
+import { type Payment, playAction, playLocations } from "./planExtras";
 import { handCards, type PlanBuilder } from "./planner";
 
-/** Auswahl für das Brett: eine Einheitenkarte der Hand oder eine eigene Einheit. */
-export type BoardSelection = { kind: "card"; cardInstanceId: number } | { kind: "unit"; unitId: UnitId } | null;
+/**
+ * Auswahl für das Brett: eine Einheitenkarte der Hand (C3c2: mit Bezahlwahl, fehlt = normale Kosten, R-14.6)
+ * oder eine eigene Einheit.
+ */
+export type BoardSelection = { kind: "card"; cardInstanceId: number; payment?: Payment } | { kind: "unit"; unitId: UnitId } | null;
 
 /** Darf diese Einheit auf dem Brett gewählt bzw. gezogen werden? */
 export function isRelocatable(builder: PlanBuilder, unitId: UnitId): boolean {
@@ -29,10 +33,13 @@ export function validSelection(data: GameData, builder: PlanBuilder, selection: 
 
 /**
  * Hervorzuhebende Zielorte: alle eigenen Orte ohne eigene Einheit im Entwurf (Felder der eigenen Frontzonen,
- * Startbereich der Mitte, Reserve). Kapazität (R-3.6) und Kosten prüft erst die Engine beim Anwenden.
+ * Startbereich der Mitte, Reserve), beim Ausspielen mit Opfern zusätzlich deren Orte. Kapazität (R-3.6) und Kosten prüft erst die Engine beim Anwenden.
  */
 export function targetLocations(data: GameData, builder: PlanBuilder, selection: BoardSelection): UnitLocation[] {
-  return validSelection(data, builder, selection) ? builder.freeLocations() : [];
+  const valid = validSelection(data, builder, selection);
+  if (!valid) return [];
+  // R-14.6: bei Opfern werden deren Felder sofort frei und sind ebenfalls Ziel.
+  return valid.kind === "card" ? playLocations(builder, valid.payment) : builder.freeLocations();
 }
 
 /**
@@ -44,7 +51,7 @@ export function applyTarget(data: GameData, builder: PlanBuilder, selection: Boa
   if (!valid) return "unknownUnit";
   if (valid.kind === "unit") return builder.relocate(valid.unitId, to);
   if (builder.step !== "play") builder.setStep("play");
-  return builder.add({ type: "playUnit", cardInstanceId: valid.cardInstanceId, to });
+  return builder.add(playAction(valid.cardInstanceId, to, valid.payment));
 }
 
 /**
