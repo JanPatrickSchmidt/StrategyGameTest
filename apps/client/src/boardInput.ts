@@ -7,10 +7,10 @@
  * liegt, bestimmt `nearestLocation` aus der Brett-Geometrie. Ob die Aktion gültig ist, entscheidet allein die
  * Engine über den `PlanBuilder`.
  */
-import { allLocations, type GameData, type PlayerIndex, type RejectionReason, type UnitId, type UnitLocation } from "@game/engine";
+import { allLocations, type GameData, type PlayerIndex, type UnitId, type UnitLocation } from "@game/engine";
 import { type BoardLayout, locationPosition, type WorldPoint } from "./boardLayout";
 import { type Payment, playAction, playLocations } from "./planExtras";
-import { handCards, type PlanBuilder } from "./planner";
+import { handCards, type PlanBuilder, type PlanReason } from "./planner";
 
 /**
  * Auswahl für das Brett: eine Einheitenkarte der Hand (C3c2: mit Bezahlwahl, fehlt = normale Kosten, R-14.6)
@@ -46,7 +46,7 @@ export function targetLocations(data: GameData, builder: PlanBuilder, selection:
  * Wendet einen gewählten Ort an: Karte → Einheit ausspielen (R-7.1, Schritt Ausspielen), Einheit → versetzen
  * (`PlanBuilder.relocate`, R-7.2). Liefert den Ablehnungsgrund oder `null`.
  */
-export function applyTarget(data: GameData, builder: PlanBuilder, selection: BoardSelection, to: UnitLocation): RejectionReason | null {
+export function applyTarget(data: GameData, builder: PlanBuilder, selection: BoardSelection, to: UnitLocation): PlanReason | null {
   const valid = validSelection(data, builder, selection);
   if (!valid) return "unknownUnit";
   if (valid.kind === "unit") return builder.relocate(valid.unitId, to);

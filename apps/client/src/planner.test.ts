@@ -117,3 +117,98 @@ describe("C3a: Planungsentwurf im Client", () => {
     expect(describeAction(data, before, { type: "moveUnit", unitId: leader.id, to: { zone: "center", position: 2 } })).toMatch(/bewegen → Mitte d1$/);
   });
 });
+
+/** Zweite Planung einer Partie, in der der Mensch zu Beginn Anführer A und eine Karten-Einheit B in der Reserve hat. */
+function twoUnits(): { builder: PlanBuilder; a: number; b: number; x: UnitLocation } {
+  const { session, builder: first, unitCard } = sessionWithUnitInHand();
+  expect(first.add({ type: "playUnit", cardInstanceId: unitCard, to: RESERVE_0 })).toBeNull();
+  session.submitHuman(first.planning());
+  const builder = session.planner();
+  const units = builder.movableUnits();
+  const a = units.find((u) => u.kind === "leader");
+  const b = units.find((u) => u.kind !== "leader" && u.cardInstanceIds.includes(unitCard));
+  if (!a || !b) throw new Error("Anführer oder Einheit fehlt");
+  expect(b.location).toEqual(RESERVE_0);
+  return { builder, a: a.id, b: b.id, x: a.location };
+}
+
+const RESERVE_1: UnitLocation = { zone: "reserve", slot: 1 };
+const RESERVE_2: UnitLocation = { zone: "reserve", slot: 2 };
+
+describe("P7: erneutes Versetzen und abhängige Bewegungen", () => {
+  it("R-7.2: erneutes Versetzen von A macht eine abhängige Bewegung von B nicht ungültig", () => {
+    const { builder, a, b, x } = twoUnits();
+    expect(builder.relocate(a, RESERVE_1)).toBeNull();
+    expect(builder.relocate(b, x)).toBeNull();
+    expect(builder.relocate(a, RESERVE_2)).toBeNull();
+    // Die Bewegung von A behält ihren Platz vor der von B.
+    expect(builder.planning().position).toEqual([
+      { type: "moveUnit", unitId: a, to: RESERVE_2 },
+      { type: "moveUnit", unitId: b, to: x },
+    ]);
+    expect(builder.entries().every((e) => e.rejection === null)).toBe(true);
+    const preview = builder.preview();
+    expect(preview.units[a]?.location).toEqual(RESERVE_2);
+    expect(preview.units[b]?.location).toEqual(x);
+  });
+
+  it("R-7.2: A zurück auf sein Ausgangsfeld, auf das B schon geplant ist, wird abgelehnt und ändert nichts", () => {
+    const { builder, a, b, x } = twoUnits();
+    builder.relocate(a, RESERVE_1);
+    builder.relocate(b, x);
+    const before = JSON.stringify(builder.planning());
+    expect(builder.relocate(a, x)).toBe("breaksPlannedAction");
+    expect(JSON.stringify(builder.planning())).toBe(before);
+    expect(builder.entries().every((e) => e.rejection === null)).toBe(true);
+    expect(builder.preview().units[b]?.location).toEqual(x);
+  });
+
+  it("R-7.2: kann die Bewegung nicht an ihrem Platz bleiben, rückt sie ans Ende (Feld wird erst durch eine spätere Bewegung frei)", () => {
+    const { builder, a, b } = twoUnits();
+    builder.relocate(a, RESERVE_1);
+    builder.relocate(b, RESERVE_2);
+    // A auf den Reserveplatz 0, den B erst mit der späteren Bewegung räumt.
+    expect(builder.relocate(a, RESERVE_0)).toBeNull();
+    expect(builder.planning().position).toEqual([
+      { type: "moveUnit", unitId: b, to: RESERVE_2 },
+      { type: "moveUnit", unitId: a, to: RESERVE_0 },
+    ]);
+    expect(builder.preview().units[a]?.location).toEqual(RESERVE_0);
+    expect(builder.preview().units[b]?.location).toEqual(RESERVE_2);
+  });
+
+  it("R-5: in keinem der Fälle zeigt die Vorschau eine Aktion, die nicht eingereicht wird", () => {
+    const { builder, a, b, x } = twoUnits();
+    const steps: [number, UnitLocation][] = [
+      [a, RESERVE_1],
+      [b, x],
+      [a, RESERVE_2],
+      [a, x],
+      [b, RESERVE_1],
+      [a, x],
+      [b, RESERVE_0],
+    ];
+    for (const [unit, to] of steps) {
+      builder.relocate(unit, to);
+      const accepted = builder.entries().filter((e) => e.rejection === null).map((e) => e.action);
+      expect(builder.entries().every((e) => e.rejection === null)).toBe(true);
+      expect(builder.planning().position).toEqual(accepted);
+    }
+  });
+
+  it("R-7.1: das Ausspielziel einer neuen Einheit lässt sich nicht auf ein Feld legen, das eine geplante Bewegung braucht", () => {
+    const { builder, a } = twoUnits();
+    const view = builder.preview();
+    const card = handCards(data, view).find((c) => c.card.type === "unit" && c.card.cost <= ownEntry(view).roundGold);
+    if (!card) throw new Error("Keine bezahlbare Einheit in der zweiten Hand");
+    expect(builder.add({ type: "playUnit", cardInstanceId: card.instanceId, to: RESERVE_2 })).toBeNull();
+    expect(builder.relocate(a, RESERVE_1)).toBeNull();
+    const fresh = Object.values(builder.preview().units).find((u) => u.owner === HUMAN && u.cardInstanceIds.includes(card.instanceId));
+    if (!fresh) throw new Error("Neue Einheit fehlt");
+    // Reserveplatz 1 braucht die Bewegung von A (sie liegt im späteren Schritt Aufstellen).
+    const before = JSON.stringify(builder.planning());
+    expect(builder.relocate(fresh.id, RESERVE_1)).toBe("breaksPlannedAction");
+    expect(JSON.stringify(builder.planning())).toBe(before);
+    expect(builder.preview().units[a]?.location).toEqual(RESERVE_1);
+  });
+});

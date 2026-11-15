@@ -69,7 +69,14 @@ const REASON_TEXTS: Partial<Record<RejectionReason, string>> = {
   invalidSacrifice: "Opfer nicht erlaubt",
 };
 
-export function reasonText(reason: RejectionReason): string {
+/**
+ * Gründe, aus denen der Client eine Änderung der Planung ablehnt: die der Engine und `breaksPlannedAction`
+ * (die Änderung würde eine andere, bisher angenommene Aktion ungültig machen, P7).
+ */
+export type PlanReason = RejectionReason | "breaksPlannedAction";
+
+export function reasonText(reason: PlanReason): string {
+  if (reason === "breaksPlannedAction") return "würde eine andere geplante Aktion ungültig machen";
   return REASON_TEXTS[reason] ?? reason;
 }
 
@@ -168,45 +175,57 @@ export class PlanBuilder {
 
   /**
    * C3b: Einheit auf dem Brett an einen neuen Ort setzen (Feld anklicken bzw. Einheit ziehen).
-   * - Einheit vom Beginn der Planung (R-7.2): frühere Bewegungen dieser Einheit werden ersetzt, damit die Liste
-   *   übersichtlich bleibt; zurück auf ihren Ausgangsort heißt einfach „nicht bewegen“. Wechselt in den Schritt
-   *   Aufstellen.
+   * - Einheit vom Beginn der Planung (R-7.2): eine frühere Bewegung dieser Einheit wird ersetzt und behält ihren
+   *   Platz in der Liste (P7), damit Bewegungen anderer Einheiten auf das frei gewordene Feld gültig bleiben;
+   *   gelingt das so nicht, wird die Bewegung ans Ende gestellt. Zurück auf ihren Ausgangsort heißt einfach
+   *   „nicht bewegen“. Wechselt in den Schritt Aufstellen.
    * - Neu ausgespielte Einheit (R-7.1): der Zielort ihrer Ausspiel-Aktion wird geändert; wechselt zu Ausspielen.
-   * Lehnt die Engine ab, bleibt alles wie vorher und der Grund wird zurückgegeben.
+   * Lehnt die Engine ab oder würde eine andere bisher angenommene Aktion dadurch abgelehnt
+   * (`breaksPlannedAction`), bleibt alles wie vorher und der Grund wird zurückgegeben.
    */
-  relocate(unitId: UnitId, to: UnitLocation): RejectionReason | null {
+  relocate(unitId: UnitId, to: UnitLocation): PlanReason | null {
     const unit = this.draft.state.units[unitId];
     if (!unit || unit.owner !== this.player) return "unknownUnit";
     if (this.draft.initialUnitIds.has(unitId)) {
       const list = this.actions.position;
       const saved = list.slice();
-      const kept = saved.filter((a) => !(a.type === "moveUnit" && a.unitId === unitId));
-      list.splice(0, list.length, ...kept);
+      const accepted = this.acceptedActions();
+      const own = (a: PlanningAction): boolean => a.type === "moveUnit" && a.unitId === unitId;
       const start = this.source.units[unitId]?.location;
-      let reason: RejectionReason | null = null;
-      if (!start || locationKey(start) !== locationKey(to)) {
-        list.push({ type: "moveUnit", unitId, to: { ...to } as UnitLocation });
-        this.replay();
-        reason = this.results.position[list.length - 1] ?? null;
+      const kept = saved.filter((a) => !own(a));
+      const candidates: PlanningAction[][] = [];
+      if (start && locationKey(start) === locationKey(to)) {
+        candidates.push(kept);
       } else {
-        this.replay();
+        const move: PlanningAction = { type: "moveUnit", unitId, to: { ...to } as UnitLocation };
+        const at = saved.findIndex(own);
+        if (at >= 0) candidates.push([...kept.slice(0, at), move, ...kept.slice(at)]);
+        candidates.push([...kept, move]);
       }
-      if (reason) {
-        list.splice(0, list.length, ...saved);
+      let reason: PlanReason | null = null;
+      for (const candidate of candidates) {
+        list.splice(0, list.length, ...candidate);
         this.replay();
-        return reason;
+        reason = this.firstProblem(accepted, list.find(own));
+        if (!reason) {
+          this.currentStep = "position";
+          return null;
+        }
       }
-      this.currentStep = "position";
-      return null;
+      list.splice(0, list.length, ...saved);
+      this.replay();
+      return reason;
     }
     const index = this.playIndexOf(unit);
     if (index < 0) return "unknownUnit";
     const list = this.actions.play;
     const old = list[index];
     if (!old || old.type !== "playUnit") return "unknownUnit";
-    list[index] = { ...old, to: { ...to } as UnitLocation };
+    const accepted = this.acceptedActions();
+    const changed: PlanningAction = { ...old, to: { ...to } as UnitLocation };
+    list[index] = changed;
     this.replay();
-    const reason = this.results.play[index] ?? null;
+    const reason = this.firstProblem(accepted, changed);
     if (reason) {
       list[index] = old;
       this.replay();
@@ -214,6 +233,36 @@ export class PlanBuilder {
     }
     this.currentStep = "play";
     return null;
+  }
+
+  /** Aktionen, die die Engine beim letzten Durchspielen angenommen hat (nach Objekt). */
+  private acceptedActions(): Set<PlanningAction> {
+    const accepted = new Set<PlanningAction>();
+    for (const section of PLANNING_SECTIONS) {
+      this.actions[section].forEach((action, i) => {
+        if (!this.results[section][i]) accepted.add(action);
+      });
+    }
+    return accepted;
+  }
+
+  /**
+   * Nach einer Änderung: Grund der Ablehnung der geänderten Aktion (falls vorhanden), sonst
+   * `breaksPlannedAction`, wenn eine vorher angenommene Aktion jetzt abgelehnt wird, sonst `null`.
+   */
+  private firstProblem(accepted: Set<PlanningAction>, changed: PlanningAction | undefined): PlanReason | null {
+    let broken = false;
+    for (const section of PLANNING_SECTIONS) {
+      const list = this.actions[section];
+      for (let i = 0; i < list.length; i++) {
+        const result = this.results[section][i] ?? null;
+        if (!result) continue;
+        const action = list[i];
+        if (action === changed) return result;
+        if (action && accepted.has(action)) broken = true;
+      }
+    }
+    return broken ? "breaksPlannedAction" : null;
   }
 
   /** Index der Ausspiel-Aktion, aus der eine neue Einheit entstanden ist (`-1`, wenn keine). */
