@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fighterFromData } from "./combat";
 import { loadGameData } from "./data";
-import { fighterForUnit, frontArenaId, frontPairings, frontParticipants, runFrontCombats } from "./fronts";
+import { fighterForUnit, frontArenaId, frontPairings, frontParticipants, runFrontCombats, unitBaseStats } from "./fronts";
 import { advance, submitPlanning } from "./round";
 import { createGame, defaultLeaders } from "./setup";
 import { type GameEvent, type GameState, getPlayer, PLAYER_INDICES, type PlayerIndex, type Unit, type UnitId, type UnitLocation } from "./state";
@@ -239,6 +239,25 @@ describe("Frontkampf (R-3.2, R-9)", () => {
     expect(raised.attack).toBe(base.stats.attack + Math.floor(base.stats.attack * bonus));
     expect(raised.hp).toBe(base.stats.hp + Math.floor(base.stats.hp * bonus));
     expect(raised.hp).toBeGreaterThan(base.stats.hp);
+  });
+
+  it("R-16.3, P11: unitBaseStats (Werte außerhalb des Kampfes) stimmt ohne Rundenwirkungen mit fighterForUnit überein", () => {
+    const state = emptyBoard();
+    const pos = { col: 0, row: 0 };
+    const leader = leaderUnit(state, 0);
+    leader.permanentBuffs = { hp: 2, attack: 1 };
+    getPlayer(state, 0).leader.level = 3;
+    const card = placeUnit(state, 1, front("left", 0, 0), "recruit", { stars: 2, permanentBuffs: { hp: 3 } });
+    const token = placeUnit(state, 2, front("left", 0, 0), "spirit", { kind: "token", statOverride: { hp: 9, attack: 4 } });
+    for (const unit of [leader, state.units[card] as Unit, state.units[token] as Unit]) {
+      const level = getPlayer(state, unit.owner).leader.level;
+      expect(unitBaseStats(data, unit, level)).toEqual(fighterForUnit(state, data, unit, pos).stats);
+    }
+    const bonus = data.config.leader.level3StatBonus;
+    const base = data.leaders.get(leader.sourceId)!.stats;
+    expect(unitBaseStats(data, leader, 3).hp).toBe(base.hp + Math.floor(base.hp * bonus + 1e-9) + 2);
+    expect(unitBaseStats(data, leader, 2).hp).toBe(base.hp + 2);
+    expect(unitBaseStats(data, state.units[token] as Unit, 1).hp).toBe(9);
   });
 
   it("R-9.1: der Anführer kämpft in seiner Frontzone mit (Startfeld links)", () => {

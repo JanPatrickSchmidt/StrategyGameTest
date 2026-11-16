@@ -7,6 +7,7 @@
  * (R-9): Der Spielzustand wird erst nach allen Kämpfen verändert (Tokens entfernen).
  */
 import { type FighterInit, fighterFromData, simulateCombat } from "./combat";
+import type { UnitStats } from "./dataTypes";
 import type { GameData } from "./data";
 import { applyCombatAftermath } from "./aftermath";
 import { type DeferredEffect, effectHooks } from "./effects";
@@ -65,9 +66,41 @@ export function frontParticipants(state: GameState, pairing: FrontPairing): { fi
 }
 
 /**
- * R-9.2 plus R-16.3: Kampfwerte einer Einheit. Ab Anführer-Stufe 3 steigen `attack` und `hp` der
- * Anführer-Kampfeinheit um `config.leader.level3StatBonus` (Zuschlag abgerundet). Dauerhafte Buffs
- * (`unit.permanentBuffs`, E10b) kommen danach als fester Zuschlag hinzu (F31), dann die Wirkungen der
+ * P11 (R-16.3, R-15.2): Werte einer Einheit außerhalb des Kampfes, wie sie jede Anzeige zeigen soll: Grundwerte
+ * aus den Daten (Sternfaktor bzw. Anführer-Werte), Ersatzwerte beschworener Tokens (`statOverride`, E11c3), ab
+ * Anführer-Stufe 3 der Zuschlag auf `attack` und `hp` (`config.leader.level3StatBonus`, abgerundet), danach
+ * dauerhafte Buffs (`permanentBuffs`, F31). Vorkampf-Zauber und Resonanz zählen nicht, sie greifen erst in der
+ * Kampfphase. `leaderLevel` ist die Stufe des Anführers des Besitzers (aus Zustand oder Sicht).
+ * `fighterForUnit` baut darauf auf, damit Anzeige und Kampf nicht auseinanderlaufen.
+ */
+export function unitBaseStats(data: GameData, unit: Unit, leaderLevel: number): UnitStats {
+  const init = fighterFromData(data, {
+    id: unit.id,
+    team: unit.owner,
+    kind: unit.kind,
+    sourceId: unit.sourceId,
+    stars: unit.stars,
+    pos: { col: 0, row: 0 },
+  });
+  return applyPersistentStats(data, init.stats, unit, leaderLevel);
+}
+
+function applyPersistentStats(data: GameData, base: UnitStats, unit: Unit, leaderLevel: number): UnitStats {
+  let stats = base;
+  // E11c3: Morgras Beschwörung ersetzt Grundwerte des Tokens (vor allen Zuschlägen).
+  if (unit.statOverride) stats = { ...stats, ...unit.statOverride };
+  if (unit.kind === "leader" && leaderLevel >= 3) {
+    const bonus = data.config.leader.level3StatBonus;
+    const raise = (v: number): number => v + Math.floor(v * bonus + 1e-9);
+    stats = { ...stats, attack: raise(stats.attack), hp: raise(stats.hp) };
+  }
+  if (unit.permanentBuffs) stats = addStatBonuses(data.config, stats, unit.permanentBuffs);
+  return stats;
+}
+
+/**
+ * R-9.2 plus R-16.3: Kampfwerte einer Einheit. Zuerst die Werte außerhalb des Kampfes (`unitBaseStats`:
+ * Grundwerte, Token-Ersatzwerte, Anführer-Stufe-3-Zuschlag, dauerhafte Buffs), dann die Wirkungen der
  * Vorkampf-Zauber (`unit.roundEffects`, E11b1), dann die Rassen-Resonanz
  * (R-17.2, E10c1) und zuletzt Start-Mana aus Markierungen und Resonanz.
  */
@@ -80,14 +113,7 @@ export function fighterForUnit(state: GameState, data: GameData, unit: Unit, pos
     stars: unit.stars,
     pos,
   });
-  // E11c3: Morgras Beschwörung ersetzt Grundwerte des Tokens (vor allen Zuschlägen).
-  if (unit.statOverride) init.stats = { ...init.stats, ...unit.statOverride };
-  if (unit.kind === "leader" && getPlayer(state, unit.owner).leader.level >= 3) {
-    const bonus = data.config.leader.level3StatBonus;
-    const raise = (v: number): number => v + Math.floor(v * bonus + 1e-9);
-    init.stats = { ...init.stats, attack: raise(init.stats.attack), hp: raise(init.stats.hp) };
-  }
-  if (unit.permanentBuffs) init.stats = addStatBonuses(data.config, init.stats, unit.permanentBuffs);
+  init.stats = applyPersistentStats(data, init.stats, unit, getPlayer(state, unit.owner).leader.level);
   // R-8.3 (E11b1): Schild, Buffs und Schlüsselwörter aus Vorkampf-Zaubern dieser Runde.
   applyRoundEffects(data.config, init, unit);
   // R-17.2: Rassen-Resonanz nach dem Brett zu Beginn der Kampfphase (Werte, Schlüsselwörter, Start-Mana).

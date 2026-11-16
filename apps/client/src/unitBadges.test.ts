@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { loadGameData, type PlayerView, scaleByStars, type Unit, unitStats } from "@game/engine";
+import {
+  advance,
+  createGame,
+  defaultLeaders,
+  fighterForUnit,
+  getPlayer,
+  loadGameData,
+  playerView,
+  type PlayerView,
+  scaleByStars,
+  type Unit,
+  unitStats,
+} from "@game/engine";
 import { buildBoardLayout, frontPairsFor, type LayoutConfig } from "./boardLayout";
 import { GameSession, HUMAN } from "./session";
 import { seatLabelText } from "./stateText";
@@ -65,6 +77,18 @@ describe("C2c Lebens- und Sternanzeige", () => {
     const leveled: PlayerView = { ...view, players };
     const expected = leader.stats.hp + Math.floor(leader.stats.hp * data.config.leader.level3StatBonus + 1e-9);
     expect(unitDisplayHp(data, leveled, leaderUnit)).toBe(expected);
+  });
+
+  it("R-16.3, P11: Anführer auf Stufe 3 mit dauerhaftem Buff – Anzeige = Lebenspunkte aus fighterForUnit der Engine", () => {
+    const state = createGame(data, defaultLeaders(data), 4);
+    advance(state, data);
+    const leaderUnit = state.units[getPlayer(state, HUMAN).leader.unitId] as Unit;
+    getPlayer(state, HUMAN).leader.level = 3;
+    leaderUnit.permanentBuffs = { hp: 2 };
+    const engineHp = fighterForUnit(state, data, leaderUnit, { col: 0, row: 0 }).stats.hp;
+    const view = playerView(state, HUMAN);
+    expect(unitDisplayHp(data, view, view.units[leaderUnit.id] as Unit)).toBe(engineHp);
+    expect(engineHp).toBeGreaterThan(data.leaders.get(leaderUnit.sourceId)!.stats.hp + 2);
   });
 
   it("C2c: Anzeigetext – Sterne und Herz bei Karten-Einheiten, Stufe bei Anführern (R-15.3), Markierung bei Verwundeten", () => {

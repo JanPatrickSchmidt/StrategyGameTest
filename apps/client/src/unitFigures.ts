@@ -10,7 +10,7 @@
  *
  * C2c: Jede Figur trägt Sterne bzw. Anführer-Stufe und Lebenspunkte für die Anzeige über der Figur.
  */
-import { addStatBonuses, fighterFromData, type GameData, type PlayerIndex, type PlayerView, type Unit, type UnitId, type UnitLocation } from "@game/engine";
+import { type GameData, type PlayerIndex, type PlayerView, type Unit, type UnitId, type UnitLocation, unitBaseStats } from "@game/engine";
 import { type BoardLayout, locationPosition, type WorldPoint } from "./boardLayout";
 
 export type FigureShape = "leader" | "melee" | "ranged" | "token";
@@ -73,25 +73,11 @@ export function figureSourceKey(figure: Pick<UnitFigure, "shape" | "owner" | "wo
 /**
  * C2c: Lebenspunkte einer Einheit außerhalb des Kampfes, so wie sie in den nächsten Kampf geht, bevor
  * Rundenwirkungen greifen: Grundwert aus den Daten mit Sternfaktor (R-15.2), Ersatzwerte beschworener Tokens,
- * Anführer-Stufe 3 (R-16.3) und dauerhafte Buffs. Gleiche Reihenfolge wie `fighterForUnit` der Engine; Vorkampf-
- * Zauber und Rassen-Resonanz (erst zu Beginn der Kampfphase) zählen hier nicht mit.
+ * Anführer-Stufe 3 (R-16.3) und dauerhafte Buffs. Seit P11 direkt aus `unitBaseStats` der Engine, auf der auch
+ * `fighterForUnit` aufbaut; Vorkampf-Zauber und Rassen-Resonanz (erst zu Beginn der Kampfphase) zählen nicht mit.
  */
 export function unitDisplayHp(data: GameData, view: PlayerView, unit: Unit): number {
-  let stats = fighterFromData(data, {
-    id: unit.id,
-    team: unit.owner,
-    kind: unit.kind,
-    sourceId: unit.sourceId,
-    stars: unit.stars,
-    pos: { col: 0, row: 0 },
-  }).stats;
-  if (unit.statOverride) stats = { ...stats, ...unit.statOverride };
-  if (unit.kind === "leader" && (view.players[unit.owner]?.leader.level ?? 1) >= 3) {
-    const bonus = data.config.leader.level3StatBonus;
-    stats = { ...stats, hp: stats.hp + Math.floor(stats.hp * bonus + 1e-9) };
-  }
-  if (unit.permanentBuffs) stats = addStatBonuses(data.config, stats, unit.permanentBuffs);
-  return stats.hp;
+  return unitBaseStats(data, unit, view.players[unit.owner]?.leader.level ?? 1).hp;
 }
 
 /**
