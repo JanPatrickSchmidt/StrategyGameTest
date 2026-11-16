@@ -51,23 +51,75 @@ describe("E16b: Spec-Abgleich – Regeln lesen", () => {
 });
 
 describe("E16b: Spec-Abgleich – Testnamen lesen", () => {
-  it("E16b: it, test und describe mit allen Anführungszeichen, auch .each und .skip, mit Zeilennummer", () => {
+  it("E16b: it und test mit allen Anführungszeichen, auch .each und .only, mit Zeilennummer und describe-Namen", () => {
     const source = [
       'describe("R-9.1: Teilnehmer", () => {',
       "  it('R-1.1: vier Spieler', () => {});",
       "  it.each([[1, 2]])(`R-9.10: Stufe ${level}`, () => {});",
-      '  test.skip("ohne Kennung", () => {});',
-      "  // it(\"R-1.2: nur ein Kommentar\") zählt als Testname, weil es wie einer aussieht",
+      '  test.only("ohne Kennung", () => {});',
       "});",
+      'it.concurrent("R-5: außerhalb", () => {});',
     ].join("\n");
     const titles = parseTestTitles("a.test.ts", source);
-    expect(titles.map((title) => [title.kind, title.line, ruleIdsIn(title.title)])).toEqual([
-      ["describe", 1, ["R-9.1"]],
-      ["test", 2, ["R-1.1"]],
-      ["test", 3, ["R-9.10"]],
-      ["test", 4, []],
-      ["test", 5, ["R-1.2"]],
+    expect(titles.map((title) => [title.line, ruleIdsIn(title.title), title.describes])).toEqual([
+      [2, ["R-1.1"], ["R-9.1: Teilnehmer"]],
+      [3, ["R-9.10"], ["R-9.1: Teilnehmer"]],
+      [4, [], ["R-9.1: Teilnehmer"]],
+      [6, ["R-5"], []],
     ]);
+  });
+
+  it("P10: it.todo, it.skip, test.skipIf und Tests in einem describe.skip zählen nicht", () => {
+    const source = [
+      'it.todo("R-1.1: kommt noch");',
+      'it.skip("R-1.2: ausgesetzt", () => {});',
+      'test.skipIf(true)("R-5: nur manchmal", () => {});',
+      'describe.skip("R-9.1: ganzer Block aus", () => {',
+      '  it("R-9.10: darin", () => {});',
+      "});",
+      'it("R-17a.1: zählt", () => {});',
+    ].join("\n");
+    expect(parseTestTitles("a.test.ts", source).map((title) => title.title)).toEqual(["R-17a.1: zählt"]);
+  });
+
+  it("P10: auskommentierte Tests zählen nicht, weder Zeilen- noch Blockkommentar, auch nicht in Strings verpackt", () => {
+    const source = [
+      '// it("R-1.1: Zeilenkommentar", () => {});',
+      "/*",
+      'it("R-1.2: Blockkommentar", () => {});',
+      "*/",
+      'const text = \'it("R-5: nur ein String", () => {})\';',
+      "const url = 'http://x' ; it(\"R-9.1: nach einem // im String\", () => {});",
+      'it("R-9.10: echt", () => { /* R-17a.1 */ });',
+    ].join("\n");
+    expect(parseTestTitles("a.test.ts", source).map((title) => title.title)).toEqual(["R-9.1: nach einem // im String", "R-9.10: echt"]);
+  });
+
+  it("P10: ein describe-Name zählt nur für die gezählten Tests darin, ein leerer oder nur übersprungener Block gar nicht", () => {
+    const tests = [
+      {
+        path: "x.test.ts",
+        content: [
+          'describe("R-1.1: leer", () => {});',
+          'describe("R-1.2: nur übersprungen", () => {',
+          '  it.skip("ohne Kennung", () => {});',
+          "});",
+          'describe("R-9.1: mit Test", () => {',
+          '  describe("innen", () => {',
+          '    it("ohne Kennung", () => {});',
+          "  });",
+          "});",
+          'it("R-5: danach", () => {});',
+        ].join("\n"),
+      },
+    ];
+    const report = coverage(SPEC, tests);
+    expect(report.covered.map((entry) => entry.rule.id)).toEqual(["R-5", "R-9.1"]);
+    expect(report.covered.find((entry) => entry.rule.id === "R-5")?.tests[0]?.describes).toEqual([]);
+  });
+
+  it("P10: Methodenaufrufe wie /re/.test(…) sind keine Tests", () => {
+    expect(parseTestTitles("a.test.ts", 'const ok = /x/.test("R-1.1: kein Test");')).toEqual([]);
   });
 });
 

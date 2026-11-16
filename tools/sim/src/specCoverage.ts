@@ -12,17 +12,18 @@ export interface SpecRule {
   readonly line: number;
 }
 
-/** Ein Testname (aus `it`, `test` oder `describe`) mit Fundort. */
+/** Ein ausgeführter Test (`it` oder `test`) mit Fundort und den Namen der umschließenden `describe`-Blöcke. */
 export interface TestTitle {
   readonly file: string;
   readonly line: number;
-  readonly kind: "describe" | "test";
   readonly title: string;
+  /** Namen der umschließenden `describe`-Blöcke, außen zuerst. Ihre Kennungen gelten für diesen Test. */
+  readonly describes: readonly string[];
 }
 
 export interface RuleCoverage {
   readonly rule: SpecRule;
-  /** Tests, deren Name (oder umschließender `describe`-Name) die Kennung enthält. */
+  /** Tests, deren Name oder umschließender `describe`-Name die Kennung enthält. */
   readonly tests: readonly TestTitle[];
   /** Dateien, in denen die Kennung nur außerhalb von Testnamen vorkommt (Kommentare, Code). */
   readonly mentionedIn: readonly string[];
@@ -86,20 +87,151 @@ export function leafRules(rules: readonly SpecRule[]): SpecRule[] {
 }
 
 /**
- * Liest Testnamen aus einer Testdatei: `it(`, `test(`, `describe(` (auch `.each(...)(`, `.skip`, `.only`)
- * mit einem String-Literal als erstem Argument. Testnamen eines `describe` gelten für alle Tests darin;
- * das löst `coverage` über die Einrückung nicht auf, sondern zählt den `describe`-Namen selbst.
+ * Zwei maskierte Fassungen eines Quelltexts, gleich lang wie das Original, Zeilenumbrüche bleiben:
+ * `noComments` ohne Kommentare, `codeOnly` zusätzlich ohne Inhalte von String- und Template-Literalen
+ * (Ausdrücke in `${…}` bleiben Code). Regex-Literale werden nicht erkannt; `//` darin wäre ein Kommentar.
+ */
+export function maskSource(source: string): { readonly noComments: string; readonly codeOnly: string } {
+  const noComments: string[] = [];
+  const codeOnly: string[] = [];
+  const blank = (ch: string) => (ch === "\n" ? "\n" : " ");
+  // Stapel offener Template-Literale: Zahl der offenen geschweiften Klammern im aktuellen `${…}`.
+  const templates: number[] = [];
+  let state: "code" | "line" | "block" | "single" | "double" | "template" = "code";
+  for (let i = 0; i < source.length; i += 1) {
+    const ch = source[i] as string;
+    const next = source[i + 1];
+    const push = (a: string, b: string) => {
+      noComments.push(a);
+      codeOnly.push(b);
+    };
+    switch (state) {
+      case "code":
+        if (ch === "/" && next === "/") {
+          state = "line";
+          push(" ", " ");
+        } else if (ch === "/" && next === "*") {
+          state = "block";
+          push(" ", " ");
+          push(" ", " ");
+          i += 1;
+        } else if (ch === "'" || ch === '"') {
+          state = ch === "'" ? "single" : "double";
+          push(ch, ch);
+        } else if (ch === "`") {
+          state = "template";
+          push(ch, ch);
+        } else {
+          if (templates.length > 0) {
+            const depth = templates[templates.length - 1] as number;
+            if (ch === "{") templates[templates.length - 1] = depth + 1;
+            else if (ch === "}") {
+              if (depth === 0) {
+                templates.pop();
+                state = "template";
+              } else templates[templates.length - 1] = depth - 1;
+            }
+          }
+          push(ch, ch);
+        }
+        break;
+      case "line":
+        if (ch === "\n") state = "code";
+        push(blank(ch), blank(ch));
+        break;
+      case "block":
+        if (ch === "*" && next === "/") {
+          state = "code";
+          push(" ", " ");
+          push(" ", " ");
+          i += 1;
+        } else push(blank(ch), blank(ch));
+        break;
+      case "single":
+      case "double":
+      case "template":
+        if (ch === "\\" && next !== undefined) {
+          push(ch, " ");
+          push(next, blank(next));
+          i += 1;
+        } else if ((state === "single" && ch === "'") || (state === "double" && ch === '"') || (state === "template" && ch === "`")) {
+          state = "code";
+          push(ch, ch);
+        } else if (state === "template" && ch === "$" && next === "{") {
+          templates.push(0);
+          state = "code";
+          push(ch, ch);
+          push("{", "{");
+          i += 1;
+        } else push(ch, blank(ch));
+        break;
+    }
+  }
+  return { noComments: noComments.join(""), codeOnly: codeOnly.join("") };
+}
+
+/** Index der schließenden Klammer zur öffnenden bei `open` in maskiertem Code, sonst Ende des Texts. */
+function matchingParen(code: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < code.length; i += 1) {
+    if (code[i] === "(") depth += 1;
+    else if (code[i] === ")") {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return code.length;
+}
+
+// Modifikatoren, mit denen ein Test oder Block nicht ausgeführt wird oder nur sein Scheitern prüft.
+const NOT_RUN = new Set(["skip", "todo", "skipIf", "fails"]);
+
+/**
+ * Liest die ausgeführten Tests einer Testdatei: `it(` und `test(` (auch `.each(...)(`, `.only`, `.concurrent`)
+ * mit einem String-Literal als erstem Argument, jeweils mit den Namen der umschließenden `describe`-Blöcke.
+ * Nicht gezählt werden (P10): Tests und Blöcke mit `.skip`, `.todo`, `.skipIf(…)` oder `.fails`, alles in
+ * Kommentaren und `describe`-Namen ohne einen gezählten Test darin.
  */
 export function parseTestTitles(file: string, source: string): TestTitle[] {
-  const titles: TestTitle[] = [];
+  const { noComments, codeOnly } = maskSource(source);
   const pattern =
-    /\b(it|test|describe)(?:\.(?:skip|only|concurrent|todo))?(?:\.each\((?:[^()]|\([^()]*\))*\))?\(\s*(["'`])((?:\\.|(?!\2)[^\\])*)\2/g;
-  for (const match of source.matchAll(pattern)) {
+    /\b(it|test|describe)((?:\.(?:skip|only|concurrent|sequential|todo|fails|skipIf\((?:[^()]|\([^()]*\))*\)|runIf\((?:[^()]|\([^()]*\))*\)))*)(?:\.each\((?:[^()]|\([^()]*\))*\))?\(\s*(["'`])((?:\\.|(?!\3)[^\\])*)\3/g;
+  interface Call {
+    readonly keyword: string;
+    readonly run: boolean;
+    readonly title: string;
+    readonly start: number;
+    readonly end: number;
+  }
+  const calls: Call[] = [];
+  for (const match of noComments.matchAll(pattern)) {
     const keyword = match[1];
-    const title = match[3];
+    const modifiers = match[2] ?? "";
+    const title = match[4];
     if (keyword === undefined || title === undefined || match.index === undefined) continue;
-    const line = source.slice(0, match.index).split("\n").length;
-    titles.push({ file, line, kind: keyword === "describe" ? "describe" : "test", title });
+    // Treffer innerhalb eines Strings (z. B. Beispiel-Quelltext in einem Test) sind keine Aufrufe.
+    if (codeOnly.slice(match.index, match.index + keyword.length) !== keyword) continue;
+    // Methodenaufrufe wie `/re/.test("…")` sind keine Tests.
+    if (codeOnly[match.index - 1] === ".") continue;
+    const quoteStart = match.index + match[0].length - title.length - 2;
+    const open = codeOnly.lastIndexOf("(", quoteStart);
+    const names = [...modifiers.matchAll(/\.([A-Za-z]+)/g)].map((m) => m[1] ?? "");
+    calls.push({
+      keyword,
+      run: !names.some((name) => NOT_RUN.has(name)),
+      title,
+      start: match.index,
+      end: matchingParen(codeOnly, open),
+    });
+  }
+  const blocks = calls.filter((call) => call.keyword === "describe");
+  const titles: TestTitle[] = [];
+  for (const call of calls) {
+    if (call.keyword === "describe") continue;
+    const enclosing = blocks.filter((block) => block.start < call.start && call.start < block.end);
+    if (!call.run || enclosing.some((block) => !block.run)) continue;
+    const line = source.slice(0, call.start).split("\n").length;
+    titles.push({ file, line, title: call.title, describes: enclosing.map((block) => block.title) });
   }
   return titles;
 }
@@ -116,7 +248,7 @@ export function coverage(specMarkdown: string, testFiles: readonly SourceFile[],
   const titles = testFiles.flatMap((file) => parseTestTitles(file.path, file.content));
   const titlesById = new Map<string, TestTitle[]>();
   for (const title of titles) {
-    for (const id of ruleIdsIn(title.title)) {
+    for (const id of ruleIdsIn([...title.describes, title.title].join(" "))) {
       const list = titlesById.get(id) ?? [];
       list.push(title);
       titlesById.set(id, list);
