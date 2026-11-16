@@ -7,7 +7,7 @@ import { loadGameData } from "./data";
 import { auditPhase, EventAuditor, locationKey, takeSnapshot } from "./eventAudit";
 import { ROUND_PHASES } from "./round";
 import { createGame } from "./setup";
-import { getPlayer, type GameEvent, type GameState, type Phase } from "./state";
+import { getPlayer, type GameEvent, type GameState, type Phase, type SetSpell, type Unit } from "./state";
 
 const data = loadGameData();
 const SEEDS = Array.from({ length: 20 }, (_, i) => i + 1);
@@ -24,7 +24,7 @@ function eventsSince(state: GameState, from: number): GameEvent[] {
 }
 
 describe("R-19.1: Zustandsänderungen gegen Ereignisse (E16c3)", () => {
-  it("R-19.1: GreedyBot-Partien (Seeds 1–20): Leben, Macht, Schatzkammer, Hand, Ablagestapel und Einheiten-Orte sind nach jeder Phase durch Ereignisse erklärt", () => {
+  it("R-19.1: GreedyBot-Partien (Seeds 1–20): der ganze geprüfte Zustand (Spieler, Stapel, Einheiten, Anführer, Zauber, Serien) ist nach jeder Phase durch Ereignisse erklärt", () => {
     for (const seed of SEEDS) {
       const { state, auditor } = auditedGame(seed, (s) => new GreedyBot(s));
       expect(state.result).not.toBeNull();
@@ -143,3 +143,117 @@ describe("E16c3: Prüfwerkzeug auditPhase", () => {
     expect(auditor.findings).toEqual([`Runde 1, planning: power von Spieler 0 ist ${getPlayer(state, 0).power}, aus Ereignissen ${getPlayer(state, 0).power - 1}`]);
   });
 });
+
+describe("P9: Schnappschuss deckt den ganzen Zustand ab (R-19.1)", () => {
+  function base(): GameState {
+    return createGame(data, undefined, 7);
+  }
+  function firstUnit(state: GameState): Unit {
+    const unit = Object.values(state.units)[0];
+    if (!unit) throw new Error("keine Einheit");
+    return unit;
+  }
+
+  it("R-19.1: Bot-Partien enthalten die neu geprüften Ereignisarten (Einheiten-XP, Aufstieg, Ast, Zauber, Stapel, Mischen, Serien, Rundenvorrat)", () => {
+    const seen = new Set<string>();
+    for (const seed of SEEDS) {
+      const { state } = auditedGame(seed, (s, p) => (p % 2 === 0 ? new GreedyBot(s) : new RandomBot(s)));
+      for (const e of state.log) seen.add(e.type);
+    }
+    for (const type of ["unit_xp_gained", "leader_leveled_up", "branch_chosen", "spell_set", "spell_discarded", "pile_changed", "discard_reshuffled", "round_outcome", "center_held", "gold_deposited"]) {
+      expect(seen.has(type), type).toBe(true);
+    }
+  }, 60000);
+
+  it("R-19.1: Verwundung ohne Ereignis wird gemeldet, mit unit_wounded nicht", () => {
+    const state = base();
+    const before = takeSnapshot(state);
+    const unit = firstUnit(state);
+    unit.wounded = true;
+    expect(auditPhase(before, takeSnapshot(state), [], "combatResolution")).toEqual([`combatResolution: Einheit ${unit.id} ist verwundet, aus Ereignissen nicht verwundet`]);
+    const event: GameEvent = { round: 1, phase: "combatResolution", type: "unit_wounded", player: unit.owner, unitId: unit.id, cardId: null, arena: "front:0-1" };
+    expect(auditPhase(before, takeSnapshot(state), [event], "combatResolution")).toEqual([]);
+  });
+
+  it("R-19.1: Genesung ohne Ereignis wird gemeldet, mit unit_recovered nicht", () => {
+    const state = base();
+    const unit = firstUnit(state);
+    unit.wounded = true;
+    const before = takeSnapshot(state);
+    unit.wounded = false;
+    expect(auditPhase(before, takeSnapshot(state), [], "roundStart")).toHaveLength(1);
+    const event: GameEvent = { round: 1, phase: "roundStart", type: "unit_recovered", player: unit.owner, unitId: unit.id };
+    expect(auditPhase(before, takeSnapshot(state), [event], "roundStart")).toEqual([]);
+  });
+
+  it("R-19.1: Sterne und XP einer Einheit ändern sich ohne Ereignis → Befund", () => {
+    const state = base();
+    const before = takeSnapshot(state);
+    const unit = firstUnit(state);
+    unit.stars = 2;
+    expect(auditPhase(before, takeSnapshot(state), [], "reveal")).toEqual([`reveal: Einheit ${unit.id} hat 2 Sterne, aus Ereignissen 1`]);
+    unit.stars = 1;
+    unit.xp += 2;
+    expect(auditPhase(before, takeSnapshot(state), [], "combatResolution")).toEqual([`combatResolution: Einheit ${unit.id} hat ${unit.xp} XP, aus Ereignissen ${unit.xp - 2}`]);
+    const event: GameEvent = { round: 1, phase: "combatResolution", type: "unit_xp_gained", player: unit.owner, unitId: unit.id, amount: 2, bonus: 0, xp: unit.xp, arena: "front:0-1" };
+    expect(auditPhase(before, takeSnapshot(state), [event], "combatResolution")).toEqual([]);
+  });
+
+  it("R-19.1: Anführer-Stufe, -XP und -Ast ändern sich ohne Ereignis → Befund", () => {
+    const state = base();
+    const before = takeSnapshot(state);
+    const p = getPlayer(state, 1);
+    p.leader.level = 2;
+    expect(auditPhase(before, takeSnapshot(state), [], "roundStart")).toEqual(["roundStart: leaderLevel von Spieler 1 ist 2, aus Ereignissen 1"]);
+    const leveled: GameEvent = { round: 2, phase: "roundStart", type: "leader_leveled_up", player: 1, level: 2, xp: p.leader.xp };
+    expect(auditPhase(before, takeSnapshot(state), [leveled], "roundStart")).toEqual([]);
+    p.leader.xp += 3;
+    p.leader.branchId = "test-branch";
+    const findings = auditPhase(before, takeSnapshot(state), [leveled], "cleanup");
+    expect(findings).toEqual([`cleanup: leaderXp von Spieler 1 ist ${p.leader.xp}, aus Ereignissen ${p.leader.xp - 3}`, "cleanup: leaderBranch von Spieler 1 ist test-branch, aus Ereignissen —"]);
+  });
+
+  it("R-19.1: Deck, ausgespielte Karten und Rundenvorrat ändern sich ohne Ereignis → Befund; resources_played erklärt sie", () => {
+    const state = base();
+    const p = getPlayer(state, 0);
+    const before = takeSnapshot(state);
+    const card = p.hand[0];
+    expect(card).toBeDefined();
+    if (card === undefined) return;
+    p.hand.shift();
+    p.played.push(card);
+    p.roundGold += 1;
+    const findings = auditPhase(before, takeSnapshot(state), [], "planning");
+    expect(findings.some((f) => f.startsWith("planning: roundGold von Spieler 0"))).toBe(true);
+    expect(findings.some((f) => f.startsWith("planning: Ausgespielt von Spieler 0"))).toBe(true);
+    const played: GameEvent = { round: 1, phase: "planning", type: "resources_played", player: 0, cardInstanceIds: [card], gold: 1 };
+    expect(auditPhase(before, takeSnapshot(state), [played], "planning")).toEqual([]);
+    const top = p.deck.pop();
+    expect(top).toBeDefined();
+    expect(auditPhase(before, takeSnapshot(state), [played], "planning").some((f) => f.startsWith("planning: Deck von Spieler 0"))).toBe(true);
+  });
+
+  it("R-19.1: gelegte Zauber, Vorrat, Klassen-Pool und Serien ändern sich ohne Ereignis → Befund", () => {
+    const state = base();
+    const before = takeSnapshot(state);
+    const p = getPlayer(state, 2);
+    const spell: SetSpell = { cardInstanceId: 999, cardId: "fireball", target: { kind: "none" } };
+    p.spells.pre.push(spell);
+    const pile = Object.keys(state.supply)[0];
+    const poolPile = Object.keys(p.classPool)[0];
+    expect(pile).toBeDefined();
+    expect(poolPile).toBeDefined();
+    if (pile === undefined || poolPile === undefined) return;
+    state.supply[pile] = (state.supply[pile] ?? 0) - 1;
+    p.classPool[poolPile] = (p.classPool[poolPile] ?? 0) - 1;
+    p.winStreak = 1;
+    p.centerStreak = 1;
+    const findings = auditPhase(before, takeSnapshot(state), [], "reveal");
+    expect(findings.some((f) => f.startsWith("reveal: Zauber von Spieler 2"))).toBe(true);
+    expect(findings.some((f) => f.startsWith("reveal: Vorrat ist"))).toBe(true);
+    expect(findings.some((f) => f.startsWith("reveal: Klassen-Pool von Spieler 2"))).toBe(true);
+    expect(findings).toContain("reveal: winStreak von Spieler 2 ist 1, aus Ereignissen 0");
+    expect(findings).toContain("reveal: centerStreak von Spieler 2 ist 1, aus Ereignissen 0");
+  });
+});
+
