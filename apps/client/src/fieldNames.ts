@@ -63,16 +63,26 @@ export function arenaHexName(config: ConfigData, viewer: PlayerIndex, hex: Arena
   return `${ARENA_NAMES[hex.arena]} ${coordName(arenaHexToViewer(config, viewer, hex))}`;
 }
 
-/** Name eines eigenen Einheiten-Orts, z. B. „Linke Front b2“, „Mitte c1“, „Reserve 2“. */
-export function locationName(config: ConfigData, owner: PlayerIndex, loc: UnitLocation): string {
+const ZONE_NAMES: Record<UnitLocation["zone"], string> = { ...ARENA_NAMES, reserve: "Reserve" };
+
+/**
+ * Feld eines Einheiten-Orts ohne Zone, aus Sicht des Besitzers (P11c): „b2“ in einer Frontzone, „c1“ in der
+ * Mitte, „2“ in der Reserve (Plätze sind keine Felder und tragen nur eine Zahl).
+ */
+export function locationCellName(loc: UnitLocation): string {
   switch (loc.zone) {
     case "left":
     case "right":
-      return `${ARENA_NAMES[loc.zone]} ${frontCellName(loc.cell)}`;
+      return frontCellName(loc.cell);
     case "center":
       // Position p liegt für jeden Sitz auf Buchstabe p+1 in Zeile 1 (siehe `arenaHexToViewer`).
-      return `Mitte ${coordName({ col: loc.position + 1, row: 0 })}`;
+      return coordName({ col: loc.position + 1, row: 0 });
     case "reserve":
-      return `Reserve ${loc.slot + 1}`;
+      return `${loc.slot + 1}`;
   }
+}
+
+/** Name eines eigenen Einheiten-Orts, z. B. „Linke Front b2“, „Mitte c1“, „Reserve 2“. */
+export function locationName(config: ConfigData, owner: PlayerIndex, loc: UnitLocation): string {
+  return `${ZONE_NAMES[loc.zone]} ${locationCellName(loc)}`;
 }

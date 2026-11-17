@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadGameData, PHASES } from "@game/engine";
 import { GameSession, HUMAN } from "./session";
+import { locationCellName, locationName } from "./fieldNames";
 import { formatState, PHASE_NAMES, playerName } from "./stateText";
 
 const data = loadGameData();
@@ -64,5 +65,27 @@ describe("C1: Zustand als Text", () => {
     expect(playerName(0, 0)).toBe("Du");
     expect(playerName(2, 0)).toBe("Bot 3");
     expect(playerName(0, 1)).toBe("Bot 1");
+  });
+
+  it("R-3.8: der Zustandstext nennt Felder wie die Planungsleiste (Spalte als Buchstabe, Zeile als Zahl)", () => {
+    const fresh = new GameSession(data, { seed: 1 });
+    // R-4.4: Startfeld des Anführers ist `left` (col 2, row 1) → „c2“.
+    expect(formatState(data, fresh.view())).toMatch(/^ {2}Linke Front: [^\n]*\(Anführer\) \[c2\]/m);
+
+    const session = new GameSession(data, { seed: 3 });
+    for (let i = 0; i < 4; i++) session.autopilot();
+    const view = session.view();
+    const lines = formatState(data, view).split("\n");
+    const board = lines.slice(lines.indexOf("Brett"));
+    expect(board.join("\n")).not.toMatch(/Spalte|Reihe|Platz /);
+    const units = Object.values(view.units);
+    expect(units.length).toBeGreaterThan(4);
+    for (const unit of units) {
+      const full = locationName(data.config, unit.owner, unit.location);
+      const zone = full.slice(0, full.length - locationCellName(unit.location).length - 1);
+      const header = board.findIndex((l) => l === `${playerName(unit.owner, view.viewer)}:`);
+      const zoneLine = board.slice(header + 1).find((l) => l.startsWith(`  ${zone}: `));
+      expect(zoneLine, full).toContain(`[${locationCellName(unit.location)}]`);
+    }
   });
 });

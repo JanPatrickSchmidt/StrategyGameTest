@@ -1,6 +1,7 @@
 /**
  * Zustand als Text (C1): formatiert die Sicht eines Spielers (R-18.3) für die Anzeige im Browser.
  * Nutzt ausschließlich die `PlayerView`, nie den vollständigen Zustand, damit nichts Verborgenes angezeigt wird.
+ * Felder heißen wie in der Planungsleiste (R-3.8, P11c, `fieldNames.ts`), jeweils aus Sicht des Besitzers der Einheit.
  */
 import type {
   CenterResult,
@@ -14,6 +15,7 @@ import type {
   UnitLocation,
   VictoryReason,
 } from "@game/engine";
+import { locationCellName } from "./fieldNames";
 
 export const PHASE_NAMES: Record<Phase, string> = {
   setup: "Aufbau",
@@ -70,12 +72,6 @@ function unitName(data: GameData, unit: Unit): string {
   return `${base} ${stars}${marks ? ` (${marks})` : ""}`;
 }
 
-function locationLabel(location: UnitLocation): string {
-  if (location.zone === "center") return `Platz ${location.position + 1}`;
-  if (location.zone === "reserve") return `Platz ${location.slot + 1}`;
-  return `Spalte ${location.cell.col + 1}, Reihe ${location.cell.row + 1}`;
-}
-
 function locationSortKey(location: UnitLocation): number {
   if (location.zone === "center") return location.position;
   if (location.zone === "reserve") return location.slot;
@@ -125,7 +121,7 @@ function boardLines(data: GameData, view: PlayerView, player: PlayerIndex): stri
       .filter((u) => u.location.zone === zone)
       .sort((a, b) => locationSortKey(a.location) - locationSortKey(b.location) || a.id - b.id);
     if (inZone.length === 0) continue;
-    lines.push(`  ${ZONE_NAMES[zone]}: ${inZone.map((u) => `${unitName(data, u)} [${locationLabel(u.location)}]`).join("; ")}`);
+    lines.push(`  ${ZONE_NAMES[zone]}: ${inZone.map((u) => `${unitName(data, u)} [${locationCellName(u.location)}]`).join("; ")}`);
   }
   return lines;
 }
