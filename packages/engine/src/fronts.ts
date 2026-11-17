@@ -16,8 +16,7 @@ import { applyRoundEffects } from "./preCombat";
 import { applyCombatWounds, fightsThisRound, woundedUnits } from "./wounds";
 import { activeResonance, addStartManaPercent, addStatBonuses, applyResonanceStats, resonanceBonus, resonanceSummonAdjuster } from "./resonance";
 import { frontArenaSize, type FrontSide, frontToArena, type OffsetCoord } from "./hex";
-import { activeRing, neighborsOf } from "./seating";
-import { emit, type FrontResult, type GameState, getPlayer, type PlayerIndex, type Unit, type UnitId, type UnitLocation } from "./state";
+import { emit, type FrontResult, type GameState, getPlayer, PLAYER_INDICES, type PlayerIndex, type Unit, type UnitId, type UnitLocation } from "./state";
 
 /** R-2.3: `first.right` kämpft gegen `second.left`. */
 export interface FrontPairing {
@@ -31,16 +30,20 @@ export function frontArenaId(pairing: FrontPairing): string {
 }
 
 /**
- * R-2.3, R-2.5: Für jeden aktiven Spieler `p` (in Ringreihenfolge) kämpft `p.right` gegen
- * `left` des rechten Nachbarn. Bei 2 Spielern ergibt das zwei getrennte Kämpfe, bei 1 Spieler keinen.
+ * R-2.2, R-2.3, R-2.5: Front-Paarungen allein aus der Liste „ausgeschieden ja/nein“ je Sitz (Index = Sitz).
+ * Für jeden aktiven Spieler `p` (in Ringreihenfolge) kämpft `p.right` gegen `left` des rechten Nachbarn.
+ * Bei 2 Spielern ergibt das zwei getrennte Kämpfe, bei 1 Spieler keinen. Der Client nutzt diese Funktion mit
+ * den Angaben der Spielersicht (P11d), die Engine über `frontPairings`.
  */
+export function frontPairingsFor(eliminated: readonly boolean[]): FrontPairing[] {
+  const ring = PLAYER_INDICES.filter((p) => p < eliminated.length && !eliminated[p]);
+  if (ring.length < 2) return [];
+  return ring.map((first, i) => ({ first, second: ring[(i + 1) % ring.length] as PlayerIndex }));
+}
+
+/** R-2.3, R-2.5: Front-Paarungen dieser Runde aus dem Spielzustand (siehe `frontPairingsFor`). */
 export function frontPairings(state: GameState): FrontPairing[] {
-  const result: FrontPairing[] = [];
-  for (const p of activeRing(state)) {
-    const n = neighborsOf(state, p);
-    if (n) result.push({ first: p, second: n.right });
-  }
-  return result;
+  return frontPairingsFor(state.players.map((p) => p.eliminated));
 }
 
 /**

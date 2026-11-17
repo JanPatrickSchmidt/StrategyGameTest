@@ -15,6 +15,8 @@ import {
   allCells,
   centerPositionToArena,
   frontArenaSize,
+  type FrontPairing,
+  frontPairingsFor,
   frontToArena,
   type GridSize,
   type OffsetCoord,
@@ -39,11 +41,8 @@ export interface WorldPoint {
   z: number;
 }
 
-/** R-2.3: `first.right` kämpft gegen `second.left`. */
-export interface FrontPair {
-  first: PlayerIndex;
-  second: PlayerIndex;
-}
+/** R-2.3: `first.right` kämpft gegen `second.left` (Typ der Engine). */
+export type FrontPair = FrontPairing;
 
 export interface ArenaCell {
   coord: OffsetCoord;
@@ -120,14 +119,10 @@ function halfExtent(size: GridSize, hexSize: number): { x: number; z: number } {
 }
 
 /**
- * R-2.2, R-2.3, R-2.5: Front-Paarungen aus den nicht ausgeschiedenen Spielern in Ringreihenfolge, wie
- * `frontPairings` der Engine, aber nur aus der Liste der Ausgeschiedenen (die Sicht hat keinen Spielzustand).
+ * R-2.2, R-2.3, R-2.5 (P11d): Front-Paarungen aus der Liste der Ausgeschiedenen. Kommt unverändert aus der
+ * Engine (`frontPairingsFor`), damit Brett und Kampf dieselben Paarungen nutzen.
  */
-export function frontPairsFor(eliminated: readonly boolean[]): FrontPair[] {
-  const ring = eliminated.map((out, p) => (out ? -1 : p)).filter((p) => p >= 0) as PlayerIndex[];
-  if (ring.length < 2) return [];
-  return ring.map((first, i) => ({ first, second: ring[(i + 1) % ring.length] as PlayerIndex }));
-}
+export const frontPairsFor: (eliminated: readonly boolean[]) => FrontPair[] = frontPairingsFor;
 
 /** Baut das Brett für die aktuellen Front-Paarungen. */
 export function buildBoardLayout(config: LayoutConfig, pairs: readonly FrontPair[], seats = 4): BoardLayout {

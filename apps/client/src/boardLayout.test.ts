@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   createGame,
   frontPairings,
+  frontPairingsFor,
   frontToArena,
   hexDistance,
   loadGameData,
@@ -42,6 +43,10 @@ function eliminationMasks(): boolean[][] {
 const fullLayout = buildBoardLayout(config, frontPairsFor([false, false, false, false]));
 
 describe("C2a: Brett-Aufteilung", () => {
+  it("R-2.2, P11d: Front-Paarungen des Bretts kommen aus der Engine (keine eigene Berechnung im Client)", () => {
+    expect(frontPairsFor).toBe(frontPairingsFor);
+  });
+
   it("R-2.3, R-2.5: Front-Paarungen aus der Sicht stimmen für jede Kombination Ausgeschiedener mit der Engine überein", () => {
     for (const mask of eliminationMasks()) {
       const state = createGame(data, undefined, 1);

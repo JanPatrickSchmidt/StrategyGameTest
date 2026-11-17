@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fighterFromData } from "./combat";
 import { loadGameData } from "./data";
-import { fighterForUnit, frontArenaId, frontPairings, frontParticipants, runFrontCombats, unitBaseStats } from "./fronts";
+import { fighterForUnit, frontArenaId, frontPairings, frontPairingsFor, frontParticipants, runFrontCombats, unitBaseStats } from "./fronts";
 import { advance, submitPlanning } from "./round";
 import { createGame, defaultLeaders } from "./setup";
 import { type GameEvent, type GameState, getPlayer, PLAYER_INDICES, type PlayerIndex, type Unit, type UnitId, type UnitLocation } from "./state";
@@ -107,6 +107,25 @@ describe("Paarungen (R-2.3, R-2.4, R-2.5)", () => {
     const state = emptyBoard();
     for (const p of [1, 2, 3] as const) getPlayer(state, p).eliminated = true;
     expect(frontPairings(state)).toEqual([]);
+  });
+
+  it("R-2.2, R-2.4, R-2.5 (P11d): frontPairingsFor liefert aus der Liste der Ausgeschiedenen dieselben Paarungen wie frontPairings", () => {
+    for (let mask = 0; mask < 16; mask++) {
+      const eliminated = [0, 1, 2, 3].map((p) => (mask & (1 << p)) !== 0);
+      const state = emptyBoard();
+      for (const p of PLAYER_INDICES) getPlayer(state, p).eliminated = eliminated[p]!;
+      expect(frontPairingsFor(eliminated)).toEqual(frontPairings(state));
+    }
+    expect(frontPairingsFor([false, true, false, false])).toEqual([
+      { first: 0, second: 2 },
+      { first: 2, second: 3 },
+      { first: 3, second: 0 },
+    ]);
+    expect(frontPairingsFor([true, false, true, false])).toEqual([
+      { first: 1, second: 3 },
+      { first: 3, second: 1 },
+    ]);
+    expect(frontPairingsFor([true, true, true, false])).toEqual([]);
   });
 });
 
