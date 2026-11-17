@@ -11,7 +11,7 @@ import { locationName } from "./fieldNames";
 import { addHeal, addWithdraw, healOptions, NORMAL_PAYMENT, type Payment, paymentChoice, playAction, playLocations, withdrawMax } from "./planExtras";
 import { addSpell, SLOT_LABELS, spellTargetChoice, type TargetChoice } from "./spellTargets";
 import {
-  type CardEntry,
+  cardText,
   describeAction,
   goldSummary,
   handCards,
@@ -44,10 +44,6 @@ function locationSelect(data: GameData, view: PlayerView, locations: readonly Un
 
 function selectedLocation(select: HTMLSelectElement, locations: readonly UnitLocation[]): UnitLocation | null {
   return locations.find((loc) => locationKey(loc) === select.value) ?? null;
-}
-
-function cardText(entry: CardEntry): string {
-  return `${entry.card.name} (${entry.card.cost})`;
 }
 
 export class PlanningPanel {
@@ -199,7 +195,7 @@ export class PlanningPanel {
         ? this.selection?.kind === "card" && entry.instanceId === this.selection.cardInstanceId
         : this.spellCard === entry.instanceId;
       const button = el("button", {
-        textContent: cardText(entry),
+        textContent: cardText(builder, entry),
         className: chosen ? "primary" : "",
         disabled: !isUnit && !isSpell,
         title: isUnit ? "Einheit ausspielen" : isSpell ? "Zauber legen" : "",

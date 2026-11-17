@@ -92,8 +92,8 @@ export function paymentChoice(data: GameData, builder: PlanBuilder, cardInstance
   if (!entry || entry.card.type !== "unit") return null;
   const alt = altCostOf(entry.card);
   return {
-    normalText: `${entry.card.cost} Gold`,
-    alt: alt ? { text: altCostText(alt), sacrifice: alt.sacrifice ?? 0, candidates: alt.sacrifice ? sacrificeCandidates(data, builder) : [] } : null,
+    normalText: `${builder.goldCost(entry.card)} Gold`,
+    alt: alt ? { text: altCostText(alt, builder.goldCost(entry.card, true)), sacrifice: alt.sacrifice ?? 0, candidates: alt.sacrifice ? sacrificeCandidates(data, builder) : [] } : null,
   };
 }
 

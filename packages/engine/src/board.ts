@@ -142,11 +142,27 @@ function checkUnitCost(
  * Leben und Opfer bleiben unverändert.
  */
 function withCostModifier(state: GameState, data: GameData, player: PlayerIndex, card: CardData, cost: UnitCost): UnitCost {
+  const gold = goldAfterResonance(state, data, player, card, cost.gold);
+  if (gold === cost.gold) return cost;
+  return { ...cost, gold, goldModifier: gold - cost.gold };
+}
+
+function goldAfterResonance(state: GameState, data: GameData, player: PlayerIndex, card: CardData, baseGold: number): number {
   const race = card.type === "unit" ? card.race : null;
   const modifier = resonanceCostModifier(state, data, player, race);
-  if (modifier === 0) return cost;
-  const gold = modifiedCost(cost.gold, modifier);
-  return { ...cost, gold, goldModifier: gold - cost.gold };
+  return modifier === 0 ? baseGold : modifiedCost(baseGold, modifier);
+}
+
+/**
+ * R-17.3 (P11b): Goldkosten einer Karte, wie `playUnit` sie im Zustand `state` verlangen würde – normale Kosten
+ * oder (`useAltCost`) der Goldanteil der alternativen Kosten (R-14.6), jeweils nach dem Kostenbonus der Resonanz
+ * nach dem aktuellen Brett, nie unter 0. Für Anzeigen (Client), damit dort keine Regel nachgebaut wird.
+ * Nicht-Einheiten haben keinen Kostenbonus; ohne alternative Kosten gilt der normale Preis.
+ */
+export function cardGoldCost(state: GameState, data: GameData, player: PlayerIndex, card: CardData, useAltCost = false): number {
+  const alt = card.type === "unit" ? card.altCost : undefined;
+  const base = useAltCost && alt ? (alt.gold ?? 0) : card.cost;
+  return goldAfterResonance(state, data, player, card, base);
 }
 
 /**

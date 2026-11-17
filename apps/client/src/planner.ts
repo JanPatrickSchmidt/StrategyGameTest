@@ -12,6 +12,7 @@ import {
   type ActionTarget,
   allLocations,
   type AltCost,
+  cardGoldCost,
   checkTarget,
   type CardData,
   emptyPlanning,
@@ -145,6 +146,15 @@ export class PlanBuilder {
   /** Die einzureichende Planung: nur die Aktionen, die die Engine im Entwurf angenommen hat. */
   planning(): Planning {
     return JSON.parse(JSON.stringify(this.draft.planning)) as Planning;
+  }
+
+  /**
+   * R-17.3 (P11b): Goldkosten einer Karte, wenn sie jetzt als nächste Aktion ausgespielt würde – nach dem Brett
+   * des Entwurfs, also mit dem Kostenbonus der Resonanz (Engine `cardGoldCost`). `useAltCost`: Goldanteil der
+   * alternativen Kosten.
+   */
+  goldCost(card: CardData, useAltCost = false): number {
+    return cardGoldCost(this.draft.state, this.data, this.player, card, useAltCost);
   }
 
   /** Sicht des Spielers nach der Planung (für Hand, Gold und das 3D-Brett), ohne verborgene Angaben (R-18.3). */
@@ -411,10 +421,18 @@ function altPaymentText(data: GameData, before: PlayerView, action: Extract<Plan
   return victims.length > 0 ? `${cost}: ${victims.join(", ")}` : cost;
 }
 
-/** R-14.6: Text alternativer Kosten, z. B. „2 Leben“ oder „2 Gold + 1 Opfer“. */
-export function altCostText(alt: AltCost): string {
+/** Handkarte mit ihren aktuellen Goldkosten (R-17.3: mit Kostenbonus der Resonanz, aus der Engine, P11b). */
+export function cardText(builder: PlanBuilder, entry: CardEntry): string {
+  return `${entry.card.name} (${builder.goldCost(entry.card)})`;
+}
+
+/**
+ * R-14.6: Text alternativer Kosten, z. B. „2 Leben“ oder „2 Gold + 1 Opfer“. `gold` ersetzt den Goldanteil
+ * (z. B. nach dem Kostenbonus der Resonanz, R-17.3); ein Anteil von 0 Gold wird nicht genannt.
+ */
+export function altCostText(alt: AltCost, gold: number = alt.gold ?? 0): string {
   const parts: string[] = [];
-  if (alt.gold) parts.push(`${alt.gold} Gold`);
+  if (gold) parts.push(`${gold} Gold`);
   if (alt.bloodToll) parts.push(`${alt.bloodToll} Leben`);
   if (alt.sacrifice) parts.push(`${alt.sacrifice} Opfer`);
   return parts.length > 0 ? parts.join(" + ") : "kostenlos";

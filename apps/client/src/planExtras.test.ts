@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type CardInstanceId, type GameState, getPlayer, loadGameData, type Unit, type UnitId, type UnitLocation } from "@game/engine";
 import { applyTarget, targetLocations } from "./boardInput";
 import { addHeal, addWithdraw, healOptions, paymentChoice, playAction, playLocations, sacrificeCandidates, withdrawMax } from "./planExtras";
-import { describeAction, locationKey, ownEntry, PlanBuilder } from "./planner";
+import { cardText, describeAction, handCards, locationKey, ownEntry, PlanBuilder } from "./planner";
 import { GameSession, HUMAN } from "./session";
 
 const data = loadGameData();
@@ -28,8 +28,9 @@ function setup(options: {
   roundGold?: number;
   treasury?: number;
   life?: number;
+  leaders?: string[];
 }): Setup {
-  const session = new GameSession(data, { seed: 3 });
+  const session = new GameSession(data, options.leaders ? { seed: 3, leaders: options.leaders } : { seed: 3 });
   const state = structuredClone(session.state);
   const p = getPlayer(state, HUMAN);
   const newCard = (cardId: string): CardInstanceId => {
@@ -197,5 +198,61 @@ describe("C3c2: Genesen, Entnahme, alternative Kosten", () => {
     expect(applyTarget(data, builder, { kind: "card", cardInstanceId: only(cards) }, RESERVE_0)).toBe("notEnoughGold");
     expect(applyTarget(data, builder, selection, LEFT_A1)).toBeNull();
     expect(only(builder.entries()).action).toEqual({ type: "playUnit", cardInstanceId: only(cards), to: LEFT_A1, useAltCost: true, sacrifice: units });
+  });
+});
+
+describe("P11b: angezeigte Kosten aus der Engine (R-17.3)", () => {
+  const LEFT_B1: UnitLocation = { zone: "left", cell: { col: 0, row: 1 } };
+  const RIGHT_A1: UnitLocation = { zone: "right", cell: { col: 0, row: 0 } };
+
+  /** Mensch mit Vex (Goblin) und Funkenreiter + Plänkler auf dem Brett: 3 Goblins, eine Karte fehlt zu Goblins 4. */
+  function goblins3(hand: string[]): Setup {
+    return setup({
+      leaders: ["vex", "brann", "ilyra", "morgra"],
+      hand,
+      units: [
+        { cardId: "spark_rider", location: LEFT_A1 },
+        { cardId: "goblin_skirmisher", location: RIGHT_A1 },
+      ],
+    });
+  }
+
+  function textOf(builder: PlanBuilder, instanceId: number): string {
+    const entry = handCards(data, builder.preview()).find((c) => c.instanceId === instanceId);
+    if (!entry) throw new Error("nicht auf der Hand");
+    return cardText(builder, entry);
+  }
+
+  it("R-17.3: mit aktiver Goblin-Resonanz zeigen Handkarten und Bezahlwahl die verbilligten Kosten", () => {
+    const { builder, cards } = setup({
+      leaders: ["vex", "brann", "ilyra", "morgra"],
+      hand: ["tinker", "spark_rider", "mercenary"],
+      units: [
+        { cardId: "spark_rider", location: LEFT_A1 },
+        { cardId: "goblin_skirmisher", location: RIGHT_A1 },
+        { cardId: "tinker", location: LEFT_B1 },
+      ],
+    });
+    const [tinker, rider, mercenary] = cards as [number, number, number];
+    expect(textOf(builder, tinker)).toBe("Kesselflicker (2)");
+    expect(paymentChoice(data, builder, tinker)).toEqual({ normalText: "2 Gold", alt: null });
+    // Blutzoll ohne Gold bleibt ohne Gold (nie unter 0), normal 2 − 1 = 1.
+    expect(paymentChoice(data, builder, rider)).toEqual({ normalText: "1 Gold", alt: { text: "2 Leben", sacrifice: 0, candidates: [] } });
+    // Karten anderer Rassen kosten unverändert.
+    expect(textOf(builder, mercenary)).toBe("Söldner (2)");
+  });
+
+  it("R-17.3: die Anzeige folgt dem Brett des Entwurfs – nach dem Ausspielen der vierten Goblin-Karte wird die nächste billiger", () => {
+    const { builder, cards } = goblins3(["tinker", "tinker"]);
+    const [first, second] = cards as [number, number];
+    expect(textOf(builder, second)).toBe("Kesselflicker (3)");
+    expect(paymentChoice(data, builder, second)?.normalText).toBe("3 Gold");
+    expect(builder.add(playAction(first, LEFT_B1))).toBeNull();
+    expect(textOf(builder, second)).toBe("Kesselflicker (2)");
+    expect(paymentChoice(data, builder, second)?.normalText).toBe("2 Gold");
+    // Die Engine verlangt genau den angezeigten Betrag.
+    const goldBefore = ownEntry(builder.preview()).roundGold;
+    expect(builder.add(playAction(second, RESERVE_0))).toBeNull();
+    expect(goldBefore - (ownEntry(builder.preview()).roundGold ?? 0)).toBe(2);
   });
 });

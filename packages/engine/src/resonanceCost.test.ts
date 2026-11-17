@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PlanningAction } from "./actions";
-import { playUnit } from "./board";
+import { cardGoldCost, playUnit } from "./board";
 import { loadGameData } from "./data";
 import { modifiedCost, resonanceCostModifier } from "./resonance";
 import { advance, submitPlanning } from "./round";
@@ -191,4 +191,22 @@ describe("Rassen-Resonanz: Kostenbonus (E10c2, R-17.3)", () => {
     expect(playUnit(state, data, 2, next, front("left", 0, 1), undefined)).toBeNull();
     expect(p.roundGold).toBe(1);
   });
+
+  it("R-17.3: cardGoldCost (P11b) liefert die Kosten, die playUnit verlangt, auch für alternative Kosten", () => {
+    const state = goblins4();
+    const card = (id: string) => {
+      const c = data.cards.get(id);
+      if (!c) throw new Error(id);
+      return c;
+    };
+    expect(cardGoldCost(state, data, 2, card("tinker"))).toBe(2);
+    expect(cardGoldCost(state, data, 2, card("spark_rider"))).toBe(1);
+    expect(cardGoldCost(state, data, 2, card("spark_rider"), true)).toBe(0);
+    expect(cardGoldCost(state, data, 2, card("mercenary"))).toBe(card("mercenary").cost);
+    expect(cardGoldCost(state, data, 2, card("bounty_hunter"), true)).toBe(2);
+    expect(cardGoldCost(state, data, 2, card("fireball"))).toBe(card("fireball").cost);
+    // Anderer Spieler ohne Goblins: kein Bonus.
+    expect(cardGoldCost(state, data, 0, card("tinker"))).toBe(3);
+  });
 });
+
