@@ -32,7 +32,7 @@ import {
 } from "../state";
 import { ARENA_REFS, arenaSize, globalHexKey, locationArenaHex, unitArenaHex } from "../targets";
 import type { Bot } from "./bot";
-import { allArenaHexes, targetCandidates } from "./candidates";
+import { allArenaHexes, ownCardPool, targetCandidates } from "./candidates";
 
 export interface GreedyBotOptions {
   /** Nach dem ersten Kauf einer Runde werden nur noch Karten mit mindestens diesen Kosten gekauft. */
@@ -156,9 +156,7 @@ export class GreedyBot implements Bot {
         return opponentsByThreat(draft).map((p): ActionTarget => ({ kind: "player", player: p }));
       case "ownCards": {
         // Läutern o. Ä.: nur Flüche entfernen (R-14.8); ohne Flüche lohnt der Zauber nicht.
-        const p = getPlayer(draft.state, draft.player);
-        const curses = spec.from
-          .flatMap((zone) => p[zone])
+        const curses = ownCardPool(draft.state, draft.player, spec.from)
           .filter((id) => data.cards.get(getCard(draft.state, id).cardId)?.type === "curse")
           .slice(0, spec.max);
         return curses.length > 0 ? [{ kind: "ownCards", cardInstanceIds: curses }] : [];

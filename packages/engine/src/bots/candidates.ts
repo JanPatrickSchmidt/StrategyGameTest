@@ -5,7 +5,7 @@
  */
 import type { ActionTarget, ArenaHex, ArenaRef, PlanningAction } from "../actions";
 import type { ConfigData, GameData } from "../data";
-import type { TargetSpec } from "../dataTypes";
+import type { OwnCardZone, TargetSpec } from "../dataTypes";
 import { inBounds } from "../hex";
 import { leaderAbilityParams } from "../leader";
 import { nextInt, type RngState, shuffleInPlace } from "../rng";
@@ -50,6 +50,16 @@ function ownUnitList(draft: PlanningDraft): Unit[] {
     .sort((a, b) => a.id - b.id);
 }
 
+/**
+ * Eigene Karten aus den genannten Zonen als Auswahl-Pool für Bots. Das Deck ist verdeckt (R-18.3): seine
+ * Reihenfolge darf keine Bot-Entscheidung beeinflussen, deshalb wird es wie `deckContents` in `playerView`
+ * nach Instanz-ID sortiert. Hand, ausgespielte Karten und Ablagestapel bleiben in ihrer (bekannten) Reihenfolge.
+ */
+export function ownCardPool(state: GameState, player: PlayerIndex, zones: readonly OwnCardZone[]): CardInstanceId[] {
+  const p = getPlayer(state, player);
+  return zones.flatMap((zone) => (zone === "deck" ? [...p.deck].sort((a, b) => a - b) : [...p[zone]]));
+}
+
 function pickSubset<T>(rng: RngState, items: readonly T[], size: number): T[] {
   return shuffleInPlace(rng, [...items]).slice(0, size);
 }
@@ -73,8 +83,7 @@ export function targetCandidates(draft: PlanningDraft, data: GameData, spec: Tar
     case "player":
       return PLAYER_INDICES.filter((p) => p !== player).map((p) => ({ kind: "player", player: p }));
     case "ownCards": {
-      const p = getPlayer(state, player);
-      const pool: CardInstanceId[] = spec.from.flatMap((zone) => p[zone]);
+      const pool = ownCardPool(state, player, spec.from);
       if (pool.length === 0) return [];
       const result: ActionTarget[] = [];
       for (let i = 0; i < 3; i++) {
