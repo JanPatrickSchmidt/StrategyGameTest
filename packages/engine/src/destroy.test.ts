@@ -314,6 +314,68 @@ describe("R-14.5 vernichteter Anführer (E16c2b)", () => {
     expect(state.units[leaderId]?.location).toEqual(front("left", 1, 0));
   });
 
+  /** P12: belegt alle Felder einer Frontzone des Spielers mit eigenen Rekruten. */
+  function fillZone(state: GameState, player: PlayerIndex, zone: "left" | "right"): void {
+    const { cols, rows } = config.arenas.frontZone;
+    for (let row = 0; row < rows; row++) for (let col = 0; col < cols; col++) placeUnit(state, player, front(zone, col, row), "recruit");
+  }
+
+  it("R-14.5 (P12): Startfeld und ganze Startzone belegt → erstes freies Feld der anderen Frontzone nach (row, col)", () => {
+    const { state, leaderId } = destroyedInRoundOne();
+    fillZone(state, 1, "left");
+    placeUnit(state, 1, front("right", 0, 0), "recruit");
+    placeUnit(state, 1, front("right", 1, 0), "recruit");
+    const from = state.log.length;
+    playEmptyRound(state);
+    expect(state.round).toBe(3);
+    expect(state.units[leaderId]?.location).toEqual(front("right", 2, 0));
+    expect(eventsOf(state, "leader_returned", from)).toEqual([
+      expect.objectContaining({ round: 3, player: 1, unitId: leaderId, location: front("right", 2, 0) }),
+    ]);
+    expect(getPlayer(state, 1).leader.returnsInRound).toBeUndefined();
+  });
+
+  it("R-14.5 (P12): alle Felder beider Frontzonen belegt → erster freier Reserveplatz", () => {
+    const { state, leaderId } = destroyedInRoundOne();
+    fillZone(state, 1, "left");
+    fillZone(state, 1, "right");
+    placeUnit(state, 1, { zone: "reserve", slot: 0 }, "recruit");
+    const from = state.log.length;
+    playEmptyRound(state);
+    expect(state.round).toBe(3);
+    expect(state.units[leaderId]?.location).toEqual({ zone: "reserve", slot: 1 });
+    expect(eventsOf(state, "leader_returned", from)).toEqual([
+      expect.objectContaining({ round: 3, player: 1, unitId: leaderId, location: { zone: "reserve", slot: 1 } }),
+    ]);
+  });
+
+  it("R-14.5 (P12): kein Ort frei → er wartet ohne `leader_returned` und kehrt zurück, sobald ein Ort frei wird", () => {
+    const { state, leaderId } = destroyedInRoundOne();
+    fillZone(state, 1, "left");
+    fillZone(state, 1, "right");
+    for (let slot = 0; slot < config.reserveSlots; slot++) placeUnit(state, 1, { zone: "reserve", slot }, "recruit");
+    const from = state.log.length;
+    playEmptyRound(state);
+    expect(state.round).toBe(3);
+    expect(state.units[leaderId]).toBeUndefined();
+    // Die Rückkehr bleibt fällig (Rückkehr-Runde unverändert, `state.round >= returnsInRound`).
+    expect(getPlayer(state, 1).leader.returnsInRound).toBe(3);
+    expect(eventsOf(state, "leader_returned", from)).toEqual([]);
+    // In Runde 3 ist er weiterhin nicht verfügbar.
+    const from3 = state.log.length;
+    const onStart = Object.values(state.units).find((u) => u.owner === 1 && u.location.zone === "left" && u.location.cell.col === 2 && u.location.cell.row === 1);
+    delete state.units[(onStart as Unit).id];
+    playEmptyRound(state, { play: [], buy: [], position: [{ type: "setLeaderAbility", target: { kind: "none" } }] });
+    expect(eventsOf(state, "action_rejected", from3).filter((e) => e.player === 1).map((e) => e.reason)).toEqual(["leaderUnavailable"]);
+    // Zu Beginn von Runde 4 ist das Startfeld frei → dort kehrt er zurück (R-4.4).
+    expect(state.round).toBe(4);
+    expect(state.units[leaderId]?.location).toEqual(front("left", 2, 1));
+    expect(eventsOf(state, "leader_returned", from3)).toEqual([
+      expect.objectContaining({ round: 4, player: 1, unitId: leaderId, location: front("left", 2, 1) }),
+    ]);
+    expect(getPlayer(state, 1).leader.returnsInRound).toBeUndefined();
+  });
+
   it("R-14.5: GreedyBot-Partien laufen mit vernichteten Anführern durch", () => {
     for (const seed of [1, 2, 3]) {
       const state = createGame(data, defaultLeaders(data), seed);
