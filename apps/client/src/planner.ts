@@ -18,6 +18,11 @@ import {
   emptyPlanning,
   type GameData,
   type GameState,
+  getPlayer,
+  type LeaderAbilityParams,
+  leaderAbilityParams,
+  type LeaderData,
+  type LeaderState,
   type OwnPlayerView,
   PLANNING_SECTIONS,
   type Planning,
@@ -34,7 +39,7 @@ import {
   type UnitLocation,
 } from "@game/engine";
 import { locationName } from "./fieldNames";
-import { targetText } from "./targetText";
+import { targetText, unitLabel } from "./targetText";
 
 export const STEP_NAMES: Record<PlanningSection, string> = {
   play: "Ausspielen",
@@ -101,6 +106,8 @@ export class PlanBuilder {
     readonly player: PlayerIndex,
   ) {
     this.draft = new PlanningDraft(source, data, player);
+    // Wie nach jeder Änderung alle Abschnitte durchlaufen (C3d: danach gilt der Ast aus R-7.7 auch ohne Aktionen).
+    this.replay();
   }
 
   get step(): PlanningSection {
@@ -289,6 +296,47 @@ export class PlanBuilder {
     return checkTarget(this.draft.state, this.data, this.player, spec, {}, target);
   }
 
+  /** C3d: Anführer zu Beginn der Planung (Stufe und Ast vor der Astwahl dieser Planung, R-7.7). */
+  startLeader(): LeaderState {
+    return { ...getPlayer(this.source, this.player).leader };
+  }
+
+  /** C3d: Daten des eigenen Anführers. */
+  leaderData(): LeaderData {
+    const id = getPlayer(this.source, this.player).leader.leaderId;
+    const leader = this.data.leaders.get(id);
+    if (!leader) throw new RangeError(`Unbekannter Anführer ${id}`);
+    return leader;
+  }
+
+  /**
+   * C3d, R-16.2: Ziel-Angabe, Höchstzahlen und Effekte der Anführer-Fähigkeit im Schritt Aufstellen, also mit
+   * dem Ast dieser Planung (gewählt oder beim Aufdecken automatisch der erste, R-7.7). Aus der Engine.
+   */
+  leaderAbility(): LeaderAbilityParams {
+    const leader = getPlayer(this.draft.state, this.player).leader;
+    return leaderAbilityParams(this.leaderData(), leader.level, leader.branchId);
+  }
+
+  /** C3d: Ast des Anführers im Entwurf (nach dem Abschnitt Ausspielen, R-7.7), `null` = noch Stufe 1. */
+  draftBranch(): string | null {
+    return getPlayer(this.draft.state, this.player).leader.branchId;
+  }
+
+  /** C3d, R-7.4: im Entwurf gewählte Anführer-Fähigkeit (`null` = noch keine). */
+  plannedAbility(): ActionTarget | null {
+    return getPlayer(this.draft.state, this.player).leaderAbility;
+  }
+
+  /**
+   * C3d, R-7.4: Prüft ein Ziel der Anführer-Fähigkeit mit den Höchstzahlen der Stufe (R-14.2, R-16.2), allein
+   * über die Engine. `{ kind: "none" }` ist erlaubt. Ändert nichts.
+   */
+  checkLeaderTarget(target: ActionTarget): ActionTarget | RejectionReason {
+    const params = this.leaderAbility();
+    return checkTarget(this.draft.state, this.data, this.player, params.target, params.limits, target, { allowNone: true });
+  }
+
   /** Orte ohne eigene Einheit im Entwurf (Ziele für Ausspielen und Bewegen; den Rest prüft die Engine). */
   freeLocations(): UnitLocation[] {
     const taken = new Set(
@@ -359,11 +407,6 @@ export function goldSummary(view: PlayerView): string {
   return `Rundenvorrat ${own.roundGold} Gold · Schatzkammer ${own.treasury} Gold`;
 }
 
-function unitLabel(data: GameData, unit: Unit): string {
-  const name = unit.kind === "leader" ? (data.leaders.get(unit.sourceId)?.name ?? unit.sourceId) : (data.cards.get(unit.sourceId)?.name ?? unit.sourceId);
-  // Anführer haben Stufen statt Sterne (R-16).
-  return unit.kind === "leader" ? name : `${name} ${"★".repeat(unit.stars)}`.trim();
-}
 
 /** Einheit für Auswahllisten: Name, Sterne und Ort mit Feldnamen (R-3.8). */
 export function unitOptionText(data: GameData, unit: Unit): string {
@@ -393,8 +436,10 @@ export function describeAction(data: GameData, before: PlayerView, action: Plann
       return `${unitName(action.unitId)} bewegen → ${locationName(data.config, player, action.to)}`;
     case "setSpell":
       return `Zauber ${cardName(action.cardInstanceId)} legen (${action.slot === "pre" ? "vor" : "nach"} dem Kampf) → ${targetText(data, before, action.target)}`;
-    case "setLeaderAbility":
-      return "Anführer-Fähigkeit wählen";
+    case "setLeaderAbility": {
+      const name = ownLeaderData(data, before)?.active.name ?? "Anführer-Fähigkeit";
+      return action.target.kind === "none" ? `Anführer-Fähigkeit: keine (${name} verzichtet)` : `Anführer-Fähigkeit ${name} → ${targetText(data, before, action.target)}`;
+    }
     case "heal": {
       const unit = before.units[action.unitId];
       return `${unitName(action.unitId)} genesen${unit ? ` (${data.config.healCostPerStar * unit.stars} Gold)` : ""}`;
@@ -402,10 +447,16 @@ export function describeAction(data: GameData, before: PlayerView, action: Plann
     case "withdraw":
       return `${action.amount} Gold aus der Schatzkammer entnehmen`;
     case "chooseBranch":
-      return `Ast wählen: ${action.branchId}`;
+      return `Ast wählen: ${ownLeaderData(data, before)?.active.branches.find((b) => b.id === action.branchId)?.name ?? action.branchId}`;
     case "buy":
       return `${data.cards.get(action.cardId)?.name ?? action.cardId} kaufen`;
   }
+}
+
+/** Daten des eigenen Anführers aus der Sicht (für Texte). */
+function ownLeaderData(data: GameData, view: PlayerView): LeaderData | undefined {
+  const leader = view.players[view.viewer]?.leader;
+  return leader ? data.leaders.get(leader.leaderId) : undefined;
 }
 
 /** R-14.6: Bezahlung einer Ausspiel-Aktion mit alternativen Kosten, z. B. „alternativ: 2 Gold + 1 Opfer: Söldner“. */

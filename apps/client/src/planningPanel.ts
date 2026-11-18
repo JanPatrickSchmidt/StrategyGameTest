@@ -2,14 +2,16 @@
  * Planungsleiste im Browser (C3a): zeigt den Planungsentwurf (`PlanBuilder`) als schlichte HTML-Bedienung.
  * Schritte Ausspielen, Kaufen, Aufstellen (R-5) mit freiem Wechsel, Gold, automatisch ausgespielte Münzen,
  * Hand, Ortsauswahl mit Feldnamen (R-3.8), Liste der geplanten Aktionen und Bestätigen; seit C3c2 auch Genesen
- * (R-7.5), Entnahme aus der Schatzkammer (R-7.6) und alternative Kosten beim Ausspielen (R-14.6).
+ * (R-7.5), Entnahme aus der Schatzkammer (R-7.6) und alternative Kosten beim Ausspielen (R-14.6); seit C3d1
+ * Astwahl (R-7.7) und Anführer-Fähigkeit mit Ziel (R-7.4, R-16.6).
  * Die Logik liegt in `planner.ts`; hier wird nur gezeichnet und weitergereicht.
  */
-import { type GameData, PLANNING_SECTIONS, type PlanningAction, type PlayerView, type RejectionReason, type UnitId, type UnitLocation } from "@game/engine";
+import { type ActionTarget, type GameData, PLANNING_SECTIONS, type PlanningAction, type PlayerView, type RejectionReason, type UnitId, type UnitLocation } from "@game/engine";
 import { applyTarget, type BoardSelection, isRelocatable, targetLocations, validSelection } from "./boardInput";
 import { locationName } from "./fieldNames";
+import { type AbilityChoice, abilityState, addAbility, branchChoice, branchName, combinePicks, movesTarget, setBranch } from "./leaderPlan";
 import { addHeal, addWithdraw, healOptions, NORMAL_PAYMENT, type Payment, paymentChoice, playAction, playLocations, withdrawMax } from "./planExtras";
-import { addSpell, SLOT_LABELS, spellTargetChoice, type TargetChoice } from "./spellTargets";
+import { addSpell, SLOT_LABELS, spellTargetChoice, type TargetChoice, type TargetOption } from "./spellTargets";
 import {
   cardText,
   describeAction,
@@ -242,6 +244,125 @@ export class PlanningPanel {
       );
     }
     this.renderHeal(builder);
+    this.renderBranch(builder);
+  }
+
+  /** C3d1, R-7.7: Astwahl, sobald der Anführer Stufe 2 erreicht hat und noch keinen Ast hat. */
+  private renderBranch(builder: PlanBuilder): void {
+    const choice = branchChoice(builder);
+    if (!choice) return;
+    const select = el("select");
+    for (const option of choice.options) select.append(el("option", { value: option.id, textContent: option.name, selected: option.id === choice.chosen }));
+    const go = el("button", { textContent: choice.chosen ? "Ast ändern" : "Ast wählen" });
+    go.addEventListener("click", () => {
+      const reason = setBranch(builder, select.value);
+      this.change(reason ? `Nicht möglich: ${reasonText(reason)}` : `Ast gewählt: ${branchName(builder, select.value)}.`);
+    });
+    const first = choice.options[0];
+    const hint = choice.chosen ? "" : ` (ohne Wahl gilt ${first ? first.name : "der erste Ast"})`;
+    this.root.append(el("div", { className: "row" }, el("span", { textContent: `Anführer Stufe 2 – Ast${hint}:` }), select, go));
+  }
+
+  /** Auswahlliste mit Gruppen (z. B. Felder nach Arena); Wert = Index in `options`, optional mit leerem Eintrag. */
+  private optionSelect(options: readonly TargetOption[], emptyLabel?: string): HTMLSelectElement {
+    const select = el("select");
+    if (emptyLabel !== undefined) select.append(el("option", { value: "", textContent: emptyLabel }));
+    const groups = new Map<string, HTMLOptGroupElement>();
+    for (const [i, option] of options.entries()) {
+      const node = el("option", { value: String(i), textContent: option.label });
+      if (option.group) {
+        let group = groups.get(option.group);
+        if (!group) {
+          group = el("optgroup", { label: option.group });
+          groups.set(option.group, group);
+          select.append(group);
+        }
+        group.append(node);
+      } else select.append(node);
+    }
+    return select;
+  }
+
+  /** C3d1, R-7.4: Anführer-Fähigkeit mit Ziel (höchstens einmal, kostenlos) oder bewusst keine. */
+  private renderAbility(builder: PlanBuilder): void {
+    const state = abilityState(this.data, builder);
+    const title = `Anführer-Fähigkeit ${state.name} (${state.levelText})`;
+    if (state.unavailable) {
+      this.root.append(el("p", { className: "hint", textContent: `${title}: Anführer ist vernichtet, in dieser Runde keine Fähigkeit (R-14.5).` }));
+      return;
+    }
+    if (state.planned) {
+      this.root.append(el("p", { className: "hint", textContent: `${title}: gewählt (zum Ändern unten in „Geplant“ entfernen).` }));
+      return;
+    }
+    const done = (reason: RejectionReason | null): void => this.change(reason ? `Nicht möglich: ${reasonText(reason)}` : "Anführer-Fähigkeit gewählt.");
+    const go = el("button", { textContent: "Fähigkeit wählen" });
+    const skip = el("button", { textContent: "Keine Fähigkeit" });
+    skip.addEventListener("click", () => done(addAbility(builder, { kind: "none" })));
+    const read = this.renderAbilityChoice(state.choice, title);
+    go.addEventListener("click", () => {
+      const target = read();
+      if (target === undefined) {
+        this.change("Erst ein Ziel wählen.");
+        return;
+      }
+      done(addAbility(builder, target));
+    });
+    this.root.append(el("div", { className: "row" }, go, skip));
+  }
+
+  /** Zeichnet die Zielwahl der Fähigkeit und liefert eine Funktion, die die aktuelle Wahl ausliest. */
+  private renderAbilityChoice(choice: AbilityChoice, title: string): () => ActionTarget | undefined {
+    switch (choice.kind) {
+      case "none":
+        this.root.append(el("p", {}, `${title}: ohne Ziel`));
+        return () => ({ kind: "none" });
+      case "pick": {
+        if (choice.options.length === 0) {
+          this.root.append(el("p", { className: "hint", textContent: `${title}: kein gültiges Ziel` }));
+          return () => undefined;
+        }
+        if (choice.max <= 1) {
+          const select = this.optionSelect(choice.options);
+          this.root.append(el("div", { className: "row" }, el("span", { textContent: `${title}: Ziel` }), select));
+          return () => choice.options[Number(select.value)]?.target;
+        }
+        // Mehrere Ziele (z. B. Zonen bei „Weite“, Felder bei „Kette“): Ankreuzen, höchstens `max`.
+        const boxes: { box: HTMLInputElement; option: TargetOption }[] = [];
+        const list = el("div", { className: "row card-choice" });
+        for (const option of choice.options) {
+          const box = el("input", { type: "checkbox" });
+          boxes.push({ box, option });
+          list.append(el("label", {}, box, ` ${option.label}`));
+        }
+        this.root.append(el("p", {}, `${title}: bis zu ${choice.max} Ziele ankreuzen`), list);
+        return () => combinePicks(boxes.filter((b) => b.box.checked).map((b) => b.option.target)) ?? undefined;
+      }
+      case "moves": {
+        if (choice.units.length === 0 || choice.destinations.length === 0) {
+          this.root.append(el("p", { className: "hint", textContent: `${title}: keine Einheit oder kein freies Feld` }));
+          return () => undefined;
+        }
+        // R-16.6: je Zeile eine eigene Einheit und ein freies Feld einer Arena, an der du teilnimmst.
+        this.root.append(el("p", {}, `${title}: bis zu ${choice.max} Einheiten versetzen (auch in die gegnerische Hälfte)`));
+        const rows: { unit: HTMLSelectElement; to: HTMLSelectElement }[] = [];
+        for (let i = 0; i < choice.max; i += 1) {
+          const unit = el("select");
+          unit.append(el("option", { value: "", textContent: "– keine –" }));
+          for (const option of choice.units) unit.append(el("option", { value: String(option.unitId), textContent: option.label }));
+          const to = this.optionSelect(choice.destinations, "– Feld –");
+          rows.push({ unit, to });
+          this.root.append(el("div", { className: "row" }, unit, el("span", { textContent: "nach" }), to));
+        }
+        return () => {
+          const moves = rows.flatMap((r) => {
+            const target = r.to.value === "" ? undefined : choice.destinations[Number(r.to.value)]?.target;
+            return r.unit.value === "" || !target ? [] : [{ unitId: Number(r.unit.value), to: target }];
+          });
+          return movesTarget(moves) ?? undefined;
+        };
+      }
+    }
   }
 
   /** C3c2, R-14.6: Bezahlwahl für die gewählte Einheitenkarte (nur bei Karten mit alternativen Kosten). */
@@ -376,6 +497,7 @@ export class PlanningPanel {
   }
 
   private renderPosition(builder: PlanBuilder, view: PlayerView): void {
+    this.renderAbility(builder);
     const units = builder.movableUnits();
     if (units.length === 0) {
       this.root.append(el("p", { className: "hint", textContent: "Keine Einheit zum Bewegen." }));
@@ -394,7 +516,7 @@ export class PlanningPanel {
     this.root.append(
       el("p", {
         className: "hint",
-        textContent: "Auf dem Brett: eigene Einheit anklicken und dann ein hervorgehobenes Feld, oder die Einheit direkt dorthin ziehen. Neu ausgespielte Einheiten lassen sich genauso umstellen. Anführer-Fähigkeit folgt mit C3d.",
+        textContent: "Auf dem Brett: eigene Einheit anklicken und dann ein hervorgehobenes Feld, oder die Einheit direkt dorthin ziehen. Neu ausgespielte Einheiten lassen sich genauso umstellen.",
       }),
     );
   }

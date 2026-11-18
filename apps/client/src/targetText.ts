@@ -1,9 +1,15 @@
 /**
  * Ziele von Zaubern und Fähigkeiten als Text (C3c1, R-3.8, R-14.2), z. B. für die Liste der geplanten Aktionen.
  */
-import type { ActionTarget, ArenaRef, GameData, PlayerView } from "@game/engine";
+import type { ActionTarget, ArenaRef, GameData, PlayerView, Unit } from "@game/engine";
 import { arenaHexName } from "./fieldNames";
 import { playerName } from "./stateText";
+
+/** Name einer Einheit mit Sternen, z. B. „Söldner ★★“; Anführer haben Stufen statt Sterne (R-16). */
+export function unitLabel(data: GameData, unit: Unit): string {
+  const name = unit.kind === "leader" ? (data.leaders.get(unit.sourceId)?.name ?? unit.sourceId) : (data.cards.get(unit.sourceId)?.name ?? unit.sourceId);
+  return unit.kind === "leader" ? name : `${name} ${"★".repeat(unit.stars)}`.trim();
+}
 
 export const ARENA_LABELS: Record<ArenaRef, string> = { left: "Linke Front", right: "Rechte Front", center: "Mitte" };
 
@@ -33,6 +39,11 @@ export function targetText(data: GameData, view: PlayerView, target: ActionTarge
         })
         .join(", ");
     case "moveUnits":
-      return target.moves.map((m) => `Einheit ${m.unitId} → ${arenaHexName(data.config, viewer, m.to)}`).join(", ");
+      return target.moves
+        .map((m) => {
+          const unit = view.units[m.unitId];
+          return `${unit ? unitLabel(data, unit) : `Einheit ${m.unitId}`} → ${arenaHexName(data.config, viewer, m.to)}`;
+        })
+        .join(", ");
   }
 }
