@@ -13,6 +13,7 @@ import { type AbilityChoice, abilityState, addAbility, branchChoice, branchName,
 import { addHeal, addWithdraw, healOptions, NORMAL_PAYMENT, type Payment, paymentChoice, playAction, playLocations, withdrawMax } from "./planExtras";
 import { addSpell, SLOT_LABELS, spellTargetChoice, type TargetChoice, type TargetOption } from "./spellTargets";
 import {
+  actionNote,
   cardText,
   describeAction,
   goldSummary,
@@ -142,7 +143,7 @@ export class PlanningPanel {
     if (!this.builder) return;
     const reason = this.builder.add(action);
     if (!reason) this.selection = null;
-    this.change(reason ? `Nicht möglich: ${reasonText(reason)}` : "");
+    this.change(this.before ? actionNote(this.data, this.before, action, reason) : "");
   }
 
   private render(): void {

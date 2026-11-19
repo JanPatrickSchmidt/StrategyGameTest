@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { loadGameData, type UnitLocation } from "@game/engine";
-import { describeAction, goldSummary, handCards, ownEntry, PlanBuilder, playedCards } from "./planner";
+import { actionNote, describeAction, goldSummary, handCards, ownEntry, PlanBuilder, playedCards, reasonText } from "./planner";
 import { GameSession, HUMAN } from "./session";
 
 const data = loadGameData();
@@ -115,6 +115,19 @@ describe("C3a: Planungsentwurf im Client", () => {
     const leader = builder.movableUnits()[0];
     if (!leader) throw new Error("Anführer fehlt");
     expect(describeAction(data, before, { type: "moveUnit", unitId: leader.id, to: { zone: "center", position: 2 } })).toMatch(/bewegen → Mitte d1$/);
+  });
+
+  it("C3d2: Rückmeldung nach dem Hinzufügen nennt die geplante Aktion mit Feldnamen (R-3.8) oder den Ablehnungsgrund", () => {
+    const { builder, unitCard } = sessionWithUnitInHand();
+    const before = builder.preview();
+    const name = data.cards.get(before.cards[unitCard]?.cardId ?? "")?.name;
+    const action = { type: "playUnit", cardInstanceId: unitCard, to: { zone: "left", cell: { col: 2, row: 2 } } } as const;
+    const first = builder.add(action);
+    expect(first).toBeNull();
+    expect(actionNote(data, before, action, first)).toBe(`Geplant: ${name} ausspielen → Linke Front c3.`);
+    const again = builder.add(action);
+    expect(again).not.toBeNull();
+    expect(actionNote(data, before, action, again)).toBe(`Nicht möglich: ${reasonText(again ?? "breaksPlannedAction")}`);
   });
 });
 

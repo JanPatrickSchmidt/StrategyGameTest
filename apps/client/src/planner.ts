@@ -417,6 +417,14 @@ export function unitOptionText(data: GameData, unit: Unit): string {
  * Text einer geplanten Aktion. `before` ist die Sicht zu Beginn der Planung (Namen bewegter Einheiten und der
  * ausgespielten Karten).
  */
+/**
+ * C3d2: Rückmeldung nach dem Hinzufügen einer Aktion in der Planungsleiste: bei Erfolg die Aktion als Text
+ * (wie in der Liste „Geplant“), sonst der Ablehnungsgrund.
+ */
+export function actionNote(data: GameData, before: PlayerView, action: PlanningAction, reason: PlanReason | null): string {
+  return reason ? `Nicht möglich: ${reasonText(reason)}` : `Geplant: ${describeAction(data, before, action)}.`;
+}
+
 export function describeAction(data: GameData, before: PlayerView, action: PlanningAction): string {
   const player = before.viewer;
   const cardName = (id: number): string => {
