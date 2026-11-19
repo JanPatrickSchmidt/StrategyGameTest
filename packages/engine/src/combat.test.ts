@@ -7,9 +7,11 @@ import {
   dealDamage,
   fighterById,
   type Fighter,
+  fighterStartValues,
   fighterFromData,
   type FighterInit,
   simulateCombat,
+  spawnFighter,
   stepCombat,
   stunFighter,
 } from "./combat";
@@ -514,5 +516,27 @@ describe("Anführer im Kampf (R-16.5)", () => {
     const far = cellAtDistance(me, 2, [a]);
     const sim2 = createCombat(config, SIZE, [fighter(1, 0, me), fighter(2, 1, a, { hp: 999 }), leaderInit(3, 1, "brann", far)]);
     expect(bestTarget(sim2, get(sim2, 1))?.id).toBe(3);
+  });
+});
+
+describe("C4a: Startwerte im Protokoll für die Kampfwiedergabe (R-19.2)", () => {
+  it("R-19.2: Startwerte entsprechen dem Kämpfer der Simulation, inklusive Vorschaden (R-14.2) und Schild", () => {
+    const init = fighter(1, 0, { col: 1, row: 1 }, { hp: 7 }, { damageTaken: 3, shield: 2 });
+    const sim = createCombat(config, SIZE, [init, fighter(2, 1, { col: 3, row: 4 })]);
+    const f = get(sim, 1);
+    expect(fighterStartValues(init)).toEqual({ hp: f.hp, maxHp: f.maxHp, shield: f.shield });
+    expect(fighterStartValues(init)).toEqual({ hp: 4, maxHp: 7, shield: 2 });
+  });
+
+  it("R-19.2: `combat_unit_summoned` nennt Lebenspunkte und Schild des beschworenen Kämpfers", () => {
+    const hooks: CombatHooks = {
+      onCombatStart: (sim, f) => {
+        if (f.id === 1) spawnFighter(sim, f, { team: 0, sourceId: "tok", behavior: "default", stats: { attack: 1, hp: 2, breakthrough: 0, range: 1 }, hasManaAbility: false, shield: 1 }, { col: 0, row: 0 });
+      },
+    };
+    const result = simulateCombat(config, SIZE, [fighter(1, 0, { col: 1, row: 1 }), fighter(2, 1, { col: 3, row: 4 })], hooks);
+    const summoned = ofType(result.events, "combat_unit_summoned");
+    expect(summoned).toHaveLength(1);
+    expect(summoned[0]).toMatchObject({ hp: 2, maxHp: 2, shield: 1, cell: { col: 0, row: 0 } });
   });
 });

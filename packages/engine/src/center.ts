@@ -7,7 +7,7 @@
  * Grundlage für die Mitte-Belohnung (R-10.4, E12). Der Spielzustand wird nicht verändert; Tokens
  * entfernt `runCombatPhase` erst nach allen Kämpfen (R-9: gemeinsamer Ausgangszustand).
  */
-import { type FighterInit, simulateCombat } from "./combat";
+import { type FighterInit, fighterStartValues, simulateCombat } from "./combat";
 import type { GameData } from "./data";
 import { applyCombatAftermath } from "./aftermath";
 import { type DeferredEffect, effectHooks } from "./effects";
@@ -64,7 +64,7 @@ export function runCenter(state: GameState, data: GameData, deferredOut: Deferre
       type: "combat_started",
       arena: CENTER_ARENA_ID,
       players: [...players],
-      fighters: inits.map((f) => ({ unitId: f.id, player: f.team as PlayerIndex, sourceId: f.sourceId, cell: { ...f.pos } })),
+      fighters: inits.map((f) => ({ unitId: f.id, player: f.team as PlayerIndex, sourceId: f.sourceId, cell: { ...f.pos }, ...fighterStartValues(f) })),
     });
     const fx = effectHooks(data, { adjustSummon: resonanceSummonAdjuster(state, data) });
     const combat = simulateCombat(data.config, data.config.arenas.centerArena, inits, fx.hooks, state.nextUnitId);

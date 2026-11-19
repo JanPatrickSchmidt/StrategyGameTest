@@ -119,6 +119,10 @@ export type CombatEvent =
       sourceId: string;
       cell: OffsetCoord;
       summoner: UnitId | null;
+      /** C4a (R-19.2): Startwerte für die Anzeige, damit die Wiedergabe nur aus Ereignissen entsteht. */
+      hp: number;
+      maxHp: number;
+      shield: number;
     }
   | { type: "combat_unit_died"; tick: number; unit: UnitId; killer: UnitId | null }
   /** R-14.4: Die gestorbene Einheit ist nach dem Kampf verwundet (`cause`: Schaden mit `wound` oder Bezwinger mit `woundOnKill`). */
@@ -270,6 +274,18 @@ export function createCombat(
   };
 }
 
+/** Startwerte eines Kämpfers für die Anzeige (R-19.2, C4a): Lebenspunkte nach Vorschaden (R-14.2) und Schild. */
+export interface FighterStartValues {
+  hp: number;
+  maxHp: number;
+  shield: number;
+}
+
+/** C4a: dieselben Startwerte, mit denen `createCombat` den Kämpfer anlegt. */
+export function fighterStartValues(init: FighterInit): FighterStartValues {
+  return { hp: init.stats.hp - (init.damageTaken ?? 0), maxHp: init.stats.hp, shield: init.shield ?? 0 };
+}
+
 function buildFighter(config: ConfigData, init: FighterInit, summoned: boolean): Fighter {
   const c = config.combat;
   const s = init.stats;
@@ -283,8 +299,7 @@ function buildFighter(config: ConfigData, init: FighterInit, summoned: boolean):
     pos: { col: init.pos.col, row: init.pos.row },
     alive: true,
     attack: s.attack,
-    maxHp: s.hp,
-    hp: s.hp - (init.damageTaken ?? 0),
+    ...fighterStartValues(init),
     range: s.range,
     breakthrough: s.breakthrough,
     armor: s.armor ?? 0,
@@ -293,7 +308,6 @@ function buildFighter(config: ConfigData, init: FighterInit, summoned: boolean):
     hasManaAbility: init.hasManaAbility,
     manaMax,
     mana: init.hasManaAbility ? Math.min(manaMax, init.startMana ?? 0) : 0,
-    shield: init.shield ?? 0,
     firstStrike: keywords.includes("firstStrike"),
     keywords,
     race: init.race ?? null,
@@ -561,6 +575,9 @@ export function spawnFighter(
     sourceId: fighter.sourceId,
     cell: copy(pos),
     summoner: summoner ? summoner.id : null,
+    hp: fighter.hp,
+    maxHp: fighter.maxHp,
+    shield: fighter.shield,
   });
   return fighter;
 }

@@ -437,12 +437,15 @@ export type GameEventPayload =
       wounded: boolean;
       location: UnitLocation;
     }
-  /** R-9.1: simulierter Kampf beginnt; `cell` = Startfeld in Arena-Koordinaten (R-3.2). */
+  /**
+   * R-9.1: simulierter Kampf beginnt; `cell` = Startfeld in Arena-Koordinaten (R-3.2). `hp`, `maxHp` und
+   * `shield` sind die Startwerte des Kämpfers (C4a, R-19.2: die Kampfwiedergabe braucht keinen Spielzustand).
+   */
   | {
       type: "combat_started";
       arena: string;
       players: PlayerIndex[];
-      fighters: { unitId: UnitId; player: PlayerIndex; sourceId: string; cell: OffsetCoord }[];
+      fighters: { unitId: UnitId; player: PlayerIndex; sourceId: string; cell: OffsetCoord; hp: number; maxHp: number; shield: number }[];
     }
   /** R-9.3 bis R-9.7: Ereignisse der Tick-Simulation mit Arena-Kennung. */
   | (CombatEvent & { arena: string })

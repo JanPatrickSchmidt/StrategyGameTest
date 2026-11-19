@@ -6,7 +6,7 @@
  * Kampfauswertung (E12) in `state.frontResults` ab. Alle Kämpfe nutzen denselben Ausgangszustand
  * (R-9): Der Spielzustand wird erst nach allen Kämpfen verändert (Tokens entfernen).
  */
-import { type FighterInit, fighterFromData, simulateCombat } from "./combat";
+import { type FighterInit, fighterFromData, fighterStartValues, simulateCombat } from "./combat";
 import type { UnitStats } from "./dataTypes";
 import type { GameData } from "./data";
 import { applyCombatAftermath } from "./aftermath";
@@ -181,7 +181,7 @@ export function runFront(state: GameState, data: GameData, pairing: FrontPairing
       type: "combat_started",
       arena,
       players: [pairing.first, pairing.second],
-      fighters: inits.map((f) => ({ unitId: f.id, player: f.team as PlayerIndex, sourceId: f.sourceId, cell: { ...f.pos } })),
+      fighters: inits.map((f) => ({ unitId: f.id, player: f.team as PlayerIndex, sourceId: f.sourceId, cell: { ...f.pos }, ...fighterStartValues(f) })),
     });
     const fx = effectHooks(data, { adjustSummon: resonanceSummonAdjuster(state, data) });
     const combat = simulateCombat(data.config, frontArenaSize(zone), inits, fx.hooks, state.nextUnitId);
