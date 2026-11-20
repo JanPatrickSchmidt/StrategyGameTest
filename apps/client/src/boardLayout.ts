@@ -183,6 +183,16 @@ export function buildBoardLayout(config: LayoutConfig, pairs: readonly FrontPair
   return { config, arenas, seatCorners, radius: frontDistance + frontHalf.x + frontHalf.z };
 }
 
+/** Abstand der Lebens-Säule hinter der Sitz-Ecke (Weltmaß). */
+export const PILLAR_BACK = 2.6;
+
+/** Position der Lebens-Säule eines Sitzes (hinter seiner Ecke); `null`, wenn es den Sitz nicht gibt. */
+export function seatPillarPosition(layout: BoardLayout, seat: number): WorldPoint | null {
+  const corner = layout.seatCorners[seat];
+  if (!corner) return null;
+  return { x: corner.x + Math.cos(seatAngle(seat)) * PILLAR_BACK, z: corner.z + Math.sin(seatAngle(seat)) * PILLAR_BACK };
+}
+
 /** Feld einer Arena nach Koordinate. */
 export function cellOf(arena: ArenaLayout, coord: OffsetCoord): ArenaCell | undefined {
   return arena.cells.find((c) => c.coord.col === coord.col && c.coord.row === coord.row);

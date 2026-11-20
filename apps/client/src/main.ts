@@ -2,11 +2,13 @@
  * Einstieg des Browser-Clients (C1): startet eine Partie gegen 3 Bots, zeigt den Zustand als Text und
  * darüber das 3D-Brett (C2) und die Planungsleiste (C3a). Während der Planung zeigt das Brett die Vorschau;
  * Einheiten lassen sich direkt auf dem Brett platzieren und bewegen (C3b). Nach jeder Runde spielt das Brett die
- * Kämpfe dieser Runde aus dem Ereignisprotokoll ab (C4c1, R-19.2).
+ * Kämpfe dieser Runde aus dem Ereignisprotokoll ab (C4c1, R-19.2), seit C4c2b mit den Anführer-Fähigkeiten und
+ * Zaubern davor und dem Durchbruch-Schaden und den Zaubern danach.
  */
 import { loadGameData } from "@game/engine";
-import { BASE_TICKS_PER_SECOND, combatReplays, REPLAY_SPEEDS, ReplayPlayer, type ReplaySpeed } from "./combatReplay";
-import { replayStatusText } from "./replayAnimation";
+import { BASE_TICKS_PER_SECOND, REPLAY_SPEEDS, type ReplaySpeed } from "./combatReplay";
+import { RoundReplayPlayer, roundReplay } from "./effectReplay";
+import { roundStatusText } from "./roundAnimation";
 import { createBoardScene, type BoardScene } from "./scene";
 import { PlanningPanel } from "./planningPanel";
 import { GameSession, HUMAN } from "./session";
@@ -106,20 +108,19 @@ function render(note = ""): void {
   message.textContent = note || (waiting ? `Runde ${view.round}: plane deinen Zug und bestätige ihn.` : "Die Partie ist beendet.");
 }
 
-/** C4c1: laufende Kampfwiedergabe (nur mit 3D-Brett). */
-let replayPlayer: ReplayPlayer | null = null;
+/** C4c1/C4c2b: laufende Wiedergabe der Runde (nur mit 3D-Brett). */
+let replayPlayer: RoundReplayPlayer | null = null;
 
 function selectedSpeed(): ReplaySpeed {
   const value = Number(replayControls.speed.value);
   return REPLAY_SPEEDS.find((s) => s === value) ?? 1;
 }
 
-/** Spielt die Kämpfe der gerade aufgelösten Runde `round` ab (R-19.2: nur aus dem Protokoll der eigenen Sicht). */
+/** Spielt die gerade aufgelöste Runde `round` ab (R-19.2: nur aus dem Protokoll der eigenen Sicht). */
 function startReplay(round: number): void {
   if (!scene) return;
-  const replays = combatReplays(data, session.view().log, round);
-  if (replays.length === 0) return;
-  const player = new ReplayPlayer(replays);
+  const player = new RoundReplayPlayer(roundReplay(data, session.view().log, round));
+  if (player.segments.length === 0) return;
   player.setSpeed(selectedSpeed());
   replayPlayer = player;
   replayControls.panel.hidden = false;
@@ -132,7 +133,7 @@ function startReplay(round: number): void {
       }
       return;
     }
-    const text = replayStatusText(player.replays, player.position(), HUMAN, BASE_TICKS_PER_SECOND);
+    const text = roundStatusText(data, player.segments, { ...player.position(), clock: player.clock() }, HUMAN, BASE_TICKS_PER_SECOND);
     if (text !== lastText) replayControls.status.textContent = lastText = text;
   });
 }

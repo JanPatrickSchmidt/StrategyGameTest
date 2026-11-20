@@ -43,6 +43,8 @@ export interface FloatingText {
   stack: number;
   /** Form der getroffenen Figur (für die Höhe über ihrem Schild). */
   shape: FigureShape;
+  /** C4c2b: feste Starthöhe über dem Brett statt über dem Schild einer Figur (z. B. an der Säule eines Sitzes). */
+  height?: number;
 }
 
 /** Geschoss bzw. Strahl vom Wirker zum Ziel. */

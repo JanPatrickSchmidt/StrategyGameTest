@@ -324,6 +324,15 @@ export class RoundReplayPlayer {
     return { index: this.current, tick, fraction: ticks >= segment.replay.endTick ? 0 : ticks - tick };
   }
 
+  /**
+   * Uhr des laufenden Kampfs in Ticks (ab −1), wie `ReplayPlayer.clock()` auch in der Pause nach `endTick`
+   * weiterlaufend; bei Wirkungsgruppen und am Ende `null` (C4c2b).
+   */
+  clock(): number | null {
+    const segment = this.segment;
+    return segment && segment.kind === "combat" ? this.elapsedMs / MS_PER_TICK - 1 : null;
+  }
+
   /** Schreitet um `ms` Echtzeit fort; liefert die dabei neu erreichten Kampf-Ticks (Index = Abschnitt). */
   advance(ms: number): { index: number; tick: number }[] {
     if (ms < 0) throw new RangeError("Zeit läuft nicht rückwärts");

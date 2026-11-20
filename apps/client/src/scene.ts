@@ -29,6 +29,10 @@
  * - Wirkungen (C4c2a) aus `combatEffects`: Ausfallschritt der Nahkämpfer, Geschosse der Fernkämpfer, Strahl und
  *   Ring bei Fähigkeiten, Ringe bei Beschwörung und Schild, aufsteigende Zahlen für Schaden (Schild-Anteil eigens),
  *   Heilung, Schild, Buffs, Schlüsselwörter, Betäubung und Verwundung.
+ * - Ganze Runde (C4c2b): `playReplay` bekommt einen `RoundReplayPlayer`; was zu sehen ist, liefert `roundFrame`
+ *   (Vorkampf-Gruppen auf der Startaufstellung, Kämpfe, Nachkampf-Gruppen auf dem Endbild). Ring am Wirker
+ *   (Anführer-Figur oder Säule), Strahl zu den Zielen, Zahlen; Einheiten ohne Kampf zeigt die Brett-Figur, die beim
+ *   Besiegen ausblendet; Durchbruch fliegt zur Säule des Verlierers, die dann auf das neue Leben schrumpft.
  * Farbwelt nach `docs/stil/visuelle-richtung.md`: gedeckter Untergrund, dunkle Hex-Linien, gedämpfte
  * Spielerfarben, warmes Hauptlicht mit kühlem Gegenlicht.
  */
@@ -51,10 +55,20 @@ import {
   Vector3,
 } from "@babylonjs/core";
 import type { GameData, PlayerIndex, PlayerView, UnitId, UnitLocation } from "@game/engine";
-import type { ReplayPlayer } from "./combatReplay";
-import { arenaFocus, fighterBadgeText, roundFighters } from "./replayAnimation";
-import { combatEffects, type CombatEffects, type EffectTone } from "./replayEffects";
-import { type BoardLayout, buildBoardLayout, frontPairsFor, type LayoutConfig, locationPosition, seatAngle, type WorldPoint } from "./boardLayout";
+import type { RoundReplayPlayer } from "./effectReplay";
+import { arenaFocus, fighterBadgeText } from "./replayAnimation";
+import { type CombatEffects, type EffectTone } from "./replayEffects";
+import { roundFrame } from "./roundAnimation";
+import {
+  type BoardLayout,
+  buildBoardLayout,
+  frontPairsFor,
+  type LayoutConfig,
+  locationPosition,
+  seatAngle,
+  seatPillarPosition,
+  type WorldPoint,
+} from "./boardLayout";
 import { nearestLocation } from "./boardInput";
 import { playerName, seatLabelText } from "./stateText";
 import { type FigureShape, figureSourceKey, unitBadgeText, type UnitFigure, unitFigures } from "./unitFigures";
@@ -74,10 +88,10 @@ export interface BoardScene {
   /** C3b: freie Zielorte des Betrachters hervorheben und die gewählte Einheit markieren. */
   setMarkers(targets: readonly UnitLocation[], selectedUnit: UnitId | null): void;
   /**
-   * C4c1: spielt die Kämpfe aus `player` ab (die Zeit treibt die Szene voran). `onProgress` wird in jedem Bild
+   * C4c1/C4c2b: spielt die Runde aus `player` ab (die Zeit treibt die Szene voran). `onProgress` wird in jedem Bild
    * gerufen, zuletzt mit `finished = true`. Eine laufende Wiedergabe wird vorher beendet.
    */
-  playReplay(player: ReplayPlayer, onProgress: (finished: boolean) => void): void;
+  playReplay(player: RoundReplayPlayer, onProgress: (finished: boolean) => void): void;
   /** C4c1: beendet die Wiedergabe sofort und zeigt die zurückgehaltene Sicht. */
   stopReplay(): void;
   dispose(): void;
@@ -414,9 +428,9 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
       if (!corner) continue;
       const mesh = MeshBuilder.CreateCylinder(`player${p}`, { diameter: 1.6, height: 1, tessellation: 6 }, scene);
       mesh.parent = root;
-      const back = 2.6;
-      mesh.position.x = corner.x + Math.cos(seatAngle(p)) * back;
-      mesh.position.z = corner.z + Math.sin(seatAngle(p)) * back;
+      const pillarAt = seatPillarPosition(built, p) ?? corner;
+      mesh.position.x = pillarAt.x;
+      mesh.position.z = pillarAt.z;
       const mat = material(scene, `player${p}Mat`, playerColor(p));
       mesh.material = mat;
       pillars.push({ mesh, material: mat });
@@ -439,7 +453,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
 
   // C4c1: Kampfwiedergabe. Eigene Figuren (Klone statt Instanzen, damit jede einzeln ausblenden kann).
   interface Replay {
-    player: ReplayPlayer;
+    player: RoundReplayPlayer;
     onProgress: (finished: boolean) => void;
     /** Zurückgehaltene Sicht aus `update`, die nach der Wiedergabe gezeigt wird. */
     pendingView: PlayerView | null;
@@ -458,7 +472,9 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     for (const entry of figures.values()) {
       entry.mesh.isVisible = visible;
       entry.mesh.isPickable = visible;
+      entry.mesh.visibility = 1;
       entry.badge.mesh.isVisible = visible;
+      entry.badge.mesh.visibility = 1;
     }
     for (const m of markers) m.isVisible = visible;
     if (!visible) selectionRing.isVisible = false;
@@ -479,13 +495,27 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
   function drawReplay(active: Replay): void {
     if (!layout) return;
     const position = active.player.position();
-    const fighters = roundFighters(layout, active.player.replays, position);
-    const running = position.index === null ? undefined : active.player.replays[position.index];
-    const clock = active.player.clock();
-    const effects = running && clock !== null ? combatEffects(layout, running, Math.floor(clock), clock - Math.floor(clock)) : null;
+    const frame = roundFrame(layout, active.player.segments, { ...position, clock: active.player.clock() }, (unit) => {
+      const entry = figures.get(unit);
+      return entry ? { x: entry.mesh.position.x, z: entry.mesh.position.z } : null;
+    });
+    const fighters = frame.fighters;
+    const effects = frame.effects;
+    // C4c2b: Einheiten ohne Kampf (z. B. vor dem Kampf besiegt) als Brett-Figur, ausblendend.
+    setBoardFiguresVisible(false);
+    for (const b of frame.boardUnits) {
+      const entry = figures.get(b.unit);
+      if (!entry) continue;
+      entry.mesh.isVisible = true;
+      entry.mesh.visibility = b.opacity;
+      entry.badge.mesh.isVisible = true;
+      entry.badge.mesh.visibility = b.opacity;
+    }
+    // C4c2b: Säulen zeigen das Leben nach schon gezeigtem Durchbruch-Schaden.
+    for (const [p, life] of frame.seatLife) setPillarLife(p, life);
     const seen = new Set<string>();
     for (const f of fighters) {
-      const offset = f.active ? effects?.offsets.get(f.unitId) : undefined;
+      const offset = f.active ? effects.offsets.get(f.unitId) : undefined;
       if (offset) f.position = { x: f.position.x + offset.x, z: f.position.z + offset.z };
       const key = `${f.arena}:${f.unitId}`;
       seen.add(key);
@@ -524,7 +554,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     drawEffects(effects, `${position.index ?? "-"}`);
     if (position.index !== active.focusIndex) {
       active.focusIndex = position.index;
-      const focus = running ? arenaFocus(layout, running.arena) : null;
+      const focus = frame.focusArena === null ? null : arenaFocus(layout, frame.focusArena);
       cameraGoal = focus ? { target: new Vector3(focus.target.x, 0, focus.target.z), radius: focus.radius, beta: FOCUS_BETA } : overview();
     }
   }
@@ -581,7 +611,8 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
         effectTexts.set(key, badge);
       }
       // Über dem Schild der Figur beginnen, aufsteigen, am Ende ausblenden.
-      badge.mesh.position.set(t.position.x, FIGURE_BASE + BADGE_HEIGHT[t.shape] + 0.55 * scale + (t.age * 1.4 + t.stack * 0.62) * scale, t.position.z);
+      const base = t.height ?? FIGURE_BASE + BADGE_HEIGHT[t.shape] + 0.55 * scale;
+      badge.mesh.position.set(t.position.x, base + (t.age * 1.4 + t.stack * 0.62) * scale, t.position.z);
       badge.mesh.scaling.setAll(scale);
       badge.mesh.visibility = 1 - t.age * t.age;
     }
@@ -644,7 +675,8 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     drawEffects(null, "");
     cameraGoal = overview();
     setBoardFiguresVisible(true);
-    if (ended.pendingView) board.update(ended.pendingView);
+    const view = ended.pendingView ?? lastView;
+    if (view) board.update(view);
     ended.onProgress(true);
   }
 
@@ -789,12 +821,24 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
   window.addEventListener("resize", onResize);
   engine.runRenderLoop(() => scene.render());
 
+  /** Zuletzt gezeigte Sicht (stellt nach einer Wiedergabe ohne neue Sicht die Säulen wieder her). */
+  let lastView: PlayerView | null = null;
+
+  function setPillarLife(player: number, life: number): void {
+    const pillar = pillars[player];
+    if (!pillar) return;
+    const height = 0.15 + (3 * Math.max(0, life)) / Math.max(1, options.startLife);
+    pillar.mesh.scaling.y = height;
+    pillar.mesh.position.y = height / 2;
+  }
+
   const board: BoardScene = {
     update(view: PlayerView): void {
       if (replay) {
         replay.pendingView = view;
         return;
       }
+      lastView = view;
       const key = view.players.map((p) => (p.eliminated ? "x" : "o")).join("");
       if (key !== boardKey || !layout) {
         boardKey = key;
@@ -803,9 +847,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
       for (const entry of view.players) {
         const pillar = pillars[entry.index];
         if (!pillar) continue;
-        const height = 0.15 + 3 * Math.max(0, entry.life) / Math.max(1, options.startLife);
-        pillar.mesh.scaling.y = height;
-        pillar.mesh.position.y = height / 2;
+        setPillarLife(entry.index, entry.life);
         pillar.material.diffuseColor = entry.eliminated ? GREY : playerColor(entry.index);
         seatLabels.get(entry.index)?.setText(
           seatLabelText(entry, view.viewer),
@@ -824,7 +866,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
       drawMarkers();
       if (replay) setBoardFiguresVisible(false);
     },
-    playReplay(player: ReplayPlayer, onProgress: (finished: boolean) => void): void {
+    playReplay(player: RoundReplayPlayer, onProgress: (finished: boolean) => void): void {
       endReplay();
       replay = { player, onProgress, pendingView: null, focusIndex: null };
       setBoardFiguresVisible(false);

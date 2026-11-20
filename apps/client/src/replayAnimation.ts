@@ -76,6 +76,11 @@ function ease(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** Überlebende eines Kampfs in seiner Startaufstellung bzw. seinem Endbild, nicht animiert (C4c2b). */
+export function fixedFighters(layout: BoardLayout, replay: CombatReplay, which: "start" | "end"): AnimatedFighter[] {
+  return staticFighters(layout, replay, startAndEnd(replay)[which]);
+}
+
 function staticFighters(layout: BoardLayout, replay: CombatReplay, frame: readonly ReplayFighter[]): AnimatedFighter[] {
   const result: AnimatedFighter[] = [];
   for (const f of frame) {
