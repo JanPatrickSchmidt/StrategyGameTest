@@ -332,6 +332,14 @@ export class ReplayPlayer {
     return { index: this.current, tick, fraction: clamped >= replay.endTick ? 0 : clamped - tick };
   }
 
+  /**
+   * Uhr des laufenden Kampfs in Ticks (ab −1), anders als `position()` auch während der Pause nach `endTick`
+   * weiterlaufend (C4c2a: Zahlen und Blitze der letzten Ticks laufen in der Pause aus statt stehen zu bleiben).
+   */
+  clock(): number | null {
+    return this.replay ? this.elapsedTicks : null;
+  }
+
   /** Schreitet um `ms` Millisekunden Echtzeit fort; liefert die Ticks, die dabei neu erreicht wurden (je Kampf). */
   advance(ms: number): { index: number; tick: number }[] {
     if (ms < 0) throw new RangeError("Zeit läuft nicht rückwärts");

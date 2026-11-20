@@ -26,6 +26,9 @@
  *   aus, gespielte Kämpfe im Endbild, kommende in der Startaufstellung) mit Lebenspunkten und Schild; die Kamera
  *   gleitet zur laufenden Arena. Neue Sichten aus `update` werden bis zum Ende der Wiedergabe zurückgehalten, damit
  *   Brett, Säulen und Arenen zur Runde passen, die gerade abgespielt wird.
+ * - Wirkungen (C4c2a) aus `combatEffects`: Ausfallschritt der Nahkämpfer, Geschosse der Fernkämpfer, Strahl und
+ *   Ring bei Fähigkeiten, Ringe bei Beschwörung und Schild, aufsteigende Zahlen für Schaden (Schild-Anteil eigens),
+ *   Heilung, Schild, Buffs, Schlüsselwörter, Betäubung und Verwundung.
  * Farbwelt nach `docs/stil/visuelle-richtung.md`: gedeckter Untergrund, dunkle Hex-Linien, gedämpfte
  * Spielerfarben, warmes Hauptlicht mit kühlem Gegenlicht.
  */
@@ -50,6 +53,7 @@ import {
 import type { GameData, PlayerIndex, PlayerView, UnitId, UnitLocation } from "@game/engine";
 import type { ReplayPlayer } from "./combatReplay";
 import { arenaFocus, fighterBadgeText, roundFighters } from "./replayAnimation";
+import { combatEffects, type CombatEffects, type EffectTone } from "./replayEffects";
 import { type BoardLayout, buildBoardLayout, frontPairsFor, type LayoutConfig, locationPosition, seatAngle, type WorldPoint } from "./boardLayout";
 import { nearestLocation } from "./boardInput";
 import { playerName, seatLabelText } from "./stateText";
@@ -476,8 +480,13 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     if (!layout) return;
     const position = active.player.position();
     const fighters = roundFighters(layout, active.player.replays, position);
+    const running = position.index === null ? undefined : active.player.replays[position.index];
+    const clock = active.player.clock();
+    const effects = running && clock !== null ? combatEffects(layout, running, Math.floor(clock), clock - Math.floor(clock)) : null;
     const seen = new Set<string>();
     for (const f of fighters) {
+      const offset = f.active ? effects?.offsets.get(f.unitId) : undefined;
+      if (offset) f.position = { x: f.position.x + offset.x, z: f.position.z + offset.z };
       const key = `${f.arena}:${f.unitId}`;
       seen.add(key);
       const shapeKey = figureSourceKey({ shape: f.shape, owner: f.player, wounded: false });
@@ -512,11 +521,118 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
       entry.badge.dispose();
       replayFigures.delete(key);
     }
+    drawEffects(effects, `${position.index ?? "-"}`);
     if (position.index !== active.focusIndex) {
       active.focusIndex = position.index;
-      const running = position.index === null ? undefined : active.player.replays[position.index];
       const focus = running ? arenaFocus(layout, running.arena) : null;
       cameraGoal = focus ? { target: new Vector3(focus.target.x, 0, focus.target.z), radius: focus.radius, beta: FOCUS_BETA } : overview();
+    }
+  }
+
+  // C4c2a: Wirkungen des laufenden Kampfs. Meshes je Wirkung (Schlüssel aus Kampf und Ereignis), werden entsorgt,
+  // sobald die Wirkung abgelaufen ist.
+  const TONE_COLORS: Record<EffectTone, string> = {
+    damage: "#ff7a66",
+    shield: "#9fd0ff",
+    heal: "#8ee69a",
+    buff: "#f2c75c",
+    status: "#efe6d8",
+  };
+  const effectMats = {
+    ability: glowMaterial("fxAbilityMat", ACCENT),
+    summon: glowMaterial("fxSummonMat", new Color3(0.92, 0.9, 0.85)),
+    shield: glowMaterial("fxShieldMat", Color3.FromHexString("#9fd0ff")),
+  };
+  const shotMats = Array.from({ length: options.players }, (_, p) => glowMaterial(`fxShot${p}Mat`, Color3.Lerp(playerColor(p), Color3.White(), 0.45)));
+  const effectTexts = new Map<string, TextBadge>();
+  const effectMeshes = new Map<string, Mesh>();
+  /** Höhe der Geschosse und Strahlen über dem Brett. */
+  const LINE_HEIGHT = 0.9;
+
+  function glowMaterial(name: string, color: Color3): StandardMaterial {
+    const m = material(scene, name, color);
+    m.emissiveColor = color;
+    m.disableLighting = true;
+    return m;
+  }
+
+  function effectMesh(key: string, build: () => Mesh): Mesh {
+    let mesh = effectMeshes.get(key);
+    if (!mesh) {
+      mesh = build();
+      mesh.isPickable = false;
+      effectMeshes.set(key, mesh);
+    }
+    return mesh;
+  }
+
+  function drawEffects(effects: CombatEffects | null, prefix: string): void {
+    const seenTexts = new Set<string>();
+    const seenMeshes = new Set<string>();
+    const scale = Math.min(BADGE_MAX_SCALE, Math.max(1, camera.radius / BADGE_REFERENCE_RADIUS));
+    for (const t of effects?.texts ?? []) {
+      const key = `${prefix}:${t.key}`;
+      seenTexts.add(key);
+      let badge = effectTexts.get(key);
+      if (!badge) {
+        badge = makeTextBadge(scene, `fxText-${key}`, 2.2, 384, 3.5);
+        badge.mesh.renderingGroupId = 1;
+        badge.setText(t.text, TONE_COLORS[t.tone], "rgba(20,18,16,0.6)");
+        effectTexts.set(key, badge);
+      }
+      // Über dem Schild der Figur beginnen, aufsteigen, am Ende ausblenden.
+      badge.mesh.position.set(t.position.x, FIGURE_BASE + BADGE_HEIGHT[t.shape] + 0.55 * scale + (t.age * 1.4 + t.stack * 0.62) * scale, t.position.z);
+      badge.mesh.scaling.setAll(scale);
+      badge.mesh.visibility = 1 - t.age * t.age;
+    }
+    for (const l of effects?.lines ?? []) {
+      const key = `${prefix}:${l.key}`;
+      const head = effectMesh(`${key}:head`, () => {
+        const m = MeshBuilder.CreateSphere(`fxHead-${key}`, { diameter: l.kind === "shot" ? 0.32 : 0.42, segments: 8 }, scene);
+        m.material = l.kind === "shot" ? (shotMats[l.player] ?? effectMats.summon) : effectMats.ability;
+        return m;
+      });
+      seenMeshes.add(`${key}:head`);
+      head.position.set(l.from.x + (l.to.x - l.from.x) * l.age, LINE_HEIGHT, l.from.z + (l.to.z - l.from.z) * l.age);
+      if (l.kind === "ability") {
+        const dx = l.to.x - l.from.x;
+        const dz = l.to.z - l.from.z;
+        const beam = effectMesh(`${key}:beam`, () => {
+          const m = MeshBuilder.CreateCylinder(`fxBeam-${key}`, { diameter: 0.1, height: 1, tessellation: 6 }, scene);
+          m.material = effectMats.ability;
+          m.rotation.x = Math.PI / 2;
+          m.rotation.y = Math.atan2(dx, dz);
+          return m;
+        });
+        seenMeshes.add(`${key}:beam`);
+        // Strahl wächst mit dem Kopf vom Wirker zum Ziel.
+        const length = Math.max(0.01, Math.hypot(dx, dz) * l.age);
+        beam.scaling.y = length;
+        beam.position.set(l.from.x + (dx * l.age) / 2, LINE_HEIGHT, l.from.z + (dz * l.age) / 2);
+        beam.visibility = 0.85;
+      }
+    }
+    for (const f of effects?.flashes ?? []) {
+      const key = `${prefix}:${f.key}`;
+      seenMeshes.add(key);
+      const ring = effectMesh(key, () => {
+        const m = MeshBuilder.CreateTorus(`fxRing-${key}`, { diameter: 1.2, thickness: 0.1, tessellation: 32 }, scene);
+        m.material = effectMats[f.kind];
+        return m;
+      });
+      ring.position.set(f.position.x, FIGURE_BASE + 0.1 + (f.kind === "ability" ? 0.6 * f.age : 0), f.position.z);
+      ring.scaling.setAll(0.7 + 1.1 * f.age);
+      ring.visibility = 1 - f.age;
+    }
+    for (const [key, badge] of effectTexts) {
+      if (seenTexts.has(key)) continue;
+      badge.dispose();
+      effectTexts.delete(key);
+    }
+    for (const [key, mesh] of effectMeshes) {
+      if (seenMeshes.has(key)) continue;
+      mesh.dispose(false, false);
+      effectMeshes.delete(key);
     }
   }
 
@@ -525,6 +641,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     if (!ended) return;
     replay = null;
     clearReplayFigures();
+    drawEffects(null, "");
     cameraGoal = overview();
     setBoardFiguresVisible(true);
     if (ended.pendingView) board.update(ended.pendingView);
