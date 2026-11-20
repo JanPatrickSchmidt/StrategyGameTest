@@ -343,6 +343,8 @@ export class ReplayPlayer {
       const limit = replay.endTick + pauseTicks;
       const before = this.elapsedTicks;
       const after = Math.min(limit, before + budget);
+      // Restzeit unterhalb der Rechengenauigkeit: nicht endlos weiterschleifen (Befund C4c1).
+      if (after === before && after < limit) break;
       budget -= after - before;
       for (let t = Math.floor(before) + 1; t <= Math.min(Math.floor(after), replay.endTick); t++) reached.push({ index: this.current, tick: t });
       this.elapsedTicks = after;

@@ -21,6 +21,11 @@
  *   Einheit mit einem Ring. Klick auf eine Figur oder ein Feld und Ziehen einer eigenen Figur werden über
  *   `BoardInputHandlers` gemeldet; welcher eigene Ort getroffen wurde, bestimmt `nearestLocation`. Während eine
  *   Figur gezogen wird, dreht sich die Kamera nicht.
+ * - Kampfwiedergabe (C4c1): `playReplay` spielt die Kämpfe einer Runde aus einem `ReplayPlayer` ab. Solange sie
+ *   läuft, zeigt das Brett nur die Kämpfer aus `roundFighters` (laufender Kampf weich animiert, Gestorbene blenden
+ *   aus, gespielte Kämpfe im Endbild, kommende in der Startaufstellung) mit Lebenspunkten und Schild; die Kamera
+ *   gleitet zur laufenden Arena. Neue Sichten aus `update` werden bis zum Ende der Wiedergabe zurückgehalten, damit
+ *   Brett, Säulen und Arenen zur Runde passen, die gerade abgespielt wird.
  * Farbwelt nach `docs/stil/visuelle-richtung.md`: gedeckter Untergrund, dunkle Hex-Linien, gedämpfte
  * Spielerfarben, warmes Hauptlicht mit kühlem Gegenlicht.
  */
@@ -43,6 +48,8 @@ import {
   Vector3,
 } from "@babylonjs/core";
 import type { GameData, PlayerIndex, PlayerView, UnitId, UnitLocation } from "@game/engine";
+import type { ReplayPlayer } from "./combatReplay";
+import { arenaFocus, fighterBadgeText, roundFighters } from "./replayAnimation";
 import { type BoardLayout, buildBoardLayout, frontPairsFor, type LayoutConfig, locationPosition, seatAngle, type WorldPoint } from "./boardLayout";
 import { nearestLocation } from "./boardInput";
 import { playerName, seatLabelText } from "./stateText";
@@ -62,6 +69,13 @@ export interface BoardScene {
   update(view: PlayerView): void;
   /** C3b: freie Zielorte des Betrachters hervorheben und die gewählte Einheit markieren. */
   setMarkers(targets: readonly UnitLocation[], selectedUnit: UnitId | null): void;
+  /**
+   * C4c1: spielt die Kämpfe aus `player` ab (die Zeit treibt die Szene voran). `onProgress` wird in jedem Bild
+   * gerufen, zuletzt mit `finished = true`. Eine laufende Wiedergabe wird vorher beendet.
+   */
+  playReplay(player: ReplayPlayer, onProgress: (finished: boolean) => void): void;
+  /** C4c1: beendet die Wiedergabe sofort und zeigt die zurückgehaltene Sicht. */
+  stopReplay(): void;
   dispose(): void;
 }
 
@@ -277,7 +291,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
 
   // Figuren: eine unsichtbare Vorlage je Form, Besitzer und Verwundung, jede Einheit eine Instanz davon.
   const figureSources = new Map<string, Mesh>();
-  function figureSource(figure: UnitFigure): Mesh {
+  function figureSource(figure: Pick<UnitFigure, "shape" | "owner" | "wounded">): Mesh {
     const key = figureSourceKey(figure);
     let source = figureSources.get(key);
     if (!source) {
@@ -419,11 +433,129 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     camera.radius = built.radius * 1.75;
   }
 
+  // C4c1: Kampfwiedergabe. Eigene Figuren (Klone statt Instanzen, damit jede einzeln ausblenden kann).
+  interface Replay {
+    player: ReplayPlayer;
+    onProgress: (finished: boolean) => void;
+    /** Zurückgehaltene Sicht aus `update`, die nach der Wiedergabe gezeigt wird. */
+    pendingView: PlayerView | null;
+    focusIndex: number | null;
+  }
+  let replay: Replay | null = null;
+  const replayFigures = new Map<string, { mesh: Mesh; badge: TextBadge; shapeKey: string }>();
+  /** Ziel, zu dem die Kamera weich gleitet (danach bleibt sie frei bedienbar). */
+  let cameraGoal: { target: Vector3; radius: number; beta?: number } | null = null;
+  /** Blickwinkel während eines Kampfs: steiler als die Gesamtansicht, damit Nachbararenen nicht ins Bild ragen. */
+  const FOCUS_BETA = 0.7;
+  /** Größter Zeitschritt je Bild, damit nach einem verdeckten Tab nicht ganze Kämpfe übersprungen werden. */
+  const MAX_FRAME_MS = 100;
+
+  function setBoardFiguresVisible(visible: boolean): void {
+    for (const entry of figures.values()) {
+      entry.mesh.isVisible = visible;
+      entry.mesh.isPickable = visible;
+      entry.badge.mesh.isVisible = visible;
+    }
+    for (const m of markers) m.isVisible = visible;
+    if (!visible) selectionRing.isVisible = false;
+  }
+
+  function clearReplayFigures(): void {
+    for (const entry of replayFigures.values()) {
+      entry.mesh.dispose(false, false);
+      entry.badge.dispose();
+    }
+    replayFigures.clear();
+  }
+
+  function overview(): { target: Vector3; radius: number; beta: number } {
+    return { target: Vector3.Zero(), radius: (layout?.radius ?? 20) * 1.75, beta: 0.95 };
+  }
+
+  function drawReplay(active: Replay): void {
+    if (!layout) return;
+    const position = active.player.position();
+    const fighters = roundFighters(layout, active.player.replays, position);
+    const seen = new Set<string>();
+    for (const f of fighters) {
+      const key = `${f.arena}:${f.unitId}`;
+      seen.add(key);
+      const shapeKey = figureSourceKey({ shape: f.shape, owner: f.player, wounded: false });
+      let entry = replayFigures.get(key);
+      if (entry && entry.shapeKey !== shapeKey) {
+        entry.mesh.dispose(false, false);
+        entry.badge.dispose();
+        entry = undefined;
+      }
+      if (!entry) {
+        const mesh = figureSource({ shape: f.shape, owner: f.player, wounded: false }).clone(`replay-${key}`);
+        mesh.isVisible = true;
+        mesh.isPickable = false;
+        mesh.metadata = null;
+        mesh.rotation.y = f.shape === "melee" ? Math.PI / 4 - seatAngle(f.player) : 0;
+        const badge = makeTextBadge(scene, `replayBadge-${key}`, BADGE_WIDTH, 256, 3);
+        badge.mesh.renderingGroupId = 1;
+        entry = { mesh, badge, shapeKey };
+        replayFigures.set(key, entry);
+      }
+      entry.mesh.position.set(f.position.x, FIGURE_BASE, f.position.z);
+      entry.mesh.visibility = f.opacity;
+      // Betäubte Figuren kippen leicht hin und her.
+      entry.mesh.rotation.z = f.stunned ? 0.18 * Math.sin(performance.now() / 90) : 0;
+      entry.badge.setText(fighterBadgeText(f), "#fbf3e2", badgeBackground(f.player));
+      entry.badge.mesh.position.set(f.position.x, FIGURE_BASE + BADGE_HEIGHT[f.shape], f.position.z);
+      entry.badge.mesh.visibility = f.opacity;
+    }
+    for (const [key, entry] of replayFigures) {
+      if (seen.has(key)) continue;
+      entry.mesh.dispose(false, false);
+      entry.badge.dispose();
+      replayFigures.delete(key);
+    }
+    if (position.index !== active.focusIndex) {
+      active.focusIndex = position.index;
+      const running = position.index === null ? undefined : active.player.replays[position.index];
+      const focus = running ? arenaFocus(layout, running.arena) : null;
+      cameraGoal = focus ? { target: new Vector3(focus.target.x, 0, focus.target.z), radius: focus.radius, beta: FOCUS_BETA } : overview();
+    }
+  }
+
+  function endReplay(): void {
+    const ended = replay;
+    if (!ended) return;
+    replay = null;
+    clearReplayFigures();
+    cameraGoal = overview();
+    setBoardFiguresVisible(true);
+    if (ended.pendingView) board.update(ended.pendingView);
+    ended.onProgress(true);
+  }
+
   scene.onBeforeRenderObservable.add(() => {
+    const dt = Math.min(MAX_FRAME_MS, engine.getDeltaTime());
+    if (replay) {
+      const active = replay;
+      active.player.advance(dt);
+      if (active.player.finished) endReplay();
+      else {
+        drawReplay(active);
+        active.onProgress(false);
+      }
+    }
+    if (cameraGoal) {
+      const k = 1 - Math.exp(-dt / 220);
+      camera.target = Vector3.Lerp(camera.target, cameraGoal.target, k);
+      camera.radius += (cameraGoal.radius - camera.radius) * k;
+      const beta = cameraGoal.beta ?? camera.beta;
+      camera.beta += (beta - camera.beta) * k;
+      const settled = Math.abs(camera.radius - cameraGoal.radius) < 0.05 && Math.abs(camera.beta - beta) < 0.005;
+      if (Vector3.Distance(camera.target, cameraGoal.target) < 0.05 && settled) cameraGoal = null;
+    }
     const scale = Math.min(BADGE_MAX_SCALE, Math.max(1, camera.radius / BADGE_REFERENCE_RADIUS));
     for (const entry of figures.values()) entry.badge.mesh.scaling.setAll(scale);
+    for (const entry of replayFigures.values()) entry.badge.mesh.scaling.setAll(scale);
     // Auswahlring folgt der Figur (auch während sie gezogen wird) und pulsiert leicht.
-    const chosen = selectedUnit === null ? undefined : figures.get(selectedUnit);
+    const chosen = selectedUnit === null || replay ? undefined : figures.get(selectedUnit);
     selectionRing.isVisible = chosen !== undefined;
     if (chosen) {
       selectionRing.position.set(chosen.mesh.position.x, FIGURE_BASE + 0.03, chosen.mesh.position.z);
@@ -540,8 +672,12 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
   window.addEventListener("resize", onResize);
   engine.runRenderLoop(() => scene.render());
 
-  return {
+  const board: BoardScene = {
     update(view: PlayerView): void {
+      if (replay) {
+        replay.pendingView = view;
+        return;
+      }
       const key = view.players.map((p) => (p.eliminated ? "x" : "o")).join("");
       if (key !== boardKey || !layout) {
         boardKey = key;
@@ -569,10 +705,21 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
       markerTargets = targets.slice();
       selectedUnit = unit;
       drawMarkers();
+      if (replay) setBoardFiguresVisible(false);
+    },
+    playReplay(player: ReplayPlayer, onProgress: (finished: boolean) => void): void {
+      endReplay();
+      replay = { player, onProgress, pendingView: null, focusIndex: null };
+      setBoardFiguresVisible(false);
+      drawReplay(replay);
+    },
+    stopReplay(): void {
+      endReplay();
     },
     dispose(): void {
       window.removeEventListener("resize", onResize);
       engine.dispose();
     },
   };
+  return board;
 }

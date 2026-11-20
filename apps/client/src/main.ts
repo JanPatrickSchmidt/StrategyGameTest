@@ -1,9 +1,12 @@
 /**
  * Einstieg des Browser-Clients (C1): startet eine Partie gegen 3 Bots, zeigt den Zustand als Text und
  * darüber das 3D-Brett (C2) und die Planungsleiste (C3a). Während der Planung zeigt das Brett die Vorschau;
- * Einheiten lassen sich direkt auf dem Brett platzieren und bewegen (C3b).
+ * Einheiten lassen sich direkt auf dem Brett platzieren und bewegen (C3b). Nach jeder Runde spielt das Brett die
+ * Kämpfe dieser Runde aus dem Ereignisprotokoll ab (C4c1, R-19.2).
  */
 import { loadGameData } from "@game/engine";
+import { BASE_TICKS_PER_SECOND, combatReplays, REPLAY_SPEEDS, ReplayPlayer, type ReplaySpeed } from "./combatReplay";
+import { replayStatusText } from "./replayAnimation";
 import { createBoardScene, type BoardScene } from "./scene";
 import { PlanningPanel } from "./planningPanel";
 import { GameSession, HUMAN } from "./session";
@@ -25,6 +28,13 @@ const buttons = {
   pass: element<HTMLButtonElement>("pass"),
   autopilot: element<HTMLButtonElement>("autopilot"),
   toEnd: element<HTMLButtonElement>("to-end"),
+};
+const replayControls = {
+  panel: element<HTMLDivElement>("replay"),
+  status: element<HTMLSpanElement>("replay-status"),
+  speed: element<HTMLSelectElement>("replay-speed"),
+  skip: element<HTMLButtonElement>("replay-skip"),
+  skipAll: element<HTMLButtonElement>("replay-skip-all"),
 };
 
 let scene: BoardScene | null = null;
@@ -65,12 +75,14 @@ const planning = new PlanningPanel(element<HTMLDivElement>("planning"), data, {
     message.textContent = note || `Runde ${preview.round}: Planung läuft, noch nicht bestätigt.`;
   },
   onConfirm: () =>
-    guarded(() => {
-      const builder = planning.active;
-      if (!builder) return "Keine Planung offen.";
-      const result = session.submitHuman(builder.planning());
-      return result.ok ? "" : `Planung abgelehnt: ${result.reason}`;
-    }),
+    guarded(() =>
+      resolveRound(() => {
+        const builder = planning.active;
+        if (!builder) return "Keine Planung offen.";
+        const result = session.submitHuman(builder.planning());
+        return result.ok ? "" : `Planung abgelehnt: ${result.reason}`;
+      }),
+    ),
 });
 
 /** Partie und Runde der offenen Planung; ein neuer Entwurf entsteht nur, wenn sich das ändert. */
@@ -94,6 +106,51 @@ function render(note = ""): void {
   message.textContent = note || (waiting ? `Runde ${view.round}: plane deinen Zug und bestätige ihn.` : "Die Partie ist beendet.");
 }
 
+/** C4c1: laufende Kampfwiedergabe (nur mit 3D-Brett). */
+let replayPlayer: ReplayPlayer | null = null;
+
+function selectedSpeed(): ReplaySpeed {
+  const value = Number(replayControls.speed.value);
+  return REPLAY_SPEEDS.find((s) => s === value) ?? 1;
+}
+
+/** Spielt die Kämpfe der gerade aufgelösten Runde `round` ab (R-19.2: nur aus dem Protokoll der eigenen Sicht). */
+function startReplay(round: number): void {
+  if (!scene) return;
+  const replays = combatReplays(data, session.view().log, round);
+  if (replays.length === 0) return;
+  const player = new ReplayPlayer(replays);
+  player.setSpeed(selectedSpeed());
+  replayPlayer = player;
+  replayControls.panel.hidden = false;
+  let lastText = "";
+  scene.playReplay(player, (finished) => {
+    if (finished) {
+      if (replayPlayer === player) {
+        replayPlayer = null;
+        replayControls.panel.hidden = true;
+      }
+      return;
+    }
+    const text = replayStatusText(player.replays, player.position(), HUMAN, BASE_TICKS_PER_SECOND);
+    if (text !== lastText) replayControls.status.textContent = lastText = text;
+  });
+}
+
+/** Führt eine Planungsaktion aus und spielt danach die Kämpfe der aufgelösten Runde ab. */
+function resolveRound(action: () => string | void): string | void {
+  const round = session.view().round;
+  const before = session;
+  const note = action();
+  // Abgelehnte Planungen lösen nichts auf; dann gibt es für diese Runde noch keine Kämpfe im Protokoll.
+  if (session === before) startReplay(round);
+  return note;
+}
+
+replayControls.speed.addEventListener("change", () => replayPlayer?.setSpeed(selectedSpeed()));
+replayControls.skip.addEventListener("click", () => replayPlayer?.skipCurrent());
+replayControls.skipAll.addEventListener("click", () => scene?.stopReplay());
+
 function guarded(action: () => string | void): void {
   try {
     render(action() ?? "");
@@ -104,6 +161,7 @@ function guarded(action: () => string | void): void {
 
 buttons.newGame.addEventListener("click", () =>
   guarded(() => {
+    scene?.stopReplay();
     const seed = Number.parseInt(seedInput.value, 10);
     session = new GameSession(data, { seed: Number.isFinite(seed) && seed >= 0 ? seed : 1 });
     const url = new URL(window.location.href);
@@ -113,17 +171,26 @@ buttons.newGame.addEventListener("click", () =>
   }),
 );
 buttons.pass.addEventListener("click", () =>
-  guarded(() => {
-    const result = session.pass();
-    return result.ok ? "" : `Planung abgelehnt: ${result.reason}`;
-  }),
+  guarded(() =>
+    resolveRound(() => {
+      const result = session.pass();
+      return result.ok ? "" : `Planung abgelehnt: ${result.reason}`;
+    }),
+  ),
 );
 buttons.autopilot.addEventListener("click", () =>
+  guarded(() =>
+    resolveRound(() => {
+      const result = session.autopilot();
+      return result.ok ? "" : `Planung abgelehnt: ${result.reason}`;
+    }),
+  ),
+);
+buttons.toEnd.addEventListener("click", () =>
   guarded(() => {
-    const result = session.autopilot();
-    return result.ok ? "" : `Planung abgelehnt: ${result.reason}`;
+    scene?.stopReplay();
+    session.autopilotToEnd();
   }),
 );
-buttons.toEnd.addEventListener("click", () => guarded(() => session.autopilotToEnd()));
 
 render();

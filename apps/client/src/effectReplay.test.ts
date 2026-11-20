@@ -257,3 +257,20 @@ describe("C4b: Abspielen einer ganzen Runde", () => {
     expect(player.frame()).toEqual([]);
   });
 });
+
+describe("C4c1: ganze Runde in krummen Zeitschritten", () => {
+  it("R-19.2: RoundReplayPlayer endet auch bei Bildzeiten wie 137 ms oder 16,7 ms", () => {
+    const log = playedLog(3, 6);
+    for (const round of [2, 3, 4]) {
+      for (const ms of [137, 1000 / 60, 1000 / 30, 7.3]) {
+        const player = new RoundReplayPlayer(roundReplay(data, log, round));
+        let steps = 0;
+        while (!player.finished && steps < 100_000) {
+          player.advance(ms);
+          steps++;
+        }
+        expect(player.finished).toBe(true);
+      }
+    }
+  });
+});

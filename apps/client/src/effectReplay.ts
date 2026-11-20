@@ -334,6 +334,8 @@ export class RoundReplayPlayer {
       const limit = this.duration(segment);
       const before = this.elapsedMs;
       const after = Math.min(limit, before + budget);
+      // Restzeit unterhalb der Rechengenauigkeit: nicht endlos weiterschleifen (Befund C4c1).
+      if (after === before && after < limit) break;
       budget -= after - before;
       if (segment.kind === "combat") {
         const lastTick = segment.replay.endTick;

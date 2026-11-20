@@ -245,3 +245,20 @@ describe("C4a: Abspielen mit wählbarer Geschwindigkeit und Überspringen", () =
     expect(reached.filter((r) => r.index === 1)).toEqual([{ index: 1, tick: 0 }]);
   });
 });
+
+describe("C4c1: Abspielen in krummen Zeitschritten", () => {
+  it("R-19.2: ReplayPlayer endet auch bei Bildzeiten wie 137 ms oder 16,7 ms (Rundungsrest bleibt nicht hängen)", () => {
+    const log = playedLog(3, 6);
+    for (const round of [2, 3, 4]) {
+      for (const ms of [137, 1000 / 60, 1000 / 30, 7.3]) {
+        const player = new ReplayPlayer(combatReplays(data, log, round));
+        let steps = 0;
+        while (!player.finished && steps < 100_000) {
+          player.advance(ms);
+          steps++;
+        }
+        expect(player.finished).toBe(true);
+      }
+    }
+  });
+});
