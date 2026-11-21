@@ -3,9 +3,11 @@
  * darüber das 3D-Brett (C2) und die Planungsleiste (C3a). Während der Planung zeigt das Brett die Vorschau;
  * Einheiten lassen sich direkt auf dem Brett platzieren und bewegen (C3b). Nach jeder Runde spielt das Brett die
  * Kämpfe dieser Runde aus dem Ereignisprotokoll ab (C4c1, R-19.2), seit C4c2b mit den Anführer-Fähigkeiten und
- * Zaubern davor und dem Durchbruch-Schaden und den Zaubern danach.
+ * Zaubern davor und dem Durchbruch-Schaden und den Zaubern danach. Unter der Planung stehen die eigenen Karten
+ * (C5b1); in der letzten Runde gekaufte Karten sind als „neu“ markiert und werden in der Meldung genannt.
  */
 import { loadGameData } from "@game/engine";
+import { boughtInRound, boughtNote, CARD_ZONE_NAMES, cardCountText, ownCardOverview } from "./cardOverview";
 import { BASE_TICKS_PER_SECOND, REPLAY_SPEEDS, type ReplaySpeed } from "./combatReplay";
 import { RoundReplayPlayer, roundReplay } from "./effectReplay";
 import { roundStatusText } from "./roundAnimation";
@@ -23,6 +25,7 @@ function element<T extends HTMLElement>(id: string): T {
 }
 
 const stateText = element<HTMLPreElement>("state");
+const cardsList = element<HTMLUListElement>("cards");
 const seedInput = element<HTMLInputElement>("seed");
 const message = element<HTMLParagraphElement>("message");
 const buttons = {
@@ -87,12 +90,37 @@ const planning = new PlanningPanel(element<HTMLDivElement>("planning"), data, {
     ),
 });
 
+/** C5b1: zuletzt aufgelöste Runde der laufenden Partie (für „neu gekauft“); `null` = noch keine. */
+let lastResolved: { session: GameSession; round: number } | null = null;
+
+/** C5b1: eigene Karten je Bereich, Käufe der zuletzt aufgelösten Runde hervorgehoben. */
+function renderCards(): void {
+  const view = session.view();
+  const round = lastResolved?.session === session ? lastResolved.round : null;
+  const fresh = new Set(round === null ? [] : boughtInRound(view.log, round, HUMAN).map((b) => b.cardInstanceId));
+  cardsList.replaceChildren();
+  for (const zone of ownCardOverview(data, view, fresh)) {
+    const item = document.createElement("li");
+    item.append(`${CARD_ZONE_NAMES[zone.zone]} (${zone.total}): `);
+    if (zone.cards.length === 0) item.append("–");
+    zone.cards.forEach((card, i) => {
+      if (i > 0) item.append(", ");
+      const span = document.createElement("span");
+      span.textContent = cardCountText(card);
+      if (card.newCount > 0) span.className = "new";
+      item.append(span);
+    });
+    cardsList.append(item);
+  }
+}
+
 /** Partie und Runde der offenen Planung; ein neuer Entwurf entsteht nur, wenn sich das ändert. */
 let planningFor: { session: GameSession; round: number } | null = null;
 
 function render(note = ""): void {
   const view = session.view();
   stateText.textContent = formatState(data, view);
+  renderCards();
   const waiting = session.status === "waitingForHuman";
   // Neue Planung nach jeder Runde (bzw. neuer Partie); das Brett zeigt die Vorschau des Entwurfs.
   const current = waiting ? { session, round: view.round } : null;
@@ -144,8 +172,10 @@ function resolveRound(action: () => string | void): string | void {
   const before = session;
   const note = action();
   // Abgelehnte Planungen lösen nichts auf; dann gibt es für diese Runde noch keine Kämpfe im Protokoll.
-  if (session === before) startReplay(round);
-  return note;
+  if (session !== before) return note;
+  startReplay(round);
+  lastResolved = { session, round };
+  return note || boughtNote(data, session.view(), round);
 }
 
 replayControls.speed.addEventListener("change", () => replayPlayer?.setSpeed(selectedSpeed()));
