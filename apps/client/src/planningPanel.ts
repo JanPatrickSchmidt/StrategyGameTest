@@ -3,10 +3,12 @@
  * Schritte Ausspielen, Kaufen, Aufstellen (R-5) mit freiem Wechsel, Gold, automatisch ausgespielte Münzen,
  * Hand, Ortsauswahl mit Feldnamen (R-3.8), Liste der geplanten Aktionen und Bestätigen; seit C3c2 auch Genesen
  * (R-7.5), Entnahme aus der Schatzkammer (R-7.6) und alternative Kosten beim Ausspielen (R-14.6); seit C3d1
- * Astwahl (R-7.7) und Anführer-Fähigkeit mit Ziel (R-7.4, R-16.6).
+ * Astwahl (R-7.7) und Anführer-Fähigkeit mit Ziel (R-7.4, R-16.6); seit C5a der Schritt Kaufen (R-11) mit
+ * Königreich, Basisstapeln und Klassen-Pool sowie dem Hinweis zum automatischen Einzahlen (R-12.5).
  * Die Logik liegt in `planner.ts`; hier wird nur gezeichnet und weitergereicht.
  */
 import { type ActionTarget, type GameData, PLANNING_SECTIONS, type PlanningAction, type PlayerView, type RejectionReason, type UnitId, type UnitLocation } from "@game/engine";
+import { addBuy, buyOptions, buyOptionText, buySpending, cardSummary, depositText, pileGroupName } from "./buyOffer";
 import { applyTarget, type BoardSelection, isRelocatable, targetLocations, validSelection } from "./boardInput";
 import { locationName } from "./fieldNames";
 import { type AbilityChoice, abilityState, addAbility, branchChoice, branchName, combinePicks, movesTarget, setBranch } from "./leaderPlan";
@@ -177,7 +179,7 @@ export class PlanningPanel {
     this.renderWithdraw(builder, view);
 
     if (builder.step === "play") this.renderPlay(builder, view);
-    else if (builder.step === "buy") this.root.append(el("p", { className: "hint", textContent: "Kaufen kommt mit C5 (Königreich und Klassen-Pool). Bis dahin kannst du hier nichts kaufen." }));
+    else if (builder.step === "buy") this.renderBuy(builder);
     else this.renderPosition(builder, view);
 
     this.renderList(builder);
@@ -246,6 +248,38 @@ export class PlanningPanel {
     }
     this.renderHeal(builder);
     this.renderBranch(builder);
+  }
+
+  /**
+   * C5a, R-11: Kaufangebot nach Gruppen (Basis, Königreich, eigener Klassen-Pool) mit Kosten und Stapelstand;
+   * ein Klick plant einen Kauf. Nicht mögliche Käufe sind gesperrt und nennen den Grund. Darunter, was am
+   * Rundenende automatisch in die Schatzkammer geht (R-12.5).
+   */
+  private renderBuy(builder: PlanBuilder): void {
+    this.root.append(el("p", { className: "hint", textContent: "Karte anklicken, um sie zu kaufen. Gekaufte Karten kommen beim Aufdecken auf deinen Ablagestapel." }));
+    const options = buyOptions(this.data, builder);
+    for (const group of ["basic", "kingdom", "class"] as const) {
+      const inGroup = options.filter((o) => o.group === group);
+      if (inGroup.length === 0) continue;
+      const row = el("div", { className: "row shop" }, el("span", { className: "hint", textContent: `${pileGroupName(this.data, group, options)}:` }));
+      for (const option of inGroup) {
+        const button = el("button", {
+          textContent: buyOptionText(option),
+          disabled: option.blocked !== null,
+          title: `${cardSummary(this.data, option.card)}${option.blocked ? ` – nicht möglich: ${reasonText(option.blocked)}` : ""}`,
+        });
+        button.dataset["cardId"] = option.cardId;
+        button.addEventListener("click", () => {
+          const reason = addBuy(builder, option.cardId);
+          this.change(this.before ? actionNote(this.data, this.before, { type: "buy", cardId: option.cardId }, reason) : "");
+        });
+        row.append(button);
+      }
+      this.root.append(row);
+    }
+    const spent = buySpending(this.data, builder);
+    if (spent > 0) this.root.append(el("p", { className: "hint", textContent: `Für Käufe bezahlt: ${spent} Gold.` }));
+    this.root.append(el("p", { className: "hint deposit", textContent: depositText(builder.preview()) }));
   }
 
   /** C3d1, R-7.7: Astwahl, sobald der Anführer Stufe 2 erreicht hat und noch keinen Ast hat. */

@@ -71,6 +71,10 @@ const REASON_TEXTS: Partial<Record<RejectionReason, string>> = {
   invalidAmount: "ungültiger Betrag",
   noAltCost: "Karte hat keine alternativen Kosten",
   notEnoughLife: "zu wenig Leben (mindestens 1 muss bleiben)",
+  pileEmpty: "Stapel ist leer (R-11.4)",
+  pileLimitReached: "mehr Kopien, als der Stapel zu Rundenbeginn hat (R-11.3)",
+  notBuyable: "nicht kaufbar",
+  unknownCard: "Karte gibt es nicht",
   wrongSacrificeCount: "falsche Zahl an Opfern",
   invalidSacrifice: "Opfer nicht erlaubt",
 };
@@ -132,6 +136,20 @@ export class PlanBuilder {
       list.pop();
       this.replay();
     }
+    return reason;
+  }
+
+  /**
+   * C5a: Würde die Engine diese Aktion am Ende des Abschnitts `section` annehmen? Spielt die Planung mit der
+   * Aktion durch und stellt danach alles wieder her; liefert den Ablehnungsgrund oder `null`. Ändert nichts.
+   */
+  probe(section: PlanningSection, action: PlanningAction): RejectionReason | null {
+    const list = this.actions[section];
+    list.push(action);
+    this.replay();
+    const reason = this.results[section][list.length - 1] ?? null;
+    list.pop();
+    this.replay();
     return reason;
   }
 
