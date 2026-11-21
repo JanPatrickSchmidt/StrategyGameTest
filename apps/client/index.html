@@ -14,6 +14,8 @@
   .hint { color: var(--muted); font-size: 0.85rem; margin: 0 0 10px; }
   .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 10px; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  /* C4d: `hidden` muss auch gegen `display: flex` gewinnen (sonst blieb die Wiedergabe-Leiste immer sichtbar). */
+  [hidden] { display: none !important; }
   button, input { font: inherit; border-radius: 8px; border: 1px solid var(--line); background: #3a3631; color: var(--ink);
     padding: 8px 10px; min-height: 40px; }
   button { cursor: pointer; }

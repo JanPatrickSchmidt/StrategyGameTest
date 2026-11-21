@@ -70,6 +70,7 @@ import {
   type WorldPoint,
 } from "./boardLayout";
 import { nearestLocation } from "./boardInput";
+import { type CameraGoal, glideCamera } from "./cameraGlide";
 import { playerName, seatLabelText } from "./stateText";
 import { type FigureShape, figureSourceKey, unitBadgeText, type UnitFigure, unitFigures } from "./unitFigures";
 
@@ -462,7 +463,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
   let replay: Replay | null = null;
   const replayFigures = new Map<string, { mesh: Mesh; badge: TextBadge; shapeKey: string }>();
   /** Ziel, zu dem die Kamera weich gleitet (danach bleibt sie frei bedienbar). */
-  let cameraGoal: { target: Vector3; radius: number; beta?: number } | null = null;
+  let cameraGoal: CameraGoal | null = null;
   /** Blickwinkel während eines Kampfs: steiler als die Gesamtansicht, damit Nachbararenen nicht ins Bild ragen. */
   const FOCUS_BETA = 0.7;
   /** Größter Zeitschritt je Bild, damit nach einem verdeckten Tab nicht ganze Kämpfe übersprungen werden. */
@@ -472,7 +473,8 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     for (const entry of figures.values()) {
       entry.mesh.isVisible = visible;
       entry.mesh.isPickable = visible;
-      entry.mesh.visibility = 1;
+      // Brett-Figuren sind Instanzen: `visibility` wirkt dort nicht (C4d), ausgeblendet wird über die Größe.
+      entry.mesh.scaling.setAll(1);
       entry.badge.mesh.isVisible = visible;
       entry.badge.mesh.visibility = 1;
     }
@@ -507,12 +509,13 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
       const entry = figures.get(b.unit);
       if (!entry) continue;
       entry.mesh.isVisible = true;
-      entry.mesh.visibility = b.opacity;
+      entry.mesh.scaling.setAll(Math.max(0.01, b.opacity));
       entry.badge.mesh.isVisible = true;
       entry.badge.mesh.visibility = b.opacity;
     }
     // C4c2b: Säulen zeigen das Leben nach schon gezeigtem Durchbruch-Schaden.
-    for (const [p, life] of frame.seatLife) setPillarLife(p, life);
+    // C4d: auch die Beschriftung an der Säule nennt dieses Leben (vorher blieb sie bis zum Ende beim alten Wert).
+    for (const [p, life] of frame.seatLife) setSeat({ index: p, life: Math.max(0, life), eliminated: false });
     const seen = new Set<string>();
     for (const f of fighters) {
       const offset = f.active ? effects.offsets.get(f.unitId) : undefined;
@@ -692,13 +695,8 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
       }
     }
     if (cameraGoal) {
-      const k = 1 - Math.exp(-dt / 220);
-      camera.target = Vector3.Lerp(camera.target, cameraGoal.target, k);
-      camera.radius += (cameraGoal.radius - camera.radius) * k;
-      const beta = cameraGoal.beta ?? camera.beta;
-      camera.beta += (beta - camera.beta) * k;
-      const settled = Math.abs(camera.radius - cameraGoal.radius) < 0.05 && Math.abs(camera.beta - beta) < 0.005;
-      if (Vector3.Distance(camera.target, cameraGoal.target) < 0.05 && settled) cameraGoal = null;
+      // C4d: Blickwinkel (alpha) bleibt beim Gleiten erhalten, die Kamera schaut weiter aus der eigenen Ecke.
+      if (glideCamera(camera, cameraGoal, dt)) cameraGoal = null;
     }
     const scale = Math.min(BADGE_MAX_SCALE, Math.max(1, camera.radius / BADGE_REFERENCE_RADIUS));
     for (const entry of figures.values()) entry.badge.mesh.scaling.setAll(scale);
@@ -832,6 +830,19 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     pillar.mesh.position.y = height / 2;
   }
 
+  /** Säule (Höhe, Farbe) und Beschriftung eines Sitzes. */
+  function setSeat(entry: Pick<PlayerView["players"][number], "index" | "life" | "eliminated">): void {
+    const pillar = pillars[entry.index];
+    if (!pillar) return;
+    setPillarLife(entry.index, entry.life);
+    pillar.material.diffuseColor = entry.eliminated ? GREY : playerColor(entry.index);
+    seatLabels.get(entry.index)?.setText(
+      seatLabelText(entry, options.viewer),
+      entry.eliminated ? "#b8b2a8" : Color3.Lerp(playerColor(entry.index), Color3.White(), 0.45).toHexString(),
+      "rgba(20,18,16,0.8)",
+    );
+  }
+
   const board: BoardScene = {
     update(view: PlayerView): void {
       if (replay) {
@@ -844,17 +855,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
         boardKey = key;
         buildBoard(view);
       }
-      for (const entry of view.players) {
-        const pillar = pillars[entry.index];
-        if (!pillar) continue;
-        setPillarLife(entry.index, entry.life);
-        pillar.material.diffuseColor = entry.eliminated ? GREY : playerColor(entry.index);
-        seatLabels.get(entry.index)?.setText(
-          seatLabelText(entry, view.viewer),
-          entry.eliminated ? "#b8b2a8" : Color3.Lerp(playerColor(entry.index), Color3.White(), 0.45).toHexString(),
-          "rgba(20,18,16,0.8)",
-        );
-      }
+      for (const entry of view.players) setSeat(entry);
       if (layout) updateFigures(view, layout);
       drawMarkers();
       const holder = view.centerResult?.holder ?? null;
