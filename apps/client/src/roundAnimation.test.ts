@@ -4,7 +4,7 @@ import { buildBoardLayout, frontPairsFor, locationPosition, seatPillarPosition, 
 import { BASE_TICKS_PER_SECOND } from "./combatReplay";
 import { EFFECT_GROUP_MS, type ReplaySegment, RoundReplayPlayer, roundReplay, roundSegments } from "./effectReplay";
 import { arenaCellPosition } from "./replayAnimation";
-import { arenaHexPosition, HIT_AT, type Locate, type RoundCursor, roundFrame, roundStatusText, SEAT_TEXT_HEIGHT } from "./roundAnimation";
+import { arenaHexPosition, HIT_AT, isSeatStep, seatStepTexts, type Locate, type RoundCursor, roundFrame, roundStatusText, SEAT_TEXT_HEIGHT } from "./roundAnimation";
 import { GameSession, HUMAN } from "./session";
 
 const data = loadGameData();
@@ -191,7 +191,9 @@ describe("C4c2b: ganze Runden echter Bot-Partien", () => {
           for (const p of [...frame.fighters.map((f) => f.position), ...frame.effects.texts.map((t) => t.position), ...frame.effects.lines.map((l) => l.to)]) {
             expect(Number.isFinite(p.x) && Number.isFinite(p.z)).toBe(true);
           }
-          const expectedDamage = seg.group.steps.filter((st) => st.kind === "damage" && st.hpLoss > 0).length;
+          // Schaden an Einheiten und Spieler-Wirkungen mit Schadens-Ton (P14: Fluch, gestohlenes Gold) an der Säule.
+          const seatDamage = seg.group.steps.filter(isSeatStep).flatMap((st) => seatStepTexts(st)).filter((t) => t.tone === "damage").length;
+          const expectedDamage = seg.group.steps.filter((st) => st.kind === "damage" && st.hpLoss > 0).length + seatDamage;
           const shownDamage = frame.effects.texts.filter((t) => t.tone === "damage" && !t.text.endsWith("Leben")).length;
           expect(shownDamage).toBe(expectedDamage);
           damageSteps += expectedDamage;

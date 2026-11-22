@@ -14,6 +14,8 @@
  *   Treffer das neue Leben (`seatLife`).
  * Wirkungen einer Gruppe: Ring am Wirker (Anführer-Figur bzw. Säule des Zauberers), Strahl zu jedem Ziel, danach
  * aufsteigende Texte (Schaden mit Schild-Anteil, Schild, Buff, Schlüsselwort, verwundet, Beute, blockiert, verpufft).
+ * Wirkungen auf Spieler (P14: entfernte Karten, Gold, Fluch, Markierung „nächste Runde“, Stehlen) steigen an der
+ * Säule des betroffenen Sitzes auf, bei fremden Sitzen mit Strahl vom Wirker.
  */
 import type { GameData, PlayerIndex, UnitId } from "@game/engine";
 import { type BoardLayout, cellOf, locationPosition, seatPillarPosition, type WorldPoint } from "./boardLayout";
@@ -213,8 +215,49 @@ export function effectStepTexts(step: EffectStep): { text: string; tone: EffectT
       return [{ text: "Beute", tone: "buff" }];
     case "breakthrough":
       return [{ text: `−${step.amount} Leben`, tone: "damage" }];
+    case "trash":
+    case "gold":
+    case "curse":
+    case "roundMark":
+    case "steal":
+      return seatStepTexts(step).map(({ text, tone }) => ({ text, tone }));
     default:
       return [];
+  }
+}
+
+/** Schritte, die auf einen Spieler wirken und an der Säule seines Sitzes erscheinen (P14). */
+export type SeatStep = Extract<EffectStep, { kind: "trash" | "gold" | "curse" | "roundMark" | "steal" }>;
+
+export function isSeatStep(step: EffectStep): step is SeatStep {
+  return step.kind === "trash" || step.kind === "gold" || step.kind === "curse" || step.kind === "roundMark" || step.kind === "steal";
+}
+
+/**
+ * Texte eines Spieler-Schritts je Sitz, an dessen Säule sie aufsteigen (R-19.2). Entfernte Karten erscheinen nur als
+ * Anzahl, nie mit Namen (R-18.2a: Karten aus einem fremden Deck kennt die Sicht ohnehin nicht).
+ */
+export function seatStepTexts(step: SeatStep): { seat: PlayerIndex; text: string; tone: EffectTone }[] {
+  switch (step.kind) {
+    case "trash":
+      return [{ seat: step.player, text: `${step.count} ${step.count === 1 ? "Karte" : "Karten"} entfernt`, tone: "status" }];
+    case "gold":
+      return [{ seat: step.player, text: `+${step.amount} Gold`, tone: "buff" }];
+    case "curse":
+      return [{ seat: step.to, text: "+1 Fluch", tone: "damage" }];
+    case "roundMark":
+      return [
+        {
+          seat: step.player,
+          text: step.mark.kind === "gold" ? `nächste Runde +${step.mark.amount} Gold` : `nächste Runde +${step.mark.percent} % Mana`,
+          tone: "buff",
+        },
+      ];
+    case "steal":
+      return [
+        { seat: step.from, text: `−${step.amount} Gold`, tone: "damage" },
+        { seat: step.player, text: `+${step.amount} Gold`, tone: "buff" },
+      ];
   }
 }
 
@@ -283,6 +326,15 @@ function groupEffects(
       if (!pillar) continue;
       addLine(`seat${step.loser}`, pillar, "shot");
       for (const [j, t] of effectStepTexts(step).entries()) addText(`seat${step.loser}`, pillar, "token", SEAT_TEXT_HEIGHT, t.text, t.tone, `${n}:${j}`);
+      continue;
+    }
+    if (isSeatStep(step)) {
+      for (const [j, t] of seatStepTexts(step).entries()) {
+        const pillar = seatPillarPosition(layout, t.seat);
+        if (!pillar) continue;
+        addLine(`seat${t.seat}`, pillar, "shot");
+        addText(`seat${t.seat}`, pillar, "token", SEAT_TEXT_HEIGHT, t.text, t.tone, `${n}:${j}`);
+      }
       continue;
     }
     if (step.kind === "blocked") {

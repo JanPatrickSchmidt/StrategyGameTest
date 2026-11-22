@@ -8,7 +8,8 @@
  *   vorgemerkte Einheiten),
  * - `combats`: die simulierten Kämpfe (`combatReplays`),
  * - `postCombat`: je Durchbruch-Schaden an einem Sitz (R-10.1, Phase `combatResolution`) und je Nachkampf-Zauber
- *   (Phase `postCombatSpells`) eine `EffectGroup`.
+ *   (Phase `postCombatSpells`) eine `EffectGroup`; Zauber mit ihren Wirkungen auf Spieler (P14: entfernte Karten,
+ *   Gold, Fluch, Markierung „nächste Runde“).
  * `RoundReplayPlayer` spielt das in dieser Reihenfolge ab: Vorkampf-Gruppen, Kämpfe, Nachkampf-Gruppen.
  */
 import type { GameData, GameEvent, PlayerIndex, Stat, UnitId } from "@game/engine";
@@ -28,6 +29,7 @@ type UnitLocation = EventOf<"unit_moved">["to"];
 type ArenaHex = EventOf<"unit_shadow_stepped">["to"];
 type LeaderCategory = EventOf<"leader_ability_resolved">["category"];
 type SpellSlot = EventOf<"spell_resolved">["slot"];
+type RoundMark = EventOf<"round_mark_set">["mark"];
 
 /** Wer oder was die Wirkungen einer Gruppe auslöst. */
 export type EffectSource =
@@ -60,6 +62,19 @@ export type EffectStep =
   | { kind: "blocked"; unit: UnitId | null; hex: ArenaHex; reason: "hexConflict" | "hexOccupied" | "unitUnavailable" }
   /** Vorgemerkter Auslöser (Vex' „Beute“) für diese Einheiten. */
   | { kind: "mark"; units: UnitId[] }
+  /**
+   * R-14.8 (`cards_trashed`): `player` entfernt `count` Karten dauerhaft. `cards` = in dieser Sicht genannte Karten;
+   * Karten aus einem fremden Deck fehlen darin und zählen nur in `count` (R-18.2a).
+   */
+  | { kind: "trash"; player: PlayerIndex; count: number; cards: { cardId: string; from: "deck" | "discard" }[] }
+  /** R-10.3 (`gold_gained`): `amount` Gold in die Schatzkammer, `treasury` danach. */
+  | { kind: "gold"; player: PlayerIndex; amount: number; treasury: number }
+  /** R-14.7 (`curse_given`): `player` gibt `to` einen Fluch (`cardId`) auf den Ablagestapel. */
+  | { kind: "curse"; player: PlayerIndex; to: PlayerIndex; cardId: string }
+  /** R-17a.2 (`round_mark_set`): Markierung „nächste Runde“ für `player`. */
+  | { kind: "roundMark"; player: PlayerIndex; mark: RoundMark }
+  /** `gold_stolen`: `player` nimmt `from` `amount` Gold aus der Schatzkammer (R-10.3). */
+  | { kind: "steal"; player: PlayerIndex; from: PlayerIndex; amount: number; treasury: number; fromTreasury: number }
   /** R-10.1, R-10.2, R-10.5: Verlierer der Front verliert `amount` Leben, `life` danach. */
   | { kind: "breakthrough"; arena: string; winner: PlayerIndex; loser: PlayerIndex; breakthrough: number; baseDamage: number; amount: number; life: number };
 
@@ -136,6 +151,32 @@ function unitStep(event: GameEvent, arenas: ReadonlyMap<UnitId, string>): { card
   }
 }
 
+/**
+ * Schritt zu einem Ereignis, das auf einen Spieler statt auf eine Einheit wirkt (P14); andere Ereignisse ergeben
+ * `null`. Es gehört zur Gruppe, deren Wirkung gerade abgehandelt wird (siehe `effectGroups`).
+ */
+function playerStep(event: GameEvent): EffectStep | null {
+  switch (event.type) {
+    case "cards_trashed":
+      return {
+        kind: "trash",
+        player: event.player,
+        count: event.cards.length + (event.hiddenFromDeck ?? 0),
+        cards: event.cards.map((c) => ({ cardId: c.cardId, from: c.from })),
+      };
+    case "gold_gained":
+      return { kind: "gold", player: event.player, amount: event.amount, treasury: event.treasury };
+    case "curse_given":
+      return { kind: "curse", player: event.player, to: event.to, cardId: event.cardId };
+    case "round_mark_set":
+      return { kind: "roundMark", player: event.player, mark: JSON.parse(JSON.stringify(event.mark)) as RoundMark };
+    case "gold_stolen":
+      return { kind: "steal", player: event.player, from: event.from, amount: event.amount, treasury: event.treasury, fromTreasury: event.fromTreasury };
+    default:
+      return null;
+  }
+}
+
 /** Kennung der Quelle, über die Einheiten-Ereignisse (`cardId`) ihrer Gruppe zugeordnet werden. */
 function sourceKey(source: EffectSource): string | null {
   if (source.kind === "leader") return source.leaderId;
@@ -148,19 +189,32 @@ function sourceKey(source: EffectSource): string | null {
  * Gruppe derselben Quelle (`cardId` = Anführer- bzw. Karten-ID) – so auch eine Verwundung, die erst nach dem
  * gleichzeitigen Schaden aller Fähigkeiten folgt. Gescheiterte Felder (`leader_ability_hex_conflict`,
  * `leader_ability_move_blocked`) stehen im Protokoll vor ihrer Fähigkeit und werden ihr nachträglich zugeordnet.
+ * Spieler-Wirkungen (`playerStep`: entfernte Karten, Gold, Fluch, Markierung, Stehlen) tragen keine Quelle; sie
+ * gehören zum Zauber, dessen `spell_resolved` zuletzt kam, bis er abgelegt wird (`spell_discarded`) oder eine andere
+ * Gruppe beginnt (R-8.4: jeder Zauber wird vollständig aufgelöst, bevor der nächste beginnt). Gold der
+ * Kampfauswertung (Beute, Serien, Mitte) folgt keinem Zauber und bleibt darum ohne Gruppe.
  */
 function effectGroups(events: readonly GameEvent[], round: number, phases: ReadonlySet<string>, arenas: ReadonlyMap<UnitId, string>): EffectGroup[] {
   const groups: EffectGroup[] = [];
   /** Gescheiterte Felder je Anführer, bis seine Fähigkeit im Protokoll erscheint. */
   const pending = new Map<string, EffectStep[]>();
+  /** Gruppe, deren Wirkung gerade abgehandelt wird und die Spieler-Wirkungen aufnimmt. */
+  let current: EffectGroup | null = null;
+  let currentPhase: string | null = null;
   const open = (event: GameEvent, source: EffectSource, outcome: EffectGroup["outcome"], fizzleReason: string | null): void => {
     const key = sourceKey(source);
     const early = key !== null && source.kind === "leader" ? (pending.get(key) ?? []) : [];
     if (key !== null) pending.delete(key);
-    groups.push({ round, phase: event.phase, source, outcome, fizzleReason, steps: [...early] });
+    const group: EffectGroup = { round, phase: event.phase, source, outcome, fizzleReason, steps: [...early] };
+    groups.push(group);
+    current = source.kind === "spell" && outcome === "resolved" ? group : null;
   };
   for (const event of events) {
     if (event.round !== round || !phases.has(event.phase)) continue;
+    if (event.phase !== currentPhase) {
+      current = null;
+      currentPhase = event.phase;
+    }
     switch (event.type) {
       case "leader_ability_resolved":
         open(
@@ -179,7 +233,11 @@ function effectGroups(events: readonly GameEvent[], round: number, phases: Reado
       case "spell_fizzled":
         open(event, { kind: "spell", player: event.player, cardId: event.cardId, slot: event.slot }, "fizzled", event.reason);
         continue;
+      case "spell_discarded":
+        current = null;
+        continue;
       case "breakthrough_damage":
+        current = null;
         groups.push({
           round,
           phase: event.phase,
@@ -215,6 +273,11 @@ function effectGroups(events: readonly GameEvent[], round: number, phases: Reado
         continue;
       }
       default: {
+        const player = playerStep(event);
+        if (player) {
+          (current as EffectGroup | null)?.steps.push(player);
+          continue;
+        }
         const found = unitStep(event, arenas);
         if (!found) continue;
         findGroup(groups, found.cardId)?.steps.push(found.step);
