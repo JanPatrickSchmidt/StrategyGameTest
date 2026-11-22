@@ -8,7 +8,8 @@
  * Die Logik liegt in `planner.ts`; hier wird nur gezeichnet und weitergereicht.
  */
 import { type ActionTarget, type GameData, PLANNING_SECTIONS, type PlanningAction, type PlayerView, type RejectionReason, type UnitId, type UnitLocation } from "@game/engine";
-import { addBuy, buyOptions, buyOptionText, buySpending, cardSummary, depositText, pileGroupName } from "./buyOffer";
+import { addBuy, buyOptions, buyOptionText, buySpending, depositText, pileGroupName } from "./buyOffer";
+import { cardRulesLines, cardRulesText } from "./cardRules";
 import { applyTarget, type BoardSelection, isRelocatable, targetLocations, validSelection } from "./boardInput";
 import { locationName } from "./fieldNames";
 import { type AbilityChoice, abilityState, addAbility, branchChoice, branchName, combinePicks, movesTarget, setBranch } from "./leaderPlan";
@@ -203,7 +204,7 @@ export class PlanningPanel {
         textContent: cardText(builder, entry),
         className: chosen ? "primary" : "",
         disabled: !isUnit && !isSpell,
-        title: isUnit ? "Einheit ausspielen" : isSpell ? "Zauber legen" : "",
+        title: `${cardRulesText(this.data, entry.card)}${isUnit ? "\n\nAnklicken: Einheit ausspielen" : isSpell ? "\n\nAnklicken: Zauber legen" : ""}`,
       });
       button.addEventListener("click", () => {
         if (isSpell) {
@@ -223,6 +224,13 @@ export class PlanningPanel {
     const selection = this.selection;
     const selected = selection?.kind === "card" ? hand.find((c) => c.instanceId === selection.cardInstanceId) : undefined;
     const spell = this.spellCard !== null ? hand.find((c) => c.instanceId === this.spellCard && c.card.type === "spell") : undefined;
+    // C5b2: Kartentext der gewählten Handkarte sichtbar (nicht nur als Tooltip).
+    const shown = spell ?? selected;
+    if (shown) {
+      const rules = el("div", { className: "card-text" }, el("span", { className: "card-name", textContent: shown.card.name }));
+      for (const line of cardRulesLines(this.data, shown.card)) rules.append(el("span", { className: "card-rules", textContent: line }));
+      this.root.append(rules);
+    }
     if (spell && spell.card.type === "spell") {
       const choice = spellTargetChoice(this.data, builder, spell.instanceId);
       if (choice) this.renderSpellTarget(builder, spell.instanceId, `${spell.card.name} (${SLOT_LABELS[spell.card.slot]})`, choice);
@@ -263,11 +271,17 @@ export class PlanningPanel {
       if (inGroup.length === 0) continue;
       const row = el("div", { className: "row shop" }, el("span", { className: "hint", textContent: `${pileGroupName(this.data, group, options)}:` }));
       for (const option of inGroup) {
-        const button = el("button", {
-          textContent: buyOptionText(option),
-          disabled: option.blocked !== null,
-          title: `${cardSummary(this.data, option.card)}${option.blocked ? ` – nicht möglich: ${reasonText(option.blocked)}` : ""}`,
-        });
+        // C5b2: Kartentext steht sichtbar unter dem Namen; der Tooltip nennt nur noch den Sperrgrund.
+        const button = el(
+          "button",
+          {
+            className: "card-button",
+            disabled: option.blocked !== null,
+            title: option.blocked ? `Nicht möglich: ${reasonText(option.blocked)}` : `${option.card.name} kaufen`,
+          },
+          el("span", { className: "card-name", textContent: buyOptionText(option) }),
+          ...cardRulesLines(this.data, option.card).map((line) => el("span", { className: "card-rules", textContent: line })),
+        );
         button.dataset["cardId"] = option.cardId;
         button.addEventListener("click", () => {
           const reason = addBuy(builder, option.cardId);

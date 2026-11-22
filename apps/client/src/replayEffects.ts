@@ -12,6 +12,7 @@
  * was hier herauskommt.
  */
 import type { Stat, UnitId } from "@game/engine";
+import { KEYWORD_NAMES, STAT_NAMES } from "./cardRules";
 import type { BoardLayout, WorldPoint } from "./boardLayout";
 import { type CombatReplay, type ReplayStep, replayFrameAt } from "./combatReplay";
 import { arenaCellPosition } from "./replayAnimation";
@@ -74,30 +75,13 @@ export interface CombatEffects {
   flashes: EffectFlash[];
 }
 
-const STAT_NAMES: Record<Stat, string> = {
-  attack: "Angriff",
-  hp: "Leben",
-  breakthrough: "Durchbruch",
-  range: "Reichweite",
-  armor: "Rüstung",
-  attackInterval: "Angriffstakt",
-  moveInterval: "Lauftakt",
-  manaMax: "Mana",
-};
-
-const KEYWORD_NAMES: Record<string, string> = {
-  firstStrike: "Erstschlag",
-  unwoundable: "Unverwundbar",
-  woundOnKill: "Verwundet beim Töten",
-};
-
 /** Text eines Buffs, z. B. „+2 Angriff“. */
 export function buffText(stat: Stat, amount: number): string {
   return `${amount >= 0 ? "+" : "−"}${Math.abs(amount)} ${STAT_NAMES[stat] ?? stat}`;
 }
 
 export function keywordText(keyword: string): string {
-  return KEYWORD_NAMES[keyword] ?? keyword;
+  return (KEYWORD_NAMES as Record<string, string>)[keyword] ?? keyword;
 }
 
 /** Vorberechnete Wirkung mit fester Weltposition aus dem Bild ihres Ticks. */

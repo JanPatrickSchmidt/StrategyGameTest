@@ -7,6 +7,7 @@
  * (C5b1); in der letzten Runde gekaufte Karten sind als „neu“ markiert und werden in der Meldung genannt.
  */
 import { loadGameData } from "@game/engine";
+import { cardRulesText } from "./cardRules";
 import { boughtInRound, boughtNote, CARD_ZONE_NAMES, cardCountText, ownCardOverview } from "./cardOverview";
 import { BASE_TICKS_PER_SECOND, REPLAY_SPEEDS, type ReplaySpeed } from "./combatReplay";
 import { RoundReplayPlayer, roundReplay } from "./effectReplay";
@@ -107,6 +108,9 @@ function renderCards(): void {
       if (i > 0) item.append(", ");
       const span = document.createElement("span");
       span.textContent = cardCountText(card);
+      // C5b2: Kartentext als Tooltip (Maus über den Kartennamen).
+      const cardData = data.cards.get(card.cardId);
+      if (cardData) span.title = cardRulesText(data, cardData);
       if (card.newCount > 0) span.className = "new";
       item.append(span);
     });
