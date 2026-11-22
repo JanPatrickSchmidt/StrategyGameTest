@@ -7,9 +7,12 @@
  *   (Schaden, besiegt, Schild, Buff, Schlüsselwort, verwundet, Beschwörung, Schattenschritt, gescheiterte Felder,
  *   vorgemerkte Einheiten),
  * - `combats`: die simulierten Kämpfe (`combatReplays`),
- * - `postCombat`: je Durchbruch-Schaden an einem Sitz (R-10.1, Phase `combatResolution`) und je Nachkampf-Zauber
- *   (Phase `postCombatSpells`) eine `EffectGroup`; Zauber mit ihren Wirkungen auf Spieler (P14: entfernte Karten,
- *   Gold, Fluch, Markierung „nächste Runde“).
+ * - `postCombat`: Wirkungen nach den Kämpfen (Phase `combat`, P14b): je vorgemerkter Auslösung im Kampf
+ *   (`deferred_effects_applied`), je `onFrontWin` (`ability_triggered`), je Vex' Beute (`leader_trigger_fired`) und je
+ *   Arena die Einheiten-XP der Überlebenden (`unit_xp_gained`); dann je Durchbruch-Schaden an einem Sitz (R-10.1,
+ *   Phase `combatResolution`) und je Nachkampf-Zauber (Phase `postCombatSpells`) eine `EffectGroup`; Zauber und
+ *   Auslöser mit ihren Wirkungen auf Spieler (P14: entfernte Karten, Gold, Fluch, Markierung „nächste Runde“,
+ *   Stehlen, Anführer-XP) und dauerhaften Buffs.
  * `RoundReplayPlayer` spielt das in dieser Reihenfolge ab: Vorkampf-Gruppen, Kämpfe, Nachkampf-Gruppen.
  */
 import type { GameData, GameEvent, PlayerIndex, Stat, UnitId } from "@game/engine";
@@ -30,12 +33,22 @@ type ArenaHex = EventOf<"unit_shadow_stepped">["to"];
 type LeaderCategory = EventOf<"leader_ability_resolved">["category"];
 type SpellSlot = EventOf<"spell_resolved">["slot"];
 type RoundMark = EventOf<"round_mark_set">["mark"];
+type Trigger = EventOf<"ability_triggered">["trigger"];
 
 /** Wer oder was die Wirkungen einer Gruppe auslöst. */
 export type EffectSource =
   | { kind: "leader"; player: PlayerIndex; leaderId: string; category: LeaderCategory; level: 1 | 2 | 3 | 4 | null; branchId: string | null }
   | { kind: "spell"; player: PlayerIndex; cardId: string; slot: SpellSlot }
-  | { kind: "breakthrough"; arena: string; winner: PlayerIndex; loser: PlayerIndex };
+  | { kind: "breakthrough"; arena: string; winner: PlayerIndex; loser: PlayerIndex }
+  /**
+   * P14b: Fähigkeit einer Einheit nach den Kämpfen – vorgemerkte Kampf-Effekte (`deferred: true`, z. B. Beute des
+   * Goblin-Plänklers beim Tod) oder `onFrontWin`. `unit` = `null` bei einem Kampf-Token, das es nicht mehr gibt.
+   */
+  | { kind: "unitTrigger"; player: PlayerIndex; unit: UnitId | null; sourceId: string; trigger: Trigger; arena: string | null; deferred: boolean }
+  /** P14b: vorgemerkter Anführer-Auslöser (Vex' „Beute“) beim Frontsieg mit den gewählten Einheiten `units`. */
+  | { kind: "leaderTrigger"; player: PlayerIndex; leaderId: string; arena: string; units: UnitId[] }
+  /** P14b, R-10.7: Einheiten-XP der Überlebenden eines Kampfes. */
+  | { kind: "survivorXp"; arena: string };
 
 /**
  * Felder aller Schritte, die eine Einheit betreffen: `owner` = Besitzer der Einheit, `arena` = Arena, in der sie in
@@ -58,6 +71,10 @@ export type EffectStep =
   | (UnitRef & { kind: "wound" })
   | (UnitRef & { kind: "summon"; sourceId: string; location: UnitLocation })
   | (UnitRef & { kind: "shadowStep"; from: UnitLocation; to: ArenaHex })
+  /** `unit_buffed_permanently`: dauerhafter Zuschlag, `total` = gesamter dauerhafter Zuschlag dieses Werts. */
+  | (UnitRef & { kind: "permanentBuff"; stat: Stat; amount: number; total: number })
+  /** R-10.7 (`unit_xp_gained`): XP einer überlebenden Einheit, `xp` danach. */
+  | (UnitRef & { kind: "xp"; amount: number; xp: number })
   /** Feld einer Fähigkeit gescheitert: Feldkonflikt (`unit` = `null`) oder blockierte Bewegung. */
   | { kind: "blocked"; unit: UnitId | null; hex: ArenaHex; reason: "hexConflict" | "hexOccupied" | "unitUnavailable" }
   /** Vorgemerkter Auslöser (Vex' „Beute“) für diese Einheiten. */
@@ -75,6 +92,8 @@ export type EffectStep =
   | { kind: "roundMark"; player: PlayerIndex; mark: RoundMark }
   /** `gold_stolen`: `player` nimmt `from` `amount` Gold aus der Schatzkammer (R-10.3). */
   | { kind: "steal"; player: PlayerIndex; from: PlayerIndex; amount: number; treasury: number; fromTreasury: number }
+  /** `leader_xp_gained` aus einem Effekt (`gainLeaderXp`, z. B. Seelenhirte): Anführer von `player` erhält XP. */
+  | { kind: "leaderXp"; player: PlayerIndex; amount: number; xp: number }
   /** R-10.1, R-10.2, R-10.5: Verlierer der Front verliert `amount` Leben, `life` danach. */
   | { kind: "breakthrough"; arena: string; winner: PlayerIndex; loser: PlayerIndex; breakthrough: number; baseDamage: number; amount: number; life: number };
 
@@ -96,7 +115,7 @@ export interface RoundReplay {
 }
 
 const PRE_PHASES: ReadonlySet<string> = new Set(["leaderAbilities", "preCombatSpells"]);
-const POST_PHASES: ReadonlySet<string> = new Set(["combatResolution", "postCombatSpells"]);
+const POST_PHASES: ReadonlySet<string> = new Set(["combat", "combatResolution", "postCombatSpells"]);
 
 /** Einheit → Arena, in der sie in dieser Runde kämpft (aus `combat_started`). */
 function fightingArenas(events: readonly GameEvent[], round: number): Map<UnitId, string> {
@@ -172,9 +191,22 @@ function playerStep(event: GameEvent): EffectStep | null {
       return { kind: "roundMark", player: event.player, mark: JSON.parse(JSON.stringify(event.mark)) as RoundMark };
     case "gold_stolen":
       return { kind: "steal", player: event.player, from: event.from, amount: event.amount, treasury: event.treasury, fromTreasury: event.fromTreasury };
+    case "leader_xp_gained":
+      return { kind: "leaderXp", player: event.player, amount: event.amount, xp: event.xp };
     default:
       return null;
   }
+}
+
+/** Dauerhafter Buff (P14b): gehört wie die Spieler-Wirkungen zur Gruppe, deren Wirkung gerade abgehandelt wird. */
+function permanentBuffStep(event: GameEvent, arenas: ReadonlyMap<UnitId, string>): EffectStep | null {
+  if (event.type !== "unit_buffed_permanently") return null;
+  return { unit: event.unitId, owner: event.player, arena: arenas.get(event.unitId) ?? null, kind: "permanentBuff", stat: event.stat, amount: event.amount, total: event.total };
+}
+
+/** Auslöser nach den Kämpfen (P14b): ihre Gruppe nimmt nur die unmittelbar folgenden Wirkungen auf. */
+function isTriggerSource(source: EffectSource): boolean {
+  return source.kind === "unitTrigger" || source.kind === "leaderTrigger";
 }
 
 /** Kennung der Quelle, über die Einheiten-Ereignisse (`cardId`) ihrer Gruppe zugeordnet werden. */
@@ -193,6 +225,10 @@ function sourceKey(source: EffectSource): string | null {
  * gehören zum Zauber, dessen `spell_resolved` zuletzt kam, bis er abgelegt wird (`spell_discarded`) oder eine andere
  * Gruppe beginnt (R-8.4: jeder Zauber wird vollständig aufgelöst, bevor der nächste beginnt). Gold der
  * Kampfauswertung (Beute, Serien, Mitte) folgt keinem Zauber und bleibt darum ohne Gruppe.
+ * P14b: Nach den Kämpfen (Phase `combat`) eröffnen `deferred_effects_applied`, `ability_triggered` (`onFrontWin`)
+ * und `leader_trigger_fired` je eine Gruppe; sie nimmt die direkt folgenden Spieler-Wirkungen und dauerhaften Buffs
+ * auf und endet beim ersten anderen Ereignis. Auslöser ohne sichtbare Wirkung (z. B. Stehlen bei leerer
+ * Schatzkammer) ergeben keine Gruppe. `unit_xp_gained` bildet je Arena eine Gruppe „Erfahrung“.
  */
 function effectGroups(events: readonly GameEvent[], round: number, phases: ReadonlySet<string>, arenas: ReadonlyMap<UnitId, string>): EffectGroup[] {
   const groups: EffectGroup[] = [];
@@ -207,7 +243,7 @@ function effectGroups(events: readonly GameEvent[], round: number, phases: Reado
     if (key !== null) pending.delete(key);
     const group: EffectGroup = { round, phase: event.phase, source, outcome, fizzleReason, steps: [...early] };
     groups.push(group);
-    current = source.kind === "spell" && outcome === "resolved" ? group : null;
+    current = (source.kind === "spell" || isTriggerSource(source)) && outcome === "resolved" ? group : null;
   };
   for (const event of events) {
     if (event.round !== round || !phases.has(event.phase)) continue;
@@ -236,6 +272,34 @@ function effectGroups(events: readonly GameEvent[], round: number, phases: Reado
       case "spell_discarded":
         current = null;
         continue;
+      case "deferred_effects_applied":
+        open(
+          event,
+          { kind: "unitTrigger", player: event.player, unit: event.unitId, sourceId: event.sourceId, trigger: event.trigger, arena: event.arena, deferred: true },
+          "resolved",
+          null,
+        );
+        continue;
+      case "ability_triggered":
+        if (event.phase !== "combat") continue;
+        open(
+          event,
+          { kind: "unitTrigger", player: event.player, unit: event.unitId, sourceId: event.sourceId, trigger: event.trigger, arena: event.arena, deferred: false },
+          "resolved",
+          null,
+        );
+        continue;
+      case "leader_trigger_fired":
+        open(event, { kind: "leaderTrigger", player: event.player, leaderId: event.leaderId, arena: event.arena, units: [...event.unitIds] }, "resolved", null);
+        continue;
+      case "unit_xp_gained": {
+        current = null;
+        const last = groups[groups.length - 1];
+        const step: EffectStep = { unit: event.unitId, owner: event.player, arena: event.arena, kind: "xp", amount: event.amount, xp: event.xp };
+        if (last && last.source.kind === "survivorXp" && last.source.arena === event.arena) last.steps.push(step);
+        else groups.push({ round, phase: event.phase, source: { kind: "survivorXp", arena: event.arena }, outcome: "resolved", fizzleReason: null, steps: [step] });
+        continue;
+      }
       case "breakthrough_damage":
         current = null;
         groups.push({
@@ -273,18 +337,20 @@ function effectGroups(events: readonly GameEvent[], round: number, phases: Reado
         continue;
       }
       default: {
-        const player = playerStep(event);
+        const player = playerStep(event) ?? permanentBuffStep(event, arenas);
         if (player) {
           (current as EffectGroup | null)?.steps.push(player);
           continue;
         }
+        const active = current as EffectGroup | null;
+        if (active && isTriggerSource(active.source)) current = null;
         const found = unitStep(event, arenas);
         if (!found) continue;
         findGroup(groups, found.cardId)?.steps.push(found.step);
       }
     }
   }
-  return groups;
+  return groups.filter((g) => !isTriggerSource(g.source) || g.steps.length > 0);
 }
 
 function findGroup(groups: readonly EffectGroup[], key: string): EffectGroup | undefined {

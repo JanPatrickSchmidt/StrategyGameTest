@@ -171,7 +171,16 @@ describe("C4b: Wirkungsschritte in echten Bot-Partien", () => {
         const headers = (phases: Set<string>) =>
           inRound.filter((e) => phases.has(e.phase) && ["leader_ability_resolved", "leader_ability_fizzled", "spell_resolved", "spell_fizzled", "breakthrough_damage"].includes(e.type)).length;
         expect(replay.preCombat).toHaveLength(headers(PRE));
-        expect(replay.postCombat).toHaveLength(headers(POST));
+        expect(replay.postCombat.filter((g) => g.phase !== "combat")).toHaveLength(headers(POST));
+        // P14b: nach den Kämpfen je Auslöser mit direkt folgender Wirkung eine Gruppe, dazu je Arena mit XP eine.
+        const combat = inRound.filter((e) => e.phase === "combat");
+        const triggerHeaders = combat.filter(
+          (e, i) =>
+            ["deferred_effects_applied", "ability_triggered", "leader_trigger_fired"].includes(e.type) &&
+            ["gold_gained", "curse_given", "gold_stolen", "unit_buffed_permanently", "leader_xp_gained"].includes(combat[i + 1]?.type ?? ""),
+        ).length;
+        const xpArenas = new Set(combat.flatMap((e) => (e.type === "unit_xp_gained" ? [e.arena] : []))).size;
+        expect(replay.postCombat.filter((g) => g.phase === "combat")).toHaveLength(triggerHeaders + xpArenas);
         const unitEvents = inRound.filter((e) => PRE.has(e.phase) && (UNIT_EFFECT_TYPES.has(e.type) || (e.type === "unit_wounded" && e.cardId !== null))).length;
         const unitSteps = replay.preCombat.flatMap((g) => g.steps).filter((s) => "owner" in s).length;
         expect(unitSteps).toBe(unitEvents);
@@ -183,8 +192,8 @@ describe("C4b: Wirkungsschritte in echten Bot-Partien", () => {
         for (const g of [...replay.preCombat, ...replay.postCombat]) kinds.add(`${g.phase}:${g.source.kind}`);
       }
     }
-    // Die Partien decken Anführer-Fähigkeiten, Vorkampf- und Nachkampf-Zauber und Durchbruch ab.
-    expect([...kinds].sort()).toEqual(["combatResolution:breakthrough", "leaderAbilities:leader", "postCombatSpells:spell", "preCombatSpells:spell"]);
+    // Die Partien decken Anführer-Fähigkeiten, Vorkampf- und Nachkampf-Zauber, Durchbruch, Auslöser und XP nach den Kämpfen ab.
+    expect([...kinds].sort()).toEqual(["combat:survivorXp", "combat:unitTrigger", "combatResolution:breakthrough", "leaderAbilities:leader", "postCombatSpells:spell", "preCombatSpells:spell"]);
   });
 
   it("R-10.1: Durchbruch-Gruppen nennen dieselbe Arena wie ein Kampf bzw. Frontergebnis dieser Runde", () => {

@@ -16,6 +16,9 @@
  * aufsteigende Texte (Schaden mit Schild-Anteil, Schild, Buff, Schlüsselwort, verwundet, Beute, blockiert, verpufft).
  * Wirkungen auf Spieler (P14: entfernte Karten, Gold, Fluch, Markierung „nächste Runde“, Stehlen) steigen an der
  * Säule des betroffenen Sitzes auf, bei fremden Sitzen mit Strahl vom Wirker.
+ * Wirkungen nach den Kämpfen (P14b): Auslöser einer Einheit (vorgemerkt oder `onFrontWin`) mit Ring an ihrer Figur
+ * (sonst Brett-Position, sonst Säule), Vex' Beute am Anführer, dauerhafte Buffs an der Einheit, Anführer-XP an der
+ * Säule, Einheiten-XP der Überlebenden je Arena ohne Wirker.
  */
 import type { GameData, PlayerIndex, UnitId } from "@game/engine";
 import { type BoardLayout, cellOf, locationPosition, seatPillarPosition, type WorldPoint } from "./boardLayout";
@@ -215,6 +218,11 @@ export function effectStepTexts(step: EffectStep): { text: string; tone: EffectT
       return [{ text: "Beute", tone: "buff" }];
     case "breakthrough":
       return [{ text: `−${step.amount} Leben`, tone: "damage" }];
+    case "permanentBuff":
+      return step.amount !== 0 ? [{ text: `${buffText(step.stat, step.amount)} dauerhaft`, tone: "buff" }] : [];
+    case "xp":
+      return step.amount > 0 ? [{ text: `+${step.amount} XP`, tone: "buff" }] : [];
+    case "leaderXp":
     case "trash":
     case "gold":
     case "curse":
@@ -227,10 +235,12 @@ export function effectStepTexts(step: EffectStep): { text: string; tone: EffectT
 }
 
 /** Schritte, die auf einen Spieler wirken und an der Säule seines Sitzes erscheinen (P14). */
-export type SeatStep = Extract<EffectStep, { kind: "trash" | "gold" | "curse" | "roundMark" | "steal" }>;
+export type SeatStep = Extract<EffectStep, { kind: "trash" | "gold" | "curse" | "roundMark" | "steal" | "leaderXp" }>;
 
 export function isSeatStep(step: EffectStep): step is SeatStep {
-  return step.kind === "trash" || step.kind === "gold" || step.kind === "curse" || step.kind === "roundMark" || step.kind === "steal";
+  return (
+    step.kind === "trash" || step.kind === "gold" || step.kind === "curse" || step.kind === "roundMark" || step.kind === "steal" || step.kind === "leaderXp"
+  );
 }
 
 /**
@@ -258,12 +268,17 @@ export function seatStepTexts(step: SeatStep): { seat: PlayerIndex; text: string
         { seat: step.from, text: `−${step.amount} Gold`, tone: "damage" },
         { seat: step.player, text: `+${step.amount} Gold`, tone: "buff" },
       ];
+    case "leaderXp":
+      return [{ seat: step.player, text: `+${step.amount} Anführer-XP`, tone: "buff" }];
   }
 }
 
-/** Spieler, dem eine Gruppe gehört (Wirker bzw. Sieger des Durchbruchs). */
-function groupPlayer(group: EffectGroup): PlayerIndex {
-  return group.source.kind === "breakthrough" ? group.source.winner : group.source.player;
+/** Spieler, dem eine Gruppe gehört (Wirker bzw. Sieger des Durchbruchs); `null` bei den XP der Überlebenden. */
+function groupPlayer(group: EffectGroup): PlayerIndex | null {
+  const source = group.source;
+  if (source.kind === "breakthrough") return source.winner;
+  if (source.kind === "survivorXp") return null;
+  return source.player;
 }
 
 /** Ringe, Strahlen und Texte einer Wirkungsgruppe beim Fortschritt `fraction`. */
@@ -290,16 +305,21 @@ function groupEffects(
   if (source.kind === "breakthrough") {
     const arena = layout.arenas.find((a) => a.id === source.arena);
     if (arena) caster = { position: arena.center, shape: "token" };
-  } else {
-    const leader = source.kind === "leader" ? fighters.find((f) => f.sourceId === source.leaderId && f.player === source.player) : undefined;
+  } else if (source.kind !== "survivorXp") {
+    const leader =
+      source.kind === "leader" || source.kind === "leaderTrigger"
+        ? fighters.find((f) => f.sourceId === source.leaderId && f.player === source.player)
+        : undefined;
+    const unit = source.kind === "unitTrigger" && source.unit !== null ? unitAt(source.unit) : null;
     if (leader) caster = { position: leader.position, shape: leader.shape };
+    else if (unit) caster = unit;
     else {
       const pillar = seatPillarPosition(layout, source.player);
       if (pillar) caster = { position: pillar, height: SEAT_TEXT_HEIGHT, shape: "token" };
     }
   }
   const castAge = windowAge(fraction, 0, CAST_END);
-  if (caster && castAge !== null && source.kind !== "breakthrough") {
+  if (caster && player !== null && castAge !== null && source.kind !== "breakthrough") {
     effects.flashes.push({ key: `${key}:cast`, kind: "ability", position: caster.position, player, age: castAge });
   }
   const lineAge = windowAge(fraction, LINE_START, LINE_END);
@@ -314,7 +334,7 @@ function groupEffects(
     effects.texts.push({ key: `${key}:${n}`, position, text, tone, stack, shape, age: hitAge, ...(height === undefined ? {} : { height }) });
   };
   const addLine = (anchor: string, to: WorldPoint, kind: "shot" | "ability"): void => {
-    if (!caster || lineAge === null || lineTargets.has(anchor)) return;
+    if (!caster || player === null || lineAge === null || lineTargets.has(anchor)) return;
     lineTargets.add(anchor);
     if (Math.hypot(to.x - caster.position.x, to.z - caster.position.z) < 1e-6) return;
     effects.lines.push({ key: `${key}:line:${anchor}`, kind, from: caster.position, to, player, age: lineAge });
@@ -338,7 +358,7 @@ function groupEffects(
       continue;
     }
     if (step.kind === "blocked") {
-      const position = arenaHexPosition(layout, player, step.hex);
+      const position = player === null ? null : arenaHexPosition(layout, player, step.hex);
       if (!position) continue;
       for (const [j, t] of effectStepTexts(step).entries()) addText(`hex${i}`, position, "token", undefined, t.text, t.tone, `${n}:${j}`);
       continue;
@@ -420,11 +440,17 @@ export function effectGroupTitle(data: GameData, group: EffectGroup, viewer: Pla
     const lost = amount && amount.kind === "breakthrough" ? `: ${playerName(source.loser, viewer)} ${source.loser === viewer ? "verlierst" : "verliert"} ${amount.amount} Leben` : "";
     return `Durchbruch an der Front ${arenaName(source.arena, viewer)}${lost}`;
   }
+  if (source.kind === "survivorXp") return `Erfahrung nach dem Kampf ${arenaName(source.arena, viewer)}`;
   const who = playerName(source.player, viewer);
-  const base =
-    source.kind === "leader"
-      ? `Fähigkeit von ${data.leaders.get(source.leaderId)?.name ?? source.leaderId} (${who})`
-      : `Zauber „${data.cards.get(source.cardId)?.name ?? source.cardId}“ (${who})`;
+  const leaderName = (id: string): string => data.leaders.get(id)?.name ?? id;
+  let base: string;
+  if (source.kind === "leader") base = `Fähigkeit von ${leaderName(source.leaderId)} (${who})`;
+  else if (source.kind === "spell") base = `Zauber „${data.cards.get(source.cardId)?.name ?? source.cardId}“ (${who})`;
+  else if (source.kind === "leaderTrigger") base = `Frontsieg mit gewählten Einheiten: ${leaderName(source.leaderId)} (${who})`;
+  else {
+    const name = data.cards.get(source.sourceId)?.name ?? data.leaders.get(source.sourceId)?.name ?? source.sourceId;
+    base = `${source.deferred ? "Nach dem Kampf" : "Frontsieg"}: „${name}“ (${who})`;
+  }
   return group.outcome === "fizzled" ? `${base} – verpufft` : base;
 }
 

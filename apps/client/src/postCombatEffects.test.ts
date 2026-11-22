@@ -13,12 +13,17 @@ import {
   neighborsOf,
   playBotGame,
   type PlayerIndex,
+  PLAYER_INDICES,
   RandomBot,
   resolvePostCombatSpells,
+  runCombatPhase,
+  type Unit,
+  type UnitId,
+  type UnitLocation,
 } from "@game/engine";
 import { buildBoardLayout, frontPairsFor, seatPillarPosition } from "./boardLayout";
 import { type EffectGroup, roundReplay, roundSegments } from "./effectReplay";
-import { effectStepTexts, isSeatStep, roundFrame, SEAT_TEXT_HEIGHT, seatStepTexts } from "./roundAnimation";
+import { effectGroupTitle, effectStepTexts, isSeatStep, roundFrame, SEAT_TEXT_HEIGHT, seatStepTexts } from "./roundAnimation";
 
 const data = loadGameData();
 const layout = buildBoardLayout({ ...data.config.arenas, reserveSlots: data.config.reserveSlots, hexSize: 1 }, frontPairsFor([false, false, false, false]), 4);
@@ -180,6 +185,7 @@ describe("P14: Nachkampf-Wirkungen in der Rundenwiedergabe", () => {
   it("R-19.2: über 20 RandomBot-Partien hat jede Vor- und Nachkampf-Gruppe einen Schritt, außer verpufften Zaubern", () => {
     let groups = 0;
     let seatSteps = 0;
+    let combatGroups = 0;
     for (let seed = 1; seed <= 20; seed++) {
       const state = playBotGame(data, { seed, bots: [0, 1, 2, 3].map((i) => new RandomBot(seed * 10 + i)) });
       for (const viewer of [0, 2] as PlayerIndex[]) {
@@ -188,6 +194,7 @@ describe("P14: Nachkampf-Wirkungen in der Rundenwiedergabe", () => {
           const replay = roundReplay(data, log, round);
           for (const group of [...replay.preCombat, ...replay.postCombat]) {
             groups++;
+            if (group.phase === "combat") combatGroups++;
             seatSteps += group.steps.filter(isSeatStep).length;
             if (group.outcome === "fizzled") continue;
             expect(group.steps.length, `Runde ${round}, Seed ${seed}: ${JSON.stringify(group.source)}`).toBeGreaterThan(0);
@@ -197,5 +204,132 @@ describe("P14: Nachkampf-Wirkungen in der Rundenwiedergabe", () => {
     }
     expect(groups).toBeGreaterThan(100);
     expect(seatSteps).toBeGreaterThan(0);
+    // P14b: auch Gruppen nach den Kämpfen (Phase `combat`: Auslöser, XP) kommen vor und haben Schritte.
+    expect(combatGroups).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P14b: Wirkungen nach den Kämpfen (Phase `combat`)
+// ---------------------------------------------------------------------------
+
+const front = (zone: "left" | "right", col: number, row: number): UnitLocation => ({ zone, cell: { col, row } });
+
+/** Partie in Runde 1, alle Anführer in der Reserve (leere Fronten), Phase auf den Kampf gestellt. */
+function combatState(seed = 5): GameState {
+  const state = createGame(data, defaultLeaders(data), seed);
+  advance(state, data);
+  for (const p of PLAYER_INDICES) (state.units[getPlayer(state, p).leader.unitId] as Unit).location = { zone: "reserve", slot: 0 };
+  state.phase = "combat";
+  return state;
+}
+
+function placeUnit(state: GameState, player: PlayerIndex, location: UnitLocation, sourceId: string): UnitId {
+  const id = state.nextUnitId++;
+  const instance = state.nextCardInstanceId++;
+  state.cards[instance] = { id: instance, cardId: sourceId, owner: player };
+  state.units[id] = { id, owner: player, kind: "card", sourceId, cardInstanceIds: [instance], stars: 1, xp: 0, wounded: false, restedInReserve: false, location };
+  return id;
+}
+
+/** Gruppen nach den Kämpfen (Phase `combat`) aus der Sicht von `viewer`. */
+function combatGroups(state: GameState, viewer: PlayerIndex): EffectGroup[] {
+  return roundReplay(data, eventsFor(state.log, viewer), state.round).postCombat.filter((g) => g.phase === "combat");
+}
+
+describe("P14b: Wirkungen nach den Kämpfen in der Rundenwiedergabe", () => {
+  it("R-19.2: vorgemerkter Kampf-Effekt (Goblin-Plänkler stirbt) ist eine Gruppe mit Gold an der Säule", () => {
+    const state = combatState();
+    const goblin = placeUnit(state, 0, front("right", 2, 2), "goblin_skirmisher");
+    placeUnit(state, 1, front("left", 2, 2), "arena_champion");
+    runCombatPhase(state, data);
+    for (const viewer of [0, 1, 3] as PlayerIndex[]) {
+      const group = combatGroups(state, viewer).find((g) => g.source.kind === "unitTrigger" && g.source.sourceId === "goblin_skirmisher");
+      expect(group?.source).toMatchObject({ kind: "unitTrigger", player: 0, unit: goblin, trigger: "onDeath", deferred: true, arena: "front:0-1" });
+      expect(group?.steps).toEqual([expect.objectContaining({ kind: "gold", player: 0, amount: 1 })]);
+      expect(effectGroupTitle(data, group as EffectGroup, viewer)).toContain("Nach dem Kampf: „");
+    }
+    // Das Gold steigt an der Säule des Spielers auf.
+    const segments = roundSegments(roundReplay(data, eventsFor(state.log, 0), state.round));
+    const index = segments.findIndex((s) => s.kind === "effects" && s.group.source.kind === "unitTrigger" && s.group.source.sourceId === "goblin_skirmisher");
+    const frame = roundFrame(layout, segments, { index, tick: 0, fraction: 0.6, clock: null }, () => null);
+    expect(frame.effects.texts).toEqual(
+      expect.arrayContaining([expect.objectContaining({ text: "+1 Gold", position: seatPillarPosition(layout, 0), height: SEAT_TEXT_HEIGHT })]),
+    );
+  });
+
+  it("R-19.2: dauerhafter Buff aus einem vorgemerkten Effekt (Champion der Arena) erscheint an der Einheit", () => {
+    const state = combatState();
+    const champion = placeUnit(state, 0, front("right", 2, 2), "arena_champion");
+    placeUnit(state, 1, front("left", 2, 2), "recruit");
+    runCombatPhase(state, data);
+    const groups = combatGroups(state, 2).filter((g) => g.source.kind === "unitTrigger" && g.source.sourceId === "arena_champion");
+    expect(groups.length).toBeGreaterThan(0);
+    for (const g of groups) {
+      expect(g.steps).toEqual([expect.objectContaining({ kind: "permanentBuff", unit: champion, owner: 0, stat: "attack", amount: 1 })]);
+      expect(effectStepTexts(g.steps[0] as NonNullable<(typeof g.steps)[0]>)).toEqual([{ text: "+1 Angriff dauerhaft", tone: "buff" }]);
+    }
+  });
+
+  it("R-19.2: `onFrontWin` (Fluchweber an leerer Front) ist eine Gruppe mit Fluch an der Säule des Verlierers", () => {
+    const state = combatState();
+    const weaver = placeUnit(state, 0, front("right", 2, 2), "curse_weaver");
+    runCombatPhase(state, data);
+    const group = combatGroups(state, 1).find((g) => g.source.kind === "unitTrigger" && g.source.sourceId === "curse_weaver");
+    expect(group?.source).toMatchObject({ kind: "unitTrigger", player: 0, unit: weaver, trigger: "onFrontWin", deferred: false });
+    expect(group?.steps).toEqual([expect.objectContaining({ kind: "curse", player: 0, to: 1 })]);
+    expect(effectGroupTitle(data, group as EffectGroup, 1)).toContain("Frontsieg: „");
+  });
+
+  it("R-19.2: Vex' Beute (`leader_trigger_fired`) ist eine Gruppe mit Gold für den Sieger", () => {
+    const state = combatState();
+    const unit = placeUnit(state, 0, front("right", 2, 2), "recruit");
+    const leaderId = getPlayer(state, 0).leader.leaderId;
+    getPlayer(state, 0).chosenFrontWinTrigger = { leaderId, unitIds: [unit], effects: [{ op: "gainGold", amount: 2, when: "now", to: "treasury" }] };
+    runCombatPhase(state, data);
+    const group = combatGroups(state, 2).find((g) => g.source.kind === "leaderTrigger");
+    expect(group?.source).toEqual({ kind: "leaderTrigger", player: 0, leaderId, arena: "front:0-1", units: [unit] });
+    expect(group?.steps).toEqual([expect.objectContaining({ kind: "gold", player: 0, amount: 2 })]);
+    expect(effectGroupTitle(data, group as EffectGroup, 0)).toContain("Frontsieg mit gewählten Einheiten");
+  });
+
+  it("R-10.7: Einheiten-XP der Überlebenden bilden je Arena eine Gruppe mit „+1 XP“ an der Figur", () => {
+    const state = combatState();
+    const champion = placeUnit(state, 0, front("right", 2, 2), "arena_champion");
+    placeUnit(state, 1, front("left", 2, 2), "recruit");
+    runCombatPhase(state, data);
+    const xpEvents = state.log.filter((e) => e.type === "unit_xp_gained");
+    expect(xpEvents.length).toBeGreaterThan(0);
+    const segments = roundSegments(roundReplay(data, eventsFor(state.log, 0), state.round));
+    const index = segments.findIndex((s) => s.kind === "effects" && s.group.source.kind === "survivorXp");
+    const segment = segments[index];
+    expect(segment?.kind === "effects" ? segment.group.steps : []).toEqual([expect.objectContaining({ kind: "xp", unit: champion, owner: 0, arena: "front:0-1" })]);
+    expect(segment?.kind === "effects" ? effectGroupTitle(data, segment.group, 0) : "").toMatch(/^Erfahrung nach dem Kampf/);
+    const frame = roundFrame(layout, segments, { index, tick: 0, fraction: 0.6, clock: null }, () => null);
+    const figure = frame.fighters.find((f) => f.unitId === champion);
+    expect(figure).toBeDefined();
+    expect(frame.effects.texts).toEqual([expect.objectContaining({ text: "+1 XP", position: figure?.position })]);
+    // Ohne Wirker: kein Ring und kein Strahl.
+    expect(frame.effects.flashes).toEqual([]);
+    expect(frame.effects.lines).toEqual([]);
+  });
+
+  it("R-19.2: Gruppen nach den Kämpfen kommen vor dem Durchbruch und nehmen kein Gold der Kampfauswertung auf", () => {
+    const ev = (phase: string, payload: Record<string, unknown>): GameEvent => ({ round: 2, phase, ...payload }) as GameEvent;
+    const log = [
+      ev("combat", { type: "deferred_effects_applied", player: 0, unitId: 7, sourceId: "goblin_skirmisher", trigger: "onDeath", arena: "front:0-1" }),
+      ev("combat", { type: "gold_gained", player: 0, amount: 1, treasury: 1 }),
+      // Auslöser ohne sichtbare Wirkung ergibt keine Gruppe.
+      ev("combat", { type: "ability_triggered", player: 1, unitId: 8, sourceId: "master_thief", trigger: "onFrontWin", arena: "front:1-2" }),
+      ev("combat", { type: "unit_wounded", player: 2, unitId: 9, arena: "front:1-2", cardId: null }),
+      ev("combat", { type: "gold_gained", player: 3, amount: 4, treasury: 4 }),
+      ev("combatResolution", { type: "breakthrough_damage", arena: "front:0-1", winner: 0, loser: 1, breakthrough: 0, baseDamage: 1, amount: 1, life: 19 }),
+      ev("combatResolution", { type: "gold_gained", player: 0, amount: 1, treasury: 2 }),
+    ];
+    const replay = roundReplay(data, log, 2);
+    expect(replay.postCombat.map((g) => [g.source.kind, g.steps.map((s) => s.kind)])).toEqual([
+      ["unitTrigger", ["gold"]],
+      ["breakthrough", ["breakthrough"]],
+    ]);
   });
 });

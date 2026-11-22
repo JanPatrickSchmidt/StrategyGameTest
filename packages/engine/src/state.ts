@@ -523,7 +523,13 @@ export type GameEventPayload =
   | { type: "curse_given"; player: PlayerIndex; to: PlayerIndex; cardId: string; cardInstanceId: CardInstanceId; sourceUnitId: UnitId | null }
   /** `stealGold`: Gold aus der Schatzkammer von `from` in die Schatzkammer von `player` (R-10.3). */
   | { type: "gold_stolen"; player: PlayerIndex; from: PlayerIndex; amount: number; treasury: number; fromTreasury: number; sourceUnitId: UnitId | null }
-  /** Fähigkeit einer Einheit außerhalb des Kampfes ausgelöst (`onFrontWin`, `onRoundStart`, vorgemerkte Kampf-Effekte). */
+  /**
+   * P14b: Vorgemerkte Kampf-Effekte einer Auslösung im Kampf in `arena` wirken jetzt auf den Spielzustand (nach allen
+   * Kämpfen); die folgenden Ereignisse (Gold, Fluch, Stehlen, dauerhafte Buffs, Anführer-XP) gehören dazu.
+   * `unitId` = auslösende Einheit, `null` bei einem Kampf-Token, das nicht im Spielzustand steht.
+   */
+  | { type: "deferred_effects_applied"; player: PlayerIndex; unitId: UnitId | null; sourceId: string; trigger: Trigger; arena: string }
+  /** Fähigkeit einer Einheit außerhalb des Kampfes ausgelöst (`onFrontWin`, `onRoundStart`). */
   | { type: "ability_triggered"; player: PlayerIndex; unitId: UnitId; sourceId: string; trigger: Trigger; arena: string | null }
   /** R-17a.2: Markierung „nächste Runde“ gespeichert. */
   | { type: "round_mark_set"; player: PlayerIndex; mark: RoundMark }

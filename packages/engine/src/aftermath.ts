@@ -177,16 +177,25 @@ export function addPermanentBuff(state: GameState, unitId: UnitId, stat: Extract
   emit(state, { type: "unit_buffed_permanently", player: unit.owner, unitId, stat, amount, total, sourceUnitId });
 }
 
-/** Vorgemerkte Effekte eines Kampfes anwenden, in Auslösereihenfolge. */
+/**
+ * Vorgemerkte Effekte eines Kampfes in der Arena `arena` anwenden, in Auslösereihenfolge. Vor den Effekten einer
+ * Auslösung (gleicher Kämpfer, Tick und Auslöser) steht `deferred_effects_applied` (P14b, R-19.2), damit die
+ * Wiedergabe die folgenden Wirkungen (Gold, Fluch, Stehlen, dauerhafte Buffs, Anführer-XP) zuordnen kann.
+ */
 export function applyDeferredEffects(
   state: GameState,
   data: GameData,
   deferred: readonly DeferredEffect[],
   frontOpponentOf: (player: PlayerIndex) => PlayerIndex | null,
+  arena: string,
 ): void {
+  let previous: DeferredEffect | null = null;
   for (const d of deferred) {
     const player = d.team as PlayerIndex;
     const unitId = state.units[d.unit] ? d.unit : null;
+    const sameTrigger = previous !== null && previous.unit === d.unit && previous.team === d.team && previous.tick === d.tick && previous.trigger === d.trigger && previous.sourceId === d.sourceId;
+    if (!sameTrigger) emit(state, { type: "deferred_effects_applied", player, unitId, sourceId: d.sourceId, trigger: d.trigger, arena });
+    previous = d;
     if (d.effect.op === "buff") {
       if (d.effect.duration !== "permanent") continue;
       for (const t of d.targets ?? []) addPermanentBuff(state, t, d.effect.stat, d.amount ?? fixedAmount(d.effect.amount), d.unit);
@@ -282,9 +291,9 @@ export interface CombatPhaseOutcome {
 export function applyCombatAftermath(state: GameState, data: GameData, outcome: CombatPhaseOutcome): void {
   for (const { result, deferred } of outcome.fronts) {
     const opponent = (p: PlayerIndex): PlayerIndex | null => (p === result.first ? result.second : p === result.second ? result.first : null);
-    applyDeferredEffects(state, data, deferred, opponent);
+    applyDeferredEffects(state, data, deferred, opponent, result.arena);
   }
-  if (outcome.center) applyDeferredEffects(state, data, outcome.center.deferred, () => null);
+  if (outcome.center) applyDeferredEffects(state, data, outcome.center.deferred, () => null, outcome.center.result.arena);
   runFrontWinEffects(state, data, outcome.fronts.map((f) => f.result));
 }
 

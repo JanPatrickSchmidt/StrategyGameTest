@@ -88,6 +88,35 @@ function deferred(unit: UnitId, team: PlayerIndex, effect: Effect, extra: Partia
 }
 
 describe("Vorgemerkte Kampf-Effekte (E10b, R-10.3)", () => {
+  it("R-19.2, P14b: vor den vorgemerkten Effekten einer Auslösung steht `deferred_effects_applied` mit Arena", () => {
+    const state = emptyBoard();
+    const id = placeUnit(state, 2, front("right", 0, 0), "recruit");
+    const start = state.log.length;
+    const gold: Effect = { op: "gainGold", amount: 1, when: "now", to: "treasury" };
+    applyCombatAftermath(state, data, {
+      fronts: [
+        {
+          result: frontResult(2, 3, null, [id]),
+          // Zwei Effekte derselben Auslösung, dann eine zweite Auslösung (späterer Tick) und ein Kampf-Token.
+          deferred: [
+            deferred(id, 2, gold, { amount: 1 }),
+            deferred(id, 2, gold, { amount: 2 }),
+            deferred(id, 2, gold, { amount: 1, tick: 5 }),
+            deferred(9999, 3, gold, { amount: 1, sourceId: "token_x", trigger: "onDeath" }),
+          ],
+        },
+      ],
+      center: null,
+    });
+    const types = state.log.slice(start).map((e) => e.type);
+    expect(types).toEqual(["deferred_effects_applied", "gold_gained", "gold_gained", "deferred_effects_applied", "gold_gained", "deferred_effects_applied", "gold_gained"]);
+    expect(eventsOf(state, "deferred_effects_applied", start)).toEqual([
+      expect.objectContaining({ player: 2, unitId: id, sourceId: "test", trigger: "onDeath", arena: "front:2-3" }),
+      expect.objectContaining({ player: 2, unitId: id, sourceId: "test", trigger: "onDeath", arena: "front:2-3" }),
+      expect.objectContaining({ player: 3, unitId: null, sourceId: "token_x", trigger: "onDeath", arena: "front:2-3" }),
+    ]);
+  });
+
   it("R-10.3: Goblin-Plänkler stirbt im Frontkampf, sein Spieler erhält 1 Gold sofort in die Schatzkammer", () => {
     const state = emptyBoard();
     placeUnit(state, 0, front("right", 2, 2), "goblin_skirmisher");
