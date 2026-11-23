@@ -3,7 +3,7 @@ import { type GameEvent, loadGameData, playerView, type UnitId } from "@game/eng
 import { buildBoardLayout, frontPairsFor, locationPosition, seatPillarPosition, type WorldPoint } from "./boardLayout";
 import { BASE_TICKS_PER_SECOND } from "./combatReplay";
 import { EFFECT_GROUP_MS, type ReplaySegment, RoundReplayPlayer, roundReplay, roundSegments } from "./effectReplay";
-import { arenaCellPosition } from "./replayAnimation";
+import { arenaCellPosition, fixedFighters } from "./replayAnimation";
 import { arenaHexPosition, HIT_AT, isSeatStep, seatStepTexts, type Locate, type RoundCursor, roundFrame, roundStatusText, SEAT_TEXT_HEIGHT } from "./roundAnimation";
 import { GameSession, HUMAN } from "./session";
 
@@ -171,6 +171,42 @@ describe("C4c2b: Kampf und Nachkampf-Wirkungen auf dem Brett", () => {
   });
 });
 
+describe("P15b: Lebens-Buffs vor dem Kampf", () => {
+  /** Ilyra trifft 6 für 1, danach Kriegsruf (Leben +2) auf 6; 6 startet mit 4 von 5 Leben (Grundwert 3). */
+  function warCryLog(): GameEvent[] {
+    return [
+      ev("leaderAbilities", { type: "leader_ability_resolved", player: 1, leaderId: "ilyra", category: "damage", level: 1, branchId: null }),
+      ev("leaderAbilities", { type: "unit_damaged", player: 0, unitId: 6, amount: 1, absorbed: 0, hpLoss: 1, hp: 2, cardId: "ilyra" }),
+      ev("preCombatSpells", { type: "spell_resolved", player: 0, cardInstanceId: 44, cardId: "war_cry", slot: 1, tempo: 1 }),
+      ev("preCombatSpells", { type: "unit_buffed", player: 0, unitId: 6, stat: "hp", amount: 2, duration: "combat", cardId: "war_cry" }),
+      ev("combat", {
+        type: "combat_started",
+        arena: ARENA,
+        players: [0, 1],
+        fighters: [
+          { unitId: 6, player: 0, sourceId: "recruit", cell: { col: 1, row: 2 }, hp: 4, maxHp: 5, shield: 0 },
+          { unitId: 30, player: 1, sourceId: "recruit", cell: { col: 3, row: 3 }, hp: 1, maxHp: 1, shield: 0 },
+        ],
+      }),
+      ev("combat", { type: "combat_ended", arena: ARENA, tick: 1, winner: null, survivors: [6, 30] }),
+    ];
+  }
+
+  it("R-19.2: Kriegsruf (Leben +2) – vor seiner Gruppe Leben und Maximum ohne Buff, ab dem Treffer mit Buff", () => {
+    const s = roundSegments(roundReplay(data, warCryLog(), R));
+    const kinds = s.map((g) => (g.kind === "effects" ? `${g.when}` : g.kind));
+    expect(kinds.slice(0, 3)).toEqual(["pre", "pre", "combat"]);
+    const show = (index: number, fraction: number) => fighter(roundFrame(layout, s, at(index, fraction), locate), 6);
+    // Vor Ilyras Treffer: weder Schaden noch Buff.
+    expect(show(0, 0.1)).toMatchObject({ hp: 3, maxHp: 3 });
+    expect(show(0, HIT_AT)).toMatchObject({ hp: 2, maxHp: 3 });
+    // Kriegsruf: bis zum Treffer ohne Buff, danach mit Leben und Maximum +2.
+    expect(show(1, 0.1)).toMatchObject({ hp: 2, maxHp: 3 });
+    expect(show(1, HIT_AT)).toMatchObject({ hp: 4, maxHp: 5 });
+    expect(show(1, 0.99)).toMatchObject({ hp: 4, maxHp: 5 });
+  });
+});
+
 describe("C4c2b: ganze Runden echter Bot-Partien", () => {
   function playedLog(seed: number, rounds: number): GameEvent[] {
     const session = new GameSession(data, { seed });
@@ -210,5 +246,29 @@ describe("C4c2b: ganze Runden echter Bot-Partien", () => {
     }
     expect(damageSteps).toBeGreaterThan(0);
     expect(breakthroughs).toBeGreaterThan(0);
+  });
+
+  it("R-19.2 (P15b): in echten Bot-Partien gilt vor der ersten Vorkampf-Gruppe gilt Leben ≤ Maximum, nach der letzten stehen die Startwerte des Kampfs (Bots spielen keinen Lebens-Buff; Gegenstück zum Kriegsruf-Test)", () => {
+    for (const seed of [3, 5, 8, 13]) {
+      const log = playedLog(seed, 8);
+      for (const round of [...new Set(log.map((e) => e.round))]) {
+        const s = roundSegments(roundReplay(data, log, round));
+        const pre = [...s.entries()].filter(([, seg]) => seg.kind === "effects" && seg.when === "pre").map(([i]) => i);
+        if (pre.length === 0) continue;
+        const first = roundFrame(layout, s, at(pre[0] ?? 0, 0), () => ({ x: 0, z: 0 }));
+        for (const f of first.fighters) {
+          expect(f.maxHp).toBeGreaterThan(0);
+          expect(f.hp).toBeLessThanOrEqual(f.maxHp);
+        }
+        const last = roundFrame(layout, s, at(pre[pre.length - 1] ?? 0, 0.99), () => ({ x: 0, z: 0 }));
+        for (const seg of s) {
+          if (seg.kind !== "combat") continue;
+          for (const start of fixedFighters(layout, seg.replay, "start")) {
+            const shown = last.fighters.find((f) => f.arena === start.arena && f.unitId === start.unitId);
+            expect(shown && { hp: shown.hp, maxHp: shown.maxHp, shield: shown.shield }).toEqual({ hp: start.hp, maxHp: start.maxHp, shield: start.shield });
+          }
+        }
+      }
+    }
   });
 });

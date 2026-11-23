@@ -4,9 +4,9 @@
  * R-19.2: Grundlage sind nur die Abschnitte einer `RoundReplay` (`effectReplay.ts`, also das Ereignisprotokoll) und
  * die Brett-Geometrie. Für jeden Augenblick der Wiedergabe entsteht ein `RoundFrame`:
  * - Vorkampf-Gruppen (Anführer-Fähigkeiten, Vorkampf-Zauber): alle Kämpfer in ihrer Startaufstellung. Was eine
- *   Gruppe bewirkt, ist erst ab ihrem Treffer-Zeitpunkt (`HIT_AT`) zu sehen: Leben und Schild zählen bis dahin ohne
- *   ihren Schaden bzw. Schild, beschworene Figuren erscheinen erst dann, ein Schattenschritt gleitet vom alten zum
- *   neuen Feld. Einheiten, die nicht kämpfen (z. B. vor dem Kampf besiegt), werden als Brett-Figuren gemeldet
+ *   Gruppe bewirkt, ist erst ab ihrem Treffer-Zeitpunkt (`HIT_AT`) zu sehen: Leben, Maximum und Schild zählen bis dahin
+ *   ohne ihren Schaden, Lebens-Buff (P15b) bzw. Schild, beschworene Figuren erscheinen erst dann, ein Schattenschritt
+ *   gleitet vom alten zum neuen Feld. Einheiten, die nicht kämpfen (z. B. vor dem Kampf besiegt), werden als Brett-Figuren gemeldet
  *   (`boardUnits`) und blenden beim Besiegen aus.
  * - Kämpfe: wie C4c1/C4c2a (`roundFighters`, `combatEffects`).
  * - Nachkampf-Gruppen (Durchbruch, Nachkampf-Zauber): alle Überlebenden im Endbild ihres Kampfs; Durchbruch fliegt
@@ -109,9 +109,13 @@ function applied(j: number, k: number, fraction: number): boolean {
   return j < k || (j === k && fraction >= HIT_AT);
 }
 
-/** Leben und Schild einer Figur nach den bis jetzt sichtbaren (`post`) bzw. ohne die noch kommenden (`pre`) Wirkungen. */
+/**
+ * Leben, Maximum und Schild einer Figur nach den bis jetzt sichtbaren (`post`) bzw. ohne die noch kommenden (`pre`)
+ * Wirkungen. Ein Buff auf Leben (z. B. Kriegsruf, P15b) zählt wie in der Engine (`stats.hp`) für Leben und Maximum.
+ */
 function adjustValues(f: AnimatedFighter, groups: readonly EffectGroup[], k: number, fraction: number, when: "pre" | "post"): AnimatedFighter {
   let hp = f.hp;
+  let maxHp = f.maxHp;
   let shield = f.shield;
   for (const [j, g] of groups.entries()) {
     const shown = applied(j, k, fraction);
@@ -125,9 +129,13 @@ function adjustValues(f: AnimatedFighter, groups: readonly EffectGroup[], k: num
         hp += sign * s.hpLoss;
         shield += sign * s.absorbed;
       } else if (s.kind === "shield") shield -= sign * s.amount;
+      else if (s.kind === "buff" && s.stat === "hp") {
+        hp -= sign * s.amount;
+        maxHp -= sign * s.amount;
+      }
     }
   }
-  return { ...f, hp, shield: Math.max(0, shield) };
+  return { ...f, hp, maxHp, shield: Math.max(0, shield) };
 }
 
 /** Deckkraft einer Figur, die in Gruppe `j` besiegt wird. */
