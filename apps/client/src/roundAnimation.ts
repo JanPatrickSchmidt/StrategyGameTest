@@ -27,6 +27,7 @@ import type { EffectGroup, EffectStep, ReplaySegment } from "./effectReplay";
 import { type AnimatedFighter, arenaName, fixedFighters, roundFighters } from "./replayAnimation";
 import { buffText, combatEffects, type CombatEffects, type EffectTone, keywordText } from "./replayEffects";
 import { playerName } from "./stateText";
+import type { UnitPlacement } from "./roundPlacements";
 import type { FigureShape } from "./unitFigures";
 
 /** Anteil der Gruppendauer, bis zu dem der Ring am Wirker läuft. */
@@ -57,10 +58,26 @@ export interface RoundFrame {
   effects: CombatEffects;
   /** Einheiten ohne Kampf, die als Brett-Figur gezeigt werden (Deckkraft 0 bis 1). */
   boardUnits: { unit: UnitId; opacity: number }[];
+  /**
+   * P16: Einheiten ohne Kampf, die erst in dieser Runde auf das Brett kamen (`roundPlacements`). Ort, Form und
+   * Leben stammen aus den Ereignissen der Runde, nicht aus der Planungsansicht.
+   */
+  newUnits: NewBoardUnit[];
   /** Leben je Sitz nach schon gezeigtem Durchbruch-Schaden. */
   seatLife: Map<PlayerIndex, number>;
   /** Arena, auf die die Kamera schaut; `null` = Gesamtansicht. */
   focusArena: string | null;
+}
+
+/** P16: Brett-Figur einer in dieser Runde neuen Einheit ohne Kampf. */
+export interface NewBoardUnit {
+  unit: UnitId;
+  owner: PlayerIndex;
+  shape: FigureShape;
+  position: WorldPoint;
+  hp: number;
+  shield: number;
+  opacity: number;
 }
 
 /** Position einer Einheit ohne Kampf (z. B. Brett-Figur aus der Sicht vor der Runde). */
@@ -152,6 +169,24 @@ function firstGroupWith(groups: readonly EffectGroup[], unit: UnitId, kind: Unit
   return null;
 }
 
+/** P16: Leben und Schild einer neuen Einheit ohne Kampf nach den schon gezeigten Schritten. */
+function newUnitValues(placement: UnitPlacement, groups: readonly EffectGroup[], k: number, fraction: number): { hp: number; shield: number } {
+  let hp = placement.hp;
+  let shield = 0;
+  for (const [j, g] of groups.entries()) {
+    if (!applied(j, k, fraction)) continue;
+    for (const s of g.steps) {
+      if (!("owner" in s) || s.unit !== placement.unit) continue;
+      if (s.kind === "damage") {
+        hp = s.hp;
+        shield = Math.max(0, shield - s.absorbed);
+      } else if (s.kind === "shield") shield = s.shield;
+      else if (s.kind === "buff" && s.stat === "hp") hp += s.amount;
+    }
+  }
+  return { hp: Math.max(0, hp), shield };
+}
+
 /** Figuren und Brett-Einheiten während einer Vorkampf- (`pre`) bzw. Nachkampf-Gruppe (`post`). */
 function effectFighters(
   layout: BoardLayout,
@@ -159,7 +194,8 @@ function effectFighters(
   when: "pre" | "post",
   k: number,
   fraction: number,
-): { fighters: AnimatedFighter[]; boardUnits: { unit: UnitId; opacity: number }[] } {
+  placements: ReadonlyMap<UnitId, UnitPlacement>,
+): { fighters: AnimatedFighter[]; boardUnits: { unit: UnitId; opacity: number }[]; newUnits: NewBoardUnit[] } {
   const groups = groupsOf(segments, when);
   const fighters: AnimatedFighter[] = [];
   for (const replay of combatsOf(segments)) {
@@ -191,16 +227,29 @@ function effectFighters(
   }
   const shownUnits = new Set(fighters.map((f) => f.unitId));
   const boardUnits: { unit: UnitId; opacity: number }[] = [];
+  const newUnits: NewBoardUnit[] = [];
   const seen = new Set<UnitId>();
   for (const g of groups) {
     for (const s of g.steps) {
-      if (!("owner" in s) || s.arena !== null || s.kind === "summon" || seen.has(s.unit) || shownUnits.has(s.unit)) continue;
+      if (!("owner" in s) || s.arena !== null || seen.has(s.unit) || shownUnits.has(s.unit)) continue;
+      const placement = placements.get(s.unit);
+      if (!placement && s.kind === "summon") continue;
       seen.add(s.unit);
-      const opacity = defeatOpacity(firstGroupWith(groups, s.unit, "defeat")?.j, k, fraction);
-      if (opacity > 0) boardUnits.push({ unit: s.unit, opacity });
+      let opacity = defeatOpacity(firstGroupWith(groups, s.unit, "defeat")?.j, k, fraction);
+      if (!placement) {
+        if (opacity > 0) boardUnits.push({ unit: s.unit, opacity });
+        continue;
+      }
+      // P16: vor der Gruppe ihrer Beschwörung gibt es die Einheit noch nicht, in ihr erscheint sie ab dem Treffer.
+      const summon = when === "pre" ? firstGroupWith(groups, s.unit, "summon") : null;
+      if (summon && summon.j > k) continue;
+      if (summon && summon.j === k) opacity = Math.min(opacity, fraction < HIT_AT ? 0 : clamp01((fraction - HIT_AT) / 0.2));
+      const position = locationPosition(layout, placement.owner, placement.location);
+      if (opacity <= 0 || !position) continue;
+      newUnits.push({ unit: s.unit, owner: placement.owner, shape: placement.shape, position, ...newUnitValues(placement, groups, k, fraction), opacity });
     }
   }
-  return { fighters, boardUnits };
+  return { fighters, boardUnits, newUnits };
 }
 
 /** Texte, die ein Schritt einer Wirkungsgruppe über seinem Ziel erzeugt. */
@@ -418,10 +467,17 @@ function groupIndex(segments: readonly ReplaySegment[], index: number, when: "pr
 
 /**
  * Alles, was das Brett an der Abspielposition `cursor` eines `RoundReplayPlayer` zeigt (R-19.2: nur aus den
- * Abschnitten). `locate` liefert die Position einer Einheit, die nicht kämpft (Brett-Figur vor der Runde).
+ * Abschnitten). `locate` liefert die Position einer Einheit, die nicht kämpft (Brett-Figur vor der Runde);
+ * `placements` (P16, `roundPlacements`) die Einheiten, die erst in dieser Runde auf das Brett kamen.
  */
-export function roundFrame(layout: BoardLayout, segments: readonly ReplaySegment[], cursor: RoundCursor, locate: Locate): RoundFrame {
-  const empty: RoundFrame = { fighters: [], effects: emptyEffects(), boardUnits: [], seatLife: new Map(), focusArena: null };
+export function roundFrame(
+  layout: BoardLayout,
+  segments: readonly ReplaySegment[],
+  cursor: RoundCursor,
+  locate: Locate,
+  placements: ReadonlyMap<UnitId, UnitPlacement> = new Map(),
+): RoundFrame {
+  const empty: RoundFrame = { fighters: [], effects: emptyEffects(), boardUnits: [], newUnits: [], seatLife: new Map(), focusArena: null };
   if (cursor.index === null) return empty;
   const segment = segments[cursor.index];
   if (!segment) return empty;
@@ -432,12 +488,18 @@ export function roundFrame(layout: BoardLayout, segments: readonly ReplaySegment
     const fighters = roundFighters(layout, combats, { index: combatIndex, tick: cursor.tick, fraction: cursor.fraction });
     const clock = cursor.clock;
     const effects = clock === null ? emptyEffects() : combatEffects(layout, segment.replay, Math.floor(clock), clock - Math.floor(clock));
-    return { fighters, effects, boardUnits: [], seatLife, focusArena: segment.replay.arena };
+    return { fighters, effects, boardUnits: [], newUnits: [], seatLife, focusArena: segment.replay.arena };
   }
   const k = groupIndex(segments, cursor.index, segment.when);
-  const { fighters, boardUnits } = effectFighters(layout, segments, segment.when, k, cursor.fraction);
-  const effects = groupEffects(layout, segment.group, `${segment.when}${k}`, cursor.fraction, fighters, locate);
-  return { fighters, effects, boardUnits, seatLife, focusArena: null };
+  const { fighters, boardUnits, newUnits } = effectFighters(layout, segments, segment.when, k, cursor.fraction, placements);
+  // P16: neue Einheiten stehen an ihrem Ort aus den Ereignissen der Runde, alle anderen am Ort vor der Runde.
+  const placedLocate: Locate = (unit) => {
+    const placement = placements.get(unit);
+    if (placement) return locationPosition(layout, placement.owner, placement.location);
+    return locate(unit);
+  };
+  const effects = groupEffects(layout, segment.group, `${segment.when}${k}`, cursor.fraction, fighters, placedLocate);
+  return { fighters, effects, boardUnits, newUnits, seatLife, focusArena: null };
 }
 
 /** Name des Auslösers einer Gruppe, z. B. „Fähigkeit von Ilyra (Bot 2)“ oder „Zauber „Feuerball“ (Du)“. */

@@ -11,6 +11,7 @@ import { cardRulesText } from "./cardRules";
 import { boughtInRound, boughtNote, CARD_ZONE_NAMES, cardCountText, ownCardOverview } from "./cardOverview";
 import { BASE_TICKS_PER_SECOND, REPLAY_SPEEDS, type ReplaySpeed } from "./combatReplay";
 import { RoundReplayPlayer, roundReplay } from "./effectReplay";
+import { roundPlacements } from "./roundPlacements";
 import { roundStatusText } from "./roundAnimation";
 import { createBoardScene, type BoardScene } from "./scene";
 import { PlanningPanel } from "./planningPanel";
@@ -151,7 +152,8 @@ function selectedSpeed(): ReplaySpeed {
 /** Spielt die gerade aufgelöste Runde `round` ab (R-19.2: nur aus dem Protokoll der eigenen Sicht). */
 function startReplay(round: number): void {
   if (!scene) return;
-  const player = new RoundReplayPlayer(roundReplay(data, session.view().log, round));
+  const log = session.view().log;
+  const player = new RoundReplayPlayer(roundReplay(data, log, round), roundPlacements(data, log, round));
   if (player.segments.length === 0) return;
   player.setSpeed(selectedSpeed());
   replayPlayer = player;

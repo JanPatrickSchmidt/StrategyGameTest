@@ -26,6 +26,7 @@ import {
   type ReplaySpeed,
   replayFrameAt,
 } from "./combatReplay";
+import type { UnitPlacement } from "./roundPlacements";
 
 type EventOf<T extends GameEvent["type"]> = Extract<GameEvent, { type: T }>;
 type UnitLocation = EventOf<"unit_moved">["to"];
@@ -413,8 +414,12 @@ export class RoundReplayPlayer {
   private elapsedMs = 0;
   private speedValue: ReplaySpeed = 1;
 
-  constructor(replay: RoundReplay) {
+  /** P16: in dieser Runde neue Einheiten mit ihrem Ort aus den Ereignissen (`roundPlacements`). */
+  readonly placements: ReadonlyMap<UnitId, UnitPlacement>;
+
+  constructor(replay: RoundReplay, placements: ReadonlyMap<UnitId, UnitPlacement> = new Map()) {
     this.segments = roundSegments(replay);
+    this.placements = placements;
   }
 
   get speed(): ReplaySpeed {

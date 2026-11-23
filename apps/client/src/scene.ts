@@ -500,7 +500,7 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
     const frame = roundFrame(layout, active.player.segments, { ...position, clock: active.player.clock() }, (unit) => {
       const entry = figures.get(unit);
       return entry ? { x: entry.mesh.position.x, z: entry.mesh.position.z } : null;
-    });
+    }, active.player.placements);
     const fighters = frame.fighters;
     const effects = frame.effects;
     // C4c2b: Einheiten ohne Kampf (z. B. vor dem Kampf besiegt) als Brett-Figur, ausblendend.
@@ -547,6 +547,35 @@ export function createBoardScene(canvas: HTMLCanvasElement, options: BoardSceneO
       entry.badge.setText(fighterBadgeText(f), "#fbf3e2", badgeBackground(f.player));
       entry.badge.mesh.position.set(f.position.x, FIGURE_BASE + BADGE_HEIGHT[f.shape], f.position.z);
       entry.badge.mesh.visibility = f.opacity;
+    }
+    // P16: in dieser Runde neue Einheiten ohne Kampf an ihrem Ort aus den Ereignissen (auch verdeckt geplante Gegner).
+    for (const b of frame.newUnits) {
+      const key = `board:${b.unit}`;
+      seen.add(key);
+      const shapeKey = figureSourceKey({ shape: b.shape, owner: b.owner, wounded: false });
+      let entry = replayFigures.get(key);
+      if (entry && entry.shapeKey !== shapeKey) {
+        entry.mesh.dispose(false, false);
+        entry.badge.dispose();
+        entry = undefined;
+      }
+      if (!entry) {
+        const mesh = figureSource({ shape: b.shape, owner: b.owner, wounded: false }).clone(`replay-${key}`);
+        mesh.isVisible = true;
+        mesh.isPickable = false;
+        mesh.metadata = null;
+        mesh.rotation.y = b.shape === "melee" ? Math.PI / 4 - seatAngle(b.owner) : 0;
+        const badge = makeTextBadge(scene, `replayBadge-${key}`, BADGE_WIDTH, 256, 3);
+        badge.mesh.renderingGroupId = 1;
+        entry = { mesh, badge, shapeKey };
+        replayFigures.set(key, entry);
+      }
+      entry.mesh.position.set(b.position.x, FIGURE_BASE, b.position.z);
+      entry.mesh.visibility = b.opacity;
+      entry.mesh.rotation.z = 0;
+      entry.badge.setText(fighterBadgeText({ hp: b.hp, shield: b.shield, stunned: false }), "#fbf3e2", badgeBackground(b.owner));
+      entry.badge.mesh.position.set(b.position.x, FIGURE_BASE + BADGE_HEIGHT[b.shape], b.position.z);
+      entry.badge.mesh.visibility = b.opacity;
     }
     for (const [key, entry] of replayFigures) {
       if (seen.has(key)) continue;
