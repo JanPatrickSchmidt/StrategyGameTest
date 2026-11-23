@@ -34,7 +34,7 @@ function handLog(): GameEvent[] {
     },
     { ...base, type: "combat_unit_moved", arena: FRONT, tick: 1, unit: 1, from: { col: 1, row: 2 }, to: { col: 2, row: 3 } },
     { ...base, type: "combat_damage", arena: FRONT, tick: 3, source: 1, target: 2, kind: "attack", amount: 2, absorbed: 2, hpLoss: 0, hp: 3 },
-    { ...base, type: "combat_unit_stunned", arena: FRONT, tick: 4, unit: 2, ticks: 2 },
+    { ...base, type: "combat_unit_stunned", arena: FRONT, tick: 4, unit: 2, ticks: 2, untilTick: 5 },
     { ...base, type: "combat_damage", arena: FRONT, tick: 13, source: 1, target: 2, kind: "attack", amount: 4, absorbed: 0, hpLoss: 3, hp: -1 },
     { ...base, type: "combat_unit_died", arena: FRONT, tick: 13, unit: 2, killer: 1 },
     { ...base, type: "combat_ended", arena: FRONT, tick: 30, winner: 0, survivors: [1] },

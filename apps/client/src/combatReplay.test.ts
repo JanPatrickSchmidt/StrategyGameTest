@@ -43,7 +43,7 @@ function handLog(): GameEvent[] {
     { ...base, type: "combat_attack", arena: ARENA, tick: 3, unit: 1, target: 2 },
     { ...base, type: "combat_damage", arena: ARENA, tick: 3, source: 1, target: 2, kind: "attack", amount: 2, absorbed: 2, hpLoss: 0, hp: 3 },
     { ...base, type: "combat_mana_gained", arena: ARENA, tick: 3, source: 1, target: 2, amount: 10, mana: 10 },
-    { ...base, type: "combat_unit_stunned", arena: ARENA, tick: 4, unit: 1, ticks: 2 },
+    { ...base, type: "combat_unit_stunned", arena: ARENA, tick: 4, unit: 1, ticks: 2, untilTick: 5 },
     {
       ...base,
       type: "combat_unit_summoned",

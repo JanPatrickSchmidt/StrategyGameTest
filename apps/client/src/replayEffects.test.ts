@@ -43,7 +43,7 @@ function handLog(): GameEvent[] {
     { ...base, type: "combat_damage", tick: 20, source: 3, target: 2, kind: "attack", amount: 1, absorbed: 0, hpLoss: 1, hp: 4 },
     { ...base, type: "combat_ability", tick: 40, unit: 4, target: 2 },
     { ...base, type: "combat_damage", tick: 40, source: 4, target: 2, kind: "ability", amount: 2, absorbed: 0, hpLoss: 2, hp: 2 },
-    { ...base, type: "combat_unit_stunned", tick: 40, unit: 2, ticks: 10 },
+    { ...base, type: "combat_unit_stunned", tick: 40, unit: 2, ticks: 10, untilTick: 49 },
     { ...base, type: "combat_ability", tick: 60, unit: 4, target: null },
     { ...base, type: "combat_healed", tick: 60, source: 4, target: 1, amount: 2, hp: 3 },
     { ...base, type: "combat_shielded", tick: 60, source: 4, target: 3, amount: 4, shield: 4 },

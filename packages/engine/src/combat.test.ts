@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bestTarget,
+  buffFighter,
   type CombatEvent,
   type CombatHooks,
   createCombat,
@@ -538,5 +539,78 @@ describe("C4a: Startwerte im Protokoll für die Kampfwiedergabe (R-19.2)", () =>
     const summoned = ofType(result.events, "combat_unit_summoned");
     expect(summoned).toHaveLength(1);
     expect(summoned[0]).toMatchObject({ hp: 2, maxHp: 2, shield: 1, cell: { col: 0, row: 0 } });
+  });
+});
+
+describe("P15: Betäubungsende und HP-Buff im Ereignis (R-9.3, R-19.2)", () => {
+  /** Läuft bis `tick` und prüft: im Tick davor noch betäubt, in `tick` der letzte ausgesetzte Zug. */
+  function expectStunEndsAt(sim: ReturnType<typeof createCombat>, unit: number, untilTick: number): void {
+    const f = fighterById(sim, unit) as Fighter;
+    while (sim.tick < untilTick - 1) stepCombat(sim);
+    expect(f.stun).toBeGreaterThan(0);
+    stepCombat(sim);
+    expect(sim.tick).toBe(untilTick);
+    expect(f.lastTurnTick).toBe(untilTick);
+    expect(f.stun).toBe(0);
+  }
+
+  const quiet = (id: number, team: number, pos: OffsetCoord): FighterInit => fighter(id, team, pos, { attack: 0, hp: 1000 });
+
+  it("R-9.3 (P15): Betäubung zu Kampfbeginn endet nach `ticks` Zügen; `untilTick` sagt es", () => {
+    const sim = createCombat(withTicks(50), SIZE, [quiet(1, 0, { col: 2, row: 2 }), quiet(2, 1, { col: 2, row: 3 })], stunAtStart([2], 4));
+    expectStunEndsAt(sim, 2, 4);
+    expect(ofType(sim.events, "combat_unit_stunned")).toEqual([{ type: "combat_unit_stunned", tick: 0, unit: 2, ticks: 4, untilTick: 4 }]);
+  });
+
+  it("R-9.3 (P15): im Tick betäubt, bevor das Ziel an der Reihe war → `untilTick` = Tick + ticks − 1", () => {
+    const hooks: CombatHooks = { onManaFull: (s) => stunFighter(s, fighterById(s, 2) as Fighter, 5) };
+    const caster = fighter(1, 0, { col: 2, row: 2 }, { attack: 0, hp: 1000, manaMax: 10 }, { hasManaAbility: true, startMana: 10 });
+    const sim = createCombat(withTicks(50), SIZE, [caster, quiet(2, 1, { col: 2, row: 3 })], hooks);
+    stepCombat(sim);
+    expect(ofType(sim.events, "combat_unit_stunned").map((e) => [e.tick, e.untilTick])).toEqual([[1, 5]]);
+    expectStunEndsAt(sim, 2, 5);
+  });
+
+  it("R-9.3 (P15): im Tick betäubt, nachdem das Ziel schon an der Reihe war → `untilTick` = Tick + ticks", () => {
+    // Einheit 2 handelt vor Einheit 3 (aufsteigende ID) und wird erst danach betäubt.
+    const hooks: CombatHooks = { onManaFull: (s) => stunFighter(s, fighterById(s, 2) as Fighter, 5) };
+    const caster = fighter(3, 0, { col: 2, row: 2 }, { attack: 0, hp: 1000, manaMax: 10 }, { hasManaAbility: true, startMana: 10 });
+    const sim = createCombat(withTicks(50), SIZE, [quiet(2, 1, { col: 2, row: 3 }), caster], hooks);
+    stepCombat(sim);
+    expect(ofType(sim.events, "combat_unit_stunned").map((e) => [e.tick, e.untilTick])).toEqual([[1, 6]]);
+    expectStunEndsAt(sim, 2, 6);
+  });
+
+  it("R-9.3 (P15): kurze Betäubung auf ein schon länger betäubtes Ziel behält das spätere Ende", () => {
+    const sim = createCombat(withTicks(50), SIZE, [quiet(1, 0, { col: 2, row: 2 }), quiet(2, 1, { col: 2, row: 3 })], stunAtStart([2], 10));
+    for (let i = 0; i < 3; i++) stepCombat(sim);
+    stunFighter(sim, fighterById(sim, 2) as Fighter, 2);
+    const stuns = ofType(sim.events, "combat_unit_stunned");
+    expect(stuns.map((e) => [e.tick, e.ticks, e.untilTick])).toEqual([
+      [0, 10, 10],
+      [3, 2, 10],
+    ]);
+    expectStunEndsAt(sim, 2, 10);
+  });
+
+  it("R-9.3 (P15): Beschworene sind im Tick ihrer Beschwörung nicht mehr an der Reihe", () => {
+    const sim = createCombat(withTicks(50), SIZE, [quiet(1, 0, { col: 2, row: 2 }), quiet(2, 1, { col: 2, row: 4 })], {}, 50);
+    stepCombat(sim);
+    const token = spawnFighter(sim, null, quiet(0, 0, { col: 0, row: 0 }), { col: 0, row: 0 }) as Fighter;
+    stunFighter(sim, token, 3);
+    expect(ofType(sim.events, "combat_unit_stunned").map((e) => [e.unit, e.tick, e.untilTick])).toEqual([[50, 1, 4]]);
+    expectStunEndsAt(sim, 50, 4);
+  });
+
+  it("R-19.2 (P15): `combat_buffed` mit `hp` trägt die neuen `hp` und `maxHp`, andere Werte nicht", () => {
+    const sim = createCombat(withTicks(50), SIZE, [quiet(1, 0, { col: 2, row: 2 }), fighter(2, 1, { col: 2, row: 3 }, { hp: 10 })]);
+    const target = fighterById(sim, 2) as Fighter;
+    dealDamage(sim, null, target, 4, "ability");
+    buffFighter(sim, null, target, "hp", 3);
+    buffFighter(sim, null, target, "attack", 1);
+    const buffs = ofType(sim.events, "combat_buffed");
+    expect(buffs[0]).toMatchObject({ stat: "hp", amount: 3, value: target.maxHp, hp: target.hp, maxHp: target.maxHp });
+    expect(buffs[1]).not.toHaveProperty("hp");
+    expect(buffs[1]).not.toHaveProperty("maxHp");
   });
 });

@@ -81,6 +81,12 @@ export interface Fighter {
   wounded: boolean;
   /** Verbleibende Betäubungs-Ticks (R-9.3 Schritt 1). */
   stun: number;
+  /**
+   * P15 (R-9.3): Tick, in dem der Kämpfer zuletzt an der Reihe war (auch betäubt), bzw. in dem er
+   * entstand (Kampfbeginn = 0, Beschwörung im Kampf = Tick der Beschwörung). Daraus folgt das Ende einer
+   * Betäubung: Sie läuft über seine nächsten `stun` Züge, also bis Tick `lastTurnTick + stun`.
+   */
+  lastTurnTick: number;
   attackCooldown: number;
   moveCooldown: number;
   targetId: UnitId | null;
@@ -105,10 +111,15 @@ export type CombatEvent =
       hpLoss: number;
       hp: number;
     }
-  | { type: "combat_unit_stunned"; tick: number; unit: UnitId; ticks: number }
+  /**
+   * `ticks` = Dauer des Effekts; `untilTick` (P15, R-9.3) = letzter Tick, in dem die Einheit betäubt aussetzt
+   * (die längere von alter und neuer Betäubung, gezählt ab ihrem nächsten Zug).
+   */
+  | { type: "combat_unit_stunned"; tick: number; unit: UnitId; ticks: number; untilTick: number }
   | { type: "combat_healed"; tick: number; source: UnitId | null; target: UnitId; amount: number; hp: number }
   | { type: "combat_shielded"; tick: number; source: UnitId | null; target: UnitId; amount: number; shield: number }
-  | { type: "combat_buffed"; tick: number; source: UnitId | null; target: UnitId; stat: Stat; amount: number; value: number }
+  /** `value` = neuer Wert; bei `stat: "hp"` zusätzlich die neuen `hp` und `maxHp` (P15, R-19.2). */
+  | { type: "combat_buffed"; tick: number; source: UnitId | null; target: UnitId; stat: Stat; amount: number; value: number; hp?: number; maxHp?: number }
   | { type: "combat_mana_gained"; tick: number; source: UnitId | null; target: UnitId; amount: number; mana: number }
   | { type: "combat_keyword_granted"; tick: number; source: UnitId | null; target: UnitId; keyword: Keyword }
   | {
@@ -316,6 +327,7 @@ function buildFighter(config: ConfigData, init: FighterInit, summoned: boolean):
     stars: init.stars ?? 1,
     wounded: false,
     stun: 0,
+    lastTurnTick: 0,
     attackCooldown: 0,
     moveCooldown: 0,
     targetId: null,
@@ -487,7 +499,8 @@ export function killFighter(sim: CombatSim, fighter: Fighter, killer: Fighter | 
 export function stunFighter(sim: CombatSim, target: Fighter, ticks: number): void {
   if (!target.alive || ticks <= 0) return;
   target.stun = Math.max(target.stun, ticks);
-  sim.events.push({ type: "combat_unit_stunned", tick: sim.tick, unit: target.id, ticks });
+  const untilTick = target.lastTurnTick + target.stun;
+  sim.events.push({ type: "combat_unit_stunned", tick: sim.tick, unit: target.id, ticks, untilTick });
 }
 
 /** Lebenspunkte zurück, höchstens bis zum Maximum. */
@@ -541,7 +554,11 @@ export function buffFighter(sim: CombatSim, source: Fighter | null, target: Figh
       target[stat] = Math.max(0, target[stat] + amount);
       value = target[stat];
   }
-  sim.events.push({ type: "combat_buffed", tick: sim.tick, source: source ? source.id : null, target: target.id, stat, amount, value });
+  sim.events.push(
+    stat === "hp"
+      ? { type: "combat_buffed", tick: sim.tick, source: source ? source.id : null, target: target.id, stat, amount, value, hp: target.hp, maxHp: target.maxHp }
+      : { type: "combat_buffed", tick: sim.tick, source: source ? source.id : null, target: target.id, stat, amount, value },
+  );
 }
 
 /** Schlüsselwort für den Rest des Kampfes verleihen. */
@@ -564,6 +581,8 @@ export function spawnFighter(
 ): Fighter | null {
   if (!isCellFree(sim, pos)) return null;
   const fighter = buildFighter(sim.config, { ...init, id: sim.nextSummonId, pos }, true);
+  // P15: Im Kampf Beschworene sind in diesem Tick nicht mehr an der Reihe (Zugreihenfolge steht fest).
+  fighter.lastTurnTick = sim.tick;
   sim.nextSummonId += 1;
   sim.fighters.push(fighter);
   sim.fighters.sort((a, b) => a.id - b.id);
@@ -631,6 +650,7 @@ export function actingOrder(sim: CombatSim): Fighter[] {
 }
 
 function act(sim: CombatSim, f: Fighter): void {
+  f.lastTurnTick = sim.tick;
   // 1. Betäubt: nur Zähler verringern.
   if (f.stun > 0) {
     f.stun -= 1;

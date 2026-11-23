@@ -10,7 +10,7 @@
  *   aktuellen Kampf oder alle Kämpfe überspringen.
  * `scene.ts` (C4c) zeichnet nur, was hier herauskommt.
  */
-import type { GameData, GameEvent, OffsetCoord, PlayerIndex, Stat, UnitId } from "@game/engine";
+import type { CombatEvent, GameData, GameEvent, OffsetCoord, PlayerIndex, Stat, UnitId } from "@game/engine";
 import type { FigureShape } from "./unitFigures";
 
 /** Kämpfer in einem Bild der Wiedergabe. */
@@ -39,9 +39,11 @@ export type ReplayStep =
   | { kind: "damage"; source: UnitId | null; target: UnitId; damageKind: "attack" | "ability"; amount: number; absorbed: number; hpLoss: number; hp: number }
   | { kind: "heal"; source: UnitId | null; target: UnitId; amount: number; hp: number }
   | { kind: "shield"; source: UnitId | null; target: UnitId; amount: number; shield: number }
-  | { kind: "buff"; source: UnitId | null; target: UnitId; stat: Stat; amount: number }
+  /** Bei `stat: "hp"` die neuen Lebenspunkte und das neue Maximum aus `combat_buffed` (P15). */
+  | { kind: "buff"; source: UnitId | null; target: UnitId; stat: Stat; amount: number; hp?: number; maxHp?: number }
   | { kind: "keyword"; source: UnitId | null; target: UnitId; keyword: string }
-  | { kind: "stun"; unit: UnitId; ticks: number }
+  /** `untilTick` = letzter betäubter Tick laut Engine (`combat_unit_stunned`, P15). */
+  | { kind: "stun"; unit: UnitId; ticks: number; untilTick: number }
   | { kind: "summon"; unit: UnitId; summoner: UnitId | null; cell: OffsetCoord }
   | { kind: "death"; unit: UnitId; killer: UnitId | null }
   | { kind: "wound"; unit: UnitId; source: UnitId | null };
@@ -78,8 +80,39 @@ export function replayShape(data: GameData, sourceId: string, summoned: boolean)
 
 type CombatEventOf<T extends GameEvent["type"]> = Extract<GameEvent, { type: T }>;
 
-/** Ereignis zu Schritt; Ereignisse ohne sichtbare Wirkung (Zielwechsel, Mana) ergeben `null`. */
+/** Ereignisse der Tick-Simulation (`CombatEvent` mit Arena-Kennung). */
+type TickEvent = Extract<GameEvent, { type: CombatEvent["type"] }>;
+
+/** Vollständig über alle `CombatEvent`-Arten (der Typ erzwingt jeden Schlüssel). */
+const TICK_EVENT_TYPES: Readonly<Record<CombatEvent["type"], true>> = {
+  combat_unit_jumped: true,
+  combat_target_changed: true,
+  combat_unit_moved: true,
+  combat_attack: true,
+  combat_ability: true,
+  combat_damage: true,
+  combat_unit_stunned: true,
+  combat_healed: true,
+  combat_shielded: true,
+  combat_buffed: true,
+  combat_mana_gained: true,
+  combat_keyword_granted: true,
+  combat_unit_summoned: true,
+  combat_unit_died: true,
+  combat_unit_wounded: true,
+  combat_ended: true,
+};
+
+function isTickEvent(event: GameEvent): event is TickEvent {
+  return Object.hasOwn(TICK_EVENT_TYPES, event.type);
+}
+
+/**
+ * Ereignis zu Schritt; Ereignisse ohne sichtbare Wirkung (Zielwechsel, Mana, Kampfende) ergeben `null`.
+ * P15: Der `never`-Check sorgt dafür, dass eine neue `CombatEvent`-Art hier entschieden werden muss.
+ */
 function stepFor(event: GameEvent): ReplayStep | null {
+  if (!isTickEvent(event)) return null;
   switch (event.type) {
     case "combat_unit_moved":
       return { kind: "move", unit: event.unit, from: { ...event.from }, to: { ...event.to }, jump: false };
@@ -104,20 +137,30 @@ function stepFor(event: GameEvent): ReplayStep | null {
       return { kind: "heal", source: event.source, target: event.target, amount: event.amount, hp: event.hp };
     case "combat_shielded":
       return { kind: "shield", source: event.source, target: event.target, amount: event.amount, shield: event.shield };
-    case "combat_buffed":
-      return { kind: "buff", source: event.source, target: event.target, stat: event.stat, amount: event.amount };
+    case "combat_buffed": {
+      const step: ReplayStep = { kind: "buff", source: event.source, target: event.target, stat: event.stat, amount: event.amount };
+      if (event.hp !== undefined) step.hp = event.hp;
+      if (event.maxHp !== undefined) step.maxHp = event.maxHp;
+      return step;
+    }
     case "combat_keyword_granted":
       return { kind: "keyword", source: event.source, target: event.target, keyword: event.keyword };
     case "combat_unit_stunned":
-      return { kind: "stun", unit: event.unit, ticks: event.ticks };
+      return { kind: "stun", unit: event.unit, ticks: event.ticks, untilTick: event.untilTick };
     case "combat_unit_summoned":
       return { kind: "summon", unit: event.unit, summoner: event.summoner, cell: { ...event.cell } };
     case "combat_unit_died":
       return { kind: "death", unit: event.unit, killer: event.killer };
     case "combat_unit_wounded":
       return { kind: "wound", unit: event.unit, source: event.source };
-    default:
+    case "combat_target_changed":
+    case "combat_mana_gained":
+    case "combat_ended":
       return null;
+    default: {
+      const unhandled: never = event;
+      return unhandled;
+    }
   }
 }
 
@@ -200,7 +243,7 @@ export function combatReplays(data: GameData, events: readonly GameEvent[], roun
 }
 
 /** Wendet einen Schritt auf das Bild an (verändert `fighters`). */
-function applyStep(fighters: Map<UnitId, ReplayFighter>, summons: ReadonlyMap<UnitId, ReplayFighter>, step: ReplayStep, tick: number): void {
+function applyStep(fighters: Map<UnitId, ReplayFighter>, summons: ReadonlyMap<UnitId, ReplayFighter>, step: ReplayStep): void {
   switch (step.kind) {
     case "move": {
       const f = fighters.get(step.unit);
@@ -227,7 +270,13 @@ function applyStep(fighters: Map<UnitId, ReplayFighter>, summons: ReadonlyMap<Un
     }
     case "stun": {
       const f = fighters.get(step.unit);
-      if (f) f.stunnedUntil = tick + step.ticks - 1;
+      if (f) f.stunnedUntil = step.untilTick;
+      return;
+    }
+    case "buff": {
+      const f = fighters.get(step.target);
+      if (f && step.hp !== undefined) f.hp = step.hp;
+      if (f && step.maxHp !== undefined) f.maxHp = step.maxHp;
       return;
     }
     case "summon": {
@@ -262,7 +311,7 @@ export function replayFrameAt(replay: CombatReplay, tick: number): ReplayFighter
   const summons = new Map(replay.summons.map((s) => [s.unitId, s] as const));
   for (const t of replay.ticks) {
     if (t.tick > tick) break;
-    for (const step of t.steps) applyStep(fighters, summons, step, t.tick);
+    for (const step of t.steps) applyStep(fighters, summons, step);
   }
   for (const f of fighters.values()) if (f.stunnedUntil !== null && f.stunnedUntil < tick) f.stunnedUntil = null;
   return [...fighters.values()].sort((a, b) => a.unitId - b.unitId);

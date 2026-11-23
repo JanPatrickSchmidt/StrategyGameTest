@@ -245,7 +245,7 @@ describe("Mana-Fähigkeiten der Anführer (R-9.3)", () => {
   it("R-9.3: Brann (Schildstoß) betäubt sein Ziel für 15 Ticks", () => {
     const { sim } = setup([unit(1, 0, "brann", at(2, 2), { startMana: 100 }), dummy(2, 1, at(2, 3))]);
     stepCombat(sim);
-    expect(ofType(sim.events, "combat_unit_stunned")).toEqual([{ type: "combat_unit_stunned", tick: 1, unit: 2, ticks: 15 }]);
+    expect(ofType(sim.events, "combat_unit_stunned")).toEqual([{ type: "combat_unit_stunned", tick: 1, unit: 2, ticks: 15, untilTick: 15 }]);
   });
 
   it("R-9.3: Ilyra (Arkanbolzen) fügt ihrem Ziel 4 Schaden zu", () => {
