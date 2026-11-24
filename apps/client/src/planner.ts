@@ -17,6 +17,7 @@ import {
   type CardData,
   emptyPlanning,
   type GameData,
+  type GameEvent,
   type GameState,
   getPlayer,
   type LeaderAbilityParams,
@@ -180,6 +181,14 @@ export class PlanBuilder {
    */
   goldCost(card: CardData, useAltCost = false): number {
     return cardGoldCost(this.draft.state, this.data, this.player, card, useAltCost);
+  }
+
+  /**
+   * R-11.1 (P17a): Ereignisse der im Entwurf angenommenen Käufe (`purchase_paid`) mit dem tatsächlich bezahlten
+   * Gold aus Rundenvorrat und Schatzkammer. So rechnet der Client nicht selbst mit Kartenkosten.
+   */
+  purchasesPaid(): Extract<GameEvent, { type: "purchase_paid" }>[] {
+    return this.draft.state.log.filter((e): e is Extract<GameEvent, { type: "purchase_paid" }> => e.type === "purchase_paid");
   }
 
   /** Sicht des Spielers nach der Planung (für Hand, Gold und das 3D-Brett), ohne verborgene Angaben (R-18.3). */

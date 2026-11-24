@@ -291,7 +291,7 @@ export class PlanningPanel {
       }
       this.root.append(row);
     }
-    const spent = buySpending(this.data, builder);
+    const spent = buySpending(builder);
     if (spent > 0) this.root.append(el("p", { className: "hint", textContent: `Für Käufe bezahlt: ${spent} Gold.` }));
     this.root.append(el("p", { className: "hint deposit", textContent: depositText(builder.preview()) }));
   }

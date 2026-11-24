@@ -91,24 +91,6 @@ export function pileGroupName(data: GameData, group: PileGroup, options: readonl
   return name ? `${PILE_GROUP_NAMES.class} (${name})` : PILE_GROUP_NAMES.class;
 }
 
-/** Kurzbeschreibung einer Karte für das Angebot, z. B. „Einheit · Angriff 3 · Leben 5“ oder „+2 Gold“. */
-export function cardSummary(data: GameData, card: CardData): string {
-  switch (card.type) {
-    case "resource":
-      return `Ressource · +${card.gold} Gold`;
-    case "unit": {
-      const race = card.race ? data.races.get(card.race)?.name : undefined;
-      const cls = data.classes.get(card.class)?.name ?? card.class;
-      const kind = [race, cls].filter(Boolean).join(" ");
-      return `Einheit (${kind}) · Angriff ${card.stats.attack} · Leben ${card.stats.hp}${card.stats.range > 1 ? ` · Reichweite ${card.stats.range}` : ""}`;
-    }
-    case "spell":
-      return `Zauber (${card.slot === "pre" ? "vor" : "nach"} dem Kampf)`;
-    case "curse":
-      return "Fluch";
-  }
-}
-
 /** Text einer Angebotszeile: Name, Kosten, Stapel, z. B. „Silber · 3 Gold · Stapel 20 · gekauft 1“. */
 export function buyOptionText(option: BuyOption): string {
   const parts = [option.card.name, `${option.cost} Gold`, `Stapel ${option.pileAtStart}`];
@@ -122,19 +104,24 @@ export function addBuy(builder: PlanBuilder, cardId: string): RejectionReason | 
   return builder.add(buyAction(cardId));
 }
 
-/** Summe des in dieser Planung für Käufe bezahlten Golds. */
-export function buySpending(data: GameData, builder: PlanBuilder): number {
-  let sum = 0;
-  for (const [cardId, count] of boughtCounts(builder)) sum += (data.cards.get(cardId)?.cost ?? 0) * count;
-  return sum;
+/**
+ * R-11.1 (P17a): Summe des in dieser Planung für Käufe bezahlten Golds, aus den `purchase_paid`-Ereignissen des
+ * Engine-Entwurfs (Rundenvorrat plus Schatzkammer), nicht aus den Kartenkosten.
+ */
+export function buySpending(builder: PlanBuilder): number {
+  return builder.purchasesPaid().reduce((sum, e) => sum + e.paidFromRoundGold + e.paidFromTreasury, 0);
 }
 
 /**
- * R-12.5 (F12): Einzahlen geschieht automatisch. Text zum übrigen Gold nach der Planung, z. B.
- * „Übrig: 2 Gold im Rundenvorrat – geht am Rundenende automatisch in die Schatzkammer (dann 5 Gold).“
+ * R-12.5 (F12, P17a): Einzahlen geschieht automatisch. Text zum übrigen Gold nach der Planung. Die Schatzkammer
+ * ist der Stand vor dem Kampf: Wirkungen im und nach dem Kampf (z. B. Gold-Gewinne, R-10.3, oder Stehlen) können
+ * sie bis zum Rundenende noch ändern. Beispiel: „Übrig: 2 Gold im Rundenvorrat – geht am Rundenende automatisch
+ * in die Schatzkammer (Stand vor dem Kampf: dann 5 Gold; Kampf-Folgen können das noch ändern).“
  */
 export function depositText(view: PlayerView): string {
   const own = ownEntry(view);
-  if (own.roundGold <= 0) return `Kein Gold im Rundenvorrat übrig; die Schatzkammer bleibt bei ${own.treasury} Gold.`;
-  return `Übrig: ${own.roundGold} Gold im Rundenvorrat – geht am Rundenende automatisch in die Schatzkammer (dann ${own.treasury + own.roundGold} Gold).`;
+  if (own.roundGold <= 0) {
+    return `Kein Gold im Rundenvorrat übrig; die Schatzkammer steht vor dem Kampf bei ${own.treasury} Gold (Kampf-Folgen können das noch ändern).`;
+  }
+  return `Übrig: ${own.roundGold} Gold im Rundenvorrat – geht am Rundenende automatisch in die Schatzkammer (Stand vor dem Kampf: dann ${own.treasury + own.roundGold} Gold; Kampf-Folgen können das noch ändern).`;
 }

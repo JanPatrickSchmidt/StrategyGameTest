@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { type GameState, getPlayer, loadGameData } from "@game/engine";
-import { addBuy, boughtCounts, buyOptions, buyOptionText, buySpending, cardSummary, depositText, pileGroupName } from "./buyOffer";
+import { addBuy, boughtCounts, buyOptions, buyOptionText, buySpending, depositText, pileGroupName } from "./buyOffer";
 import { describeAction, ownEntry, PlanBuilder } from "./planner";
 import { GameSession, HUMAN } from "./session";
 
@@ -62,12 +62,6 @@ describe("C5a: Kaufangebot", () => {
     expect(pileGroupName(data, "kingdom", options)).toBe("Königreich");
   });
 
-  it("C5a: Kurzbeschreibung je Kartenart", () => {
-    expect(cardSummary(data, data.cards.get("silver")!)).toBe("Ressource · +2 Gold");
-    expect(cardSummary(data, data.cards.get("fireball")!)).toMatch(/^Zauber \((vor|nach) dem Kampf\)$/);
-    expect(cardSummary(data, data.cards.get("mercenary")!)).toMatch(/^Einheit \(.+\) · Angriff \d+ · Leben \d+/);
-  });
-
   it("R-11.2: Kauf wird im Schritt Kaufen geplant, Gold sofort abgezogen, Text in der Liste", () => {
     const { builder } = setup({ roundGold: 10 });
     const before = builder.preview();
@@ -76,7 +70,7 @@ describe("C5a: Kaufangebot", () => {
     expect(builder.step).toBe("buy");
     expect(ownEntry(builder.preview()).roundGold).toBe(7);
     expect(boughtCounts(builder).get("silver")).toBe(1);
-    expect(buySpending(data, builder)).toBe(3);
+    expect(buySpending(builder)).toBe(3);
     const entry = builder.entries().find((e) => e.section === "buy");
     expect(entry && describeAction(data, before, entry.action)).toBe("Silber kaufen");
     expect(buyOptions(data, builder).find((o) => o.cardId === "silver")?.bought).toBe(1);
@@ -118,11 +112,39 @@ describe("C5a: Kaufangebot", () => {
 
   it("R-12.5: Einzahlen automatisch – übriges Gold des Rundenvorrats geht in die Schatzkammer", () => {
     const { builder } = setup({ roundGold: 5, treasury: 3 });
-    expect(depositText(builder.preview())).toBe("Übrig: 5 Gold im Rundenvorrat – geht am Rundenende automatisch in die Schatzkammer (dann 8 Gold).");
+    expect(depositText(builder.preview())).toBe(
+      "Übrig: 5 Gold im Rundenvorrat – geht am Rundenende automatisch in die Schatzkammer (Stand vor dem Kampf: dann 8 Gold; Kampf-Folgen können das noch ändern).",
+    );
     addBuy(builder, "silver");
     expect(depositText(builder.preview())).toContain("Übrig: 2 Gold");
     addBuy(builder, "rune_shield");
-    expect(depositText(builder.preview())).toBe("Kein Gold im Rundenvorrat übrig; die Schatzkammer bleibt bei 3 Gold.");
+    expect(depositText(builder.preview())).toBe(
+      "Kein Gold im Rundenvorrat übrig; die Schatzkammer steht vor dem Kampf bei 3 Gold (Kampf-Folgen können das noch ändern).",
+    );
+  });
+
+  it("R-11.1: bezahltes Gold kommt aus den purchase_paid-Ereignissen des Entwurfs, auch aus der Schatzkammer", () => {
+    const { builder } = setup({ roundGold: 2, treasury: 10 });
+    const before = ownEntry(builder.preview());
+    expect(addBuy(builder, "gold_bar")).toBeNull();
+    expect(addBuy(builder, "silver")).toBeNull();
+    const paid = builder.purchasesPaid();
+    expect(paid.map((e) => e.cardId)).toEqual(["gold_bar", "silver"]);
+    expect(paid[0]).toMatchObject({ paidFromRoundGold: 2, paidFromTreasury: 4 });
+    const after = ownEntry(builder.preview());
+    const drop = before.roundGold - after.roundGold + (before.treasury - after.treasury);
+    expect(buySpending(builder)).toBe(drop);
+    expect(buySpending(builder)).toBe(paid.reduce((s, e) => s + e.paidFromRoundGold + e.paidFromTreasury, 0));
+    // Ein abgelehnter Kauf erzeugt kein Ereignis und zählt nicht.
+    expect(addBuy(builder, "gold_bar")).toBe("notEnoughGold");
+    expect(buySpending(builder)).toBe(drop);
+  });
+
+  it("R-12.5: Einzahl-Text nennt die Schatzkammer als Stand vor dem Kampf", () => {
+    const { builder } = setup({ roundGold: 3, treasury: 1 });
+    const text = depositText(builder.preview());
+    expect(text).toContain("Stand vor dem Kampf: dann 4 Gold");
+    expect(text).toContain("Kampf-Folgen können das noch ändern");
   });
 
   it("R-11.2: Probe ändert die Planung nicht", () => {
