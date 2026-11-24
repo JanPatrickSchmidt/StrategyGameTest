@@ -4,6 +4,7 @@
  */
 import type { RejectionReason } from "./actions";
 import type { ConfigData, GameData } from "./data";
+import type { GoldDestination, Timing, Trigger } from "./dataTypes";
 import { emit, type GameState, getCard, getPlayer, type PlayerIndex, type PlayerState } from "./state";
 
 /** R-6.1: Zinsen = min(interestMax, floor(Schatzkammer / interestPer)); die Schatzkammer hat keine Obergrenze (R-11.5). */
@@ -81,6 +82,21 @@ export function withdraw(state: GameState, player: PlayerIndex, amount: unknown)
   p.roundGold += amount;
   emit(state, { type: "gold_withdrawn", player, amount, treasury: p.treasury });
   return null;
+}
+
+/** R-17a.1: Auslöser, deren Effekte während der Planung (zu Rundenbeginn) wirken; alle anderen wirken danach. */
+export function triggerDuringPlanning(trigger: Trigger): boolean {
+  return trigger === "onRoundStart";
+}
+
+/**
+ * R-10.3, R-17a.2: Ziel eines `gainGold`-Bausteins. Gold, das erst zu Beginn einer (späteren) Runde ankommt
+ * (`nextRound`, `roundStart` außerhalb des Rundenbeginns) oder während der Planung, geht laut `to`
+ * (Standard: Rundenvorrat); Gold aus Effekten nach der Planung geht immer in die Schatzkammer.
+ */
+export function gainGoldDestination(effect: { when: Timing; to?: GoldDestination }, duringPlanning: boolean): GoldDestination {
+  if (duringPlanning || effect.when !== "now") return effect.to ?? "pool";
+  return "treasury";
 }
 
 /** R-10.3: Gold-Gewinn nach der Planung geht sofort und vollständig in die Schatzkammer (keine Obergrenze, R-11.5). */

@@ -15,6 +15,7 @@ import type {
   AltCost,
   Amount,
   CardData,
+  CombatBehavior,
   ConditionKind,
   Duration,
   Effect,
@@ -29,6 +30,7 @@ import type {
   UnitTarget,
   UnitTargetName,
 } from "@game/engine";
+import { gainGoldDestination, triggerDuringPlanning } from "@game/engine";
 
 export const STAT_NAMES: Record<Stat, string> = {
   attack: "Angriff",
@@ -75,9 +77,10 @@ const DURATION_TEXTS: Record<Duration, string> = {
   permanent: "dauerhaft",
 };
 
-/** Kampfverhalten der Klassen (R-9.4), nach `combatBehavior` in `classes.json`. */
-const BEHAVIOR_TEXTS: Record<string, string> = {
+/** Kampfverhalten der Klassen (R-9.4), nach `combatBehavior` in `classes.json`; leer = keine Besonderheit. */
+const BEHAVIOR_TEXTS: Record<CombatBehavior, string> = {
   taunt: "zieht Angriffe auf sich",
+  default: "",
   backlineJump: "springt zu Kampfbeginn neben das entfernteste gegnerische Ziel",
 };
 
@@ -178,8 +181,14 @@ const SUMMON_PLACES: Record<Extract<Effect, { op: "summon" }>["where"], [string,
   targetHexThenAdjacentFree: ["auf das gewählte Feld (sonst ein freies Nachbarfeld)", "auf das gewählte Feld, dann auf freie Nachbarfelder"],
 };
 
-/** Text eines Effekt-Bausteins, z. B. „5 Schaden an den Gegnern auf dem gewählten Feld“. */
-export function effectText(data: GameData, effect: Effect): string {
+const GOLD_DESTINATION_TEXTS = { pool: "in den Rundenvorrat", treasury: "in die Schatzkammer" } as const;
+
+/**
+ * Text eines Effekt-Bausteins, z. B. „5 Schaden an den Gegnern auf dem gewählten Feld“. `duringPlanning`: der
+ * Baustein wirkt während der Planung (Auslöser „zu Rundenbeginn“, R-17a.1); sonst nach der Planung (Kampf,
+ * Zauber), wo Gold nach R-10.3 immer in die Schatzkammer geht.
+ */
+export function effectText(data: GameData, effect: Effect, duringPlanning = false): string {
   switch (effect.op) {
     case "damage": {
       const { value, note } = amountParts(effect.amount);
@@ -220,7 +229,7 @@ export function effectText(data: GameData, effect: Effect): string {
     case "destroy":
       return `vernichtet ${accusativeTarget(data, effect.target)}; ihre Karten gehen auf den Ablagestapel`;
     case "gainGold": {
-      const where = effect.to === "treasury" ? "in die Schatzkammer" : "in den Rundenvorrat";
+      const where = GOLD_DESTINATION_TEXTS[gainGoldDestination(effect, duringPlanning)];
       const when = effect.when === "nextRound" ? " zu Beginn der nächsten Runde" : effect.when === "roundStart" ? " zu Rundenbeginn" : "";
       return `+${goldText(effect.amount)}${when} ${where}`;
     }
@@ -263,15 +272,15 @@ function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function effectsText(data: GameData, effects: readonly Effect[]): string {
-  return effects.map((e) => effectText(data, e)).join(", ");
+function effectsText(data: GameData, effects: readonly Effect[], duringPlanning = false): string {
+  return effects.map((e) => effectText(data, e, duringPlanning)).join(", ");
 }
 
 /** Fähigkeit einer Einheit, z. B. „Bei vollem Mana: 2 Schaden am aktuellen Ziel.“ */
 export function abilityText(data: GameData, ability: Ability): string {
   const condition = ability.condition ? `, ${CONDITION_TEXTS[ability.condition.kind]}` : "";
   const name = ability.name ? `${ability.name} – ` : "";
-  return `${name}${TRIGGER_TEXTS[ability.trigger]}${condition}: ${effectsText(data, ability.effects)}.`;
+  return `${name}${TRIGGER_TEXTS[ability.trigger]}${condition}: ${effectsText(data, ability.effects, triggerDuringPlanning(ability.trigger))}.`;
 }
 
 /** Ziel-Angabe eines Zaubers (R-7.3), z. B. „ein Feld deiner Fronten oder der Mitte“. */
@@ -319,7 +328,7 @@ export function statsText(card: UnitCard): string {
 function unitLines(data: GameData, card: UnitCard): string[] {
   const race = card.race ? (data.races.get(card.race)?.name ?? card.race) : null;
   const cls = data.classes.get(card.class);
-  const behavior = cls ? BEHAVIOR_TEXTS[cls.combatBehavior] : undefined;
+  const behavior = cls ? BEHAVIOR_TEXTS[cls.combatBehavior] : "";
   const kind = [race, cls?.name ?? card.class].filter((x): x is string => Boolean(x)).join(" · ");
   const lines = [`Einheit · ${kind}`, statsText(card)];
   if (behavior) lines.push(`${cls?.name}: ${behavior}.`);

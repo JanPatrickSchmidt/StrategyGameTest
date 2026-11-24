@@ -13,7 +13,7 @@
 import type { GameData } from "./data";
 import type { Ability, Amount, Condition, Effect, PlayerTarget, Trigger } from "./dataTypes";
 import type { DeferredEffect } from "./effects";
-import { gainGoldAfterPlanning, gainGoldDuringPlanning } from "./economy";
+import { gainGoldAfterPlanning, gainGoldDestination, gainGoldDuringPlanning, triggerDuringPlanning } from "./economy";
 import { addRoundMark, priorityForRound } from "./marks";
 import {
   emit,
@@ -132,11 +132,11 @@ export function applyStateEffect(state: GameState, data: GameData, effect: Effec
       if (value <= 0) return;
       // R-17a.2: „nächste Runde“ bzw. „zu Rundenbeginn“ außerhalb des Rundenbeginns → Markierung.
       if (effect.when === "nextRound" || (effect.when === "roundStart" && !ctx.duringPlanning)) {
-        addRoundMark(state, ctx.player, { kind: "gold", round: state.round + 1, amount: value, to: effect.to ?? "pool" });
+        addRoundMark(state, ctx.player, { kind: "gold", round: state.round + 1, amount: value, to: gainGoldDestination(effect, ctx.duringPlanning) });
         return;
       }
       // R-10.3: nach der Planung immer in die Schatzkammer; zu Rundenbeginn nach `to` (Standard: Rundenvorrat).
-      if (ctx.duringPlanning && (effect.to ?? "pool") === "pool") gainGoldDuringPlanning(state, ctx.player, value);
+      if (gainGoldDestination(effect, ctx.duringPlanning) === "pool") gainGoldDuringPlanning(state, ctx.player, value);
       else gainGoldAfterPlanning(state, ctx.player, value);
       return;
     }
@@ -309,7 +309,7 @@ export function runRoundStartEffects(state: GameState, data: GameData): void {
       .filter((u) => u.owner === p)
       .sort((a, b) => a.id - b.id);
     for (const unit of units) {
-      runUnitTrigger(state, data, unit, "onRoundStart", null, { player: p, unitId: unit.id, frontOpponent: null, duringPlanning: true }, false);
+      runUnitTrigger(state, data, unit, "onRoundStart", null, { player: p, unitId: unit.id, frontOpponent: null, duringPlanning: triggerDuringPlanning("onRoundStart") }, false);
     }
   }
 }

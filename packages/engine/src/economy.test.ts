@@ -5,10 +5,12 @@ import {
   availableGold,
   depositRoundGold,
   gainGoldAfterPlanning,
+  gainGoldDestination,
   gainGoldDuringPlanning,
   interestFor,
   payGold,
   resolvePurchases,
+  triggerDuringPlanning,
 } from "./economy";
 import { advance, submitPlanning } from "./round";
 import { createGame, defaultLeaders } from "./setup";
@@ -250,6 +252,22 @@ describe("R-10.3: Gold-Gewinne", () => {
     gainGoldDuringPlanning(state, 3, 2);
     expect([p.roundGold, p.treasury]).toEqual([2, 0]);
     expect(eventsOf(state, "round_gold_gained")).toEqual([expect.objectContaining({ player: 3, amount: 2 })]);
+  });
+
+  it("R-10.3: Ziel eines gainGold-Bausteins hängt davon ab, ob er während der Planung wirkt", () => {
+    // Nach der Planung immer Schatzkammer, auch ohne oder mit `to: "pool"`.
+    expect(gainGoldDestination({ when: "now" }, false)).toBe("treasury");
+    expect(gainGoldDestination({ when: "now", to: "pool" }, false)).toBe("treasury");
+    // Während der Planung laut `to`, Standard Rundenvorrat.
+    expect(gainGoldDestination({ when: "now" }, true)).toBe("pool");
+    expect(gainGoldDestination({ when: "now", to: "treasury" }, true)).toBe("treasury");
+    // R-17a.2: Gold zu Beginn einer späteren Runde kommt während deren Planung an.
+    expect(gainGoldDestination({ when: "nextRound" }, false)).toBe("pool");
+    expect(gainGoldDestination({ when: "roundStart", to: "treasury" }, false)).toBe("treasury");
+    // R-17a.1: nur „zu Rundenbeginn“ wirkt während der Planung.
+    expect(triggerDuringPlanning("onRoundStart")).toBe(true);
+    expect(triggerDuringPlanning("onDeath")).toBe(false);
+    expect(triggerDuringPlanning("onFrontWin")).toBe(false);
   });
 });
 

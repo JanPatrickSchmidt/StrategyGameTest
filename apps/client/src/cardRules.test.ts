@@ -69,6 +69,32 @@ describe("C5b2 Kartentexte aus den Effekt-Bausteinen", () => {
     );
   });
 
+  it("R-10.3: Gold ohne Ziel heißt nach der Engine-Regel des Auslösers (Planung: Rundenvorrat, sonst Schatzkammer)", () => {
+    const gold: Effect = { op: "gainGold", amount: 1, when: "now" };
+    expect(abilityText(data, { trigger: "onRoundStart", effects: [gold] })).toBe("Zu Rundenbeginn: +1 Gold in den Rundenvorrat.");
+    expect(abilityText(data, { trigger: "onDeath", effects: [gold] })).toBe("Wenn sie stirbt: +1 Gold in die Schatzkammer.");
+    expect(abilityText(data, { trigger: "onFrontWin", effects: [{ ...gold, to: "pool" }] })).toBe(
+      "Wenn ihre Seite den Frontkampf gewinnt: +1 Gold in die Schatzkammer.",
+    );
+    // Zauber wirken nach der Planung (Standard von effectText).
+    expect(effectText(data, gold)).toBe("+1 Gold in die Schatzkammer");
+    // R-17a.2: Gold „zu Beginn der nächsten Runde“ kommt während deren Planung an.
+    expect(abilityText(data, { trigger: "onKill", effects: [{ op: "gainGold", amount: 2, when: "nextRound" }] })).toBe(
+      "Wenn sie eine gegnerische Einheit besiegt: +2 Gold zu Beginn der nächsten Runde in den Rundenvorrat.",
+    );
+  });
+
+  it("R-9.4: Kampfverhalten der Klassen steht im Text, Klassen ohne Besonderheit ohne Zeile", () => {
+    for (const c of data.cards.values()) {
+      if (c.type !== "unit") continue;
+      const behavior = data.classes.get(c.class)?.combatBehavior;
+      const text = cardRulesText(data, c);
+      if (behavior === "taunt") expect(text).toContain("zieht Angriffe auf sich");
+      if (behavior === "backlineJump") expect(text).toContain("springt zu Kampfbeginn");
+      if (behavior === "default") expect(text).not.toMatch(/: \.$/m);
+    }
+  });
+
   it("R-17a.1: Bedingung der Fähigkeit steht beim Auslöser", () => {
     expect(lines("Hehler")).toContain("Zu Rundenbeginn, wenn sie in der Reserve steht: +1 Gold in den Rundenvorrat.");
   });
