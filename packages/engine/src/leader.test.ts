@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Planning } from "./actions";
 import { capacityFor } from "./board";
 import { loadGameData } from "./data";
-import { grantRoundXp, levelForXp, levelUpLeaders } from "./leader";
+import { branchChoiceOpen, grantRoundXp, levelForXp, levelUpLeaders } from "./leader";
 import { activePlayersInPriority, advance, submitPlanning } from "./round";
 import { createGame, defaultLeaders } from "./setup";
 import { type GameEvent, type GameState, getPlayer } from "./state";
@@ -150,5 +150,15 @@ describe("R-1.8: Determinismus mit Ziehen und Aufstieg", () => {
       return JSON.stringify(s.log);
     };
     expect(run()).toBe(run());
+  });
+});
+
+describe("R-7.7: Astwahl-Prüfung als einzige Regelquelle", () => {
+  it("R-7.7: Astwahl steht nur ab Stufe 2 und ohne gewählten Ast an", () => {
+    expect(branchChoiceOpen({ level: 1, branchId: null })).toBe(false);
+    expect(branchChoiceOpen({ level: 2, branchId: null })).toBe(true);
+    expect(branchChoiceOpen({ level: 4, branchId: null })).toBe(true);
+    expect(branchChoiceOpen({ level: 2, branchId: "might" })).toBe(false);
+    expect(branchChoiceOpen({ level: 3, branchId: "might" })).toBe(false);
   });
 });

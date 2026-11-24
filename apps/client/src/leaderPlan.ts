@@ -8,7 +8,7 @@
  * werden als Höchstzahl angeboten; weniger ist erlaubt (R-1.9, F23).
  */
 import type { ActionTarget, ArenaHex, GameData, LeaderBranch, PlanningAction, PlayerIndex, RejectionReason, TargetSpec, UnitId } from "@game/engine";
-import { allArenaHexes, ARENA_REFS, PLAYER_INDICES } from "@game/engine";
+import { allArenaHexes, ARENA_REFS, branchChoiceOpen, PLAYER_INDICES } from "@game/engine";
 import { arenaHexName, arenaHexToViewer } from "./fieldNames";
 import { type PlanBuilder, unitOptionText } from "./planner";
 import type { TargetOption } from "./spellTargets";
@@ -32,7 +32,7 @@ export interface BranchChoice {
 
 export function branchChoice(builder: PlanBuilder): BranchChoice | null {
   const leader = builder.startLeader();
-  if (leader.level < 2 || leader.branchId !== null) return null;
+  if (!branchChoiceOpen(leader)) return null;
   const options = builder.leaderData().active.branches.map((b: LeaderBranch): BranchOption => ({ id: b.id, name: b.name }));
   const planned = builder.entries().find((e) => e.action.type === "chooseBranch" && e.rejection === null);
   return { options, chosen: planned?.action.type === "chooseBranch" ? planned.action.branchId : null };

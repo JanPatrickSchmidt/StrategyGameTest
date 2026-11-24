@@ -76,10 +76,18 @@ function leaderData(data: GameData, leader: LeaderState): LeaderData {
   return l;
 }
 
+/**
+ * R-7.7: Steht eine Astwahl an? Nur ab Stufe 2 und solange noch kein Ast gewählt ist. Einzige Regelquelle für
+ * Engine (Astwahl, automatische Wahl, Bots) und Client.
+ */
+export function branchChoiceOpen(leader: Pick<LeaderState, "level" | "branchId">): boolean {
+  return leader.level >= 2 && leader.branchId === null;
+}
+
 /** R-7.7: Astwahl, nur ab Stufe 2 und solange noch kein Ast gewählt ist. */
 export function chooseBranch(state: GameState, data: GameData, player: PlayerIndex, branchId: unknown): RejectionReason | null {
   const leader = getPlayer(state, player).leader;
-  if (leader.level < 2 || leader.branchId !== null) return "branchNotAvailable";
+  if (!branchChoiceOpen(leader)) return "branchNotAvailable";
   if (typeof branchId !== "string") return "malformed";
   if (!leaderData(data, leader).active.branches.some((b) => b.id === branchId)) return "unknownBranch";
   leader.branchId = branchId;
@@ -94,7 +102,7 @@ export function chooseBranch(state: GameState, data: GameData, player: PlayerInd
  */
 export function autoChooseBranch(state: GameState, data: GameData, player: PlayerIndex): void {
   const leader = getPlayer(state, player).leader;
-  if (leader.level < 2 || leader.branchId !== null) return;
+  if (!branchChoiceOpen(leader)) return;
   const first = leaderData(data, leader).active.branches[0];
   if (!first) return;
   leader.branchId = first.id;

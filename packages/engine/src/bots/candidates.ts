@@ -7,7 +7,7 @@ import type { ActionTarget, ArenaHex, ArenaRef, PlanningAction } from "../action
 import type { ConfigData, GameData } from "../data";
 import type { OwnCardZone, TargetSpec } from "../dataTypes";
 import { inBounds } from "../hex";
-import { leaderAbilityParams } from "../leader";
+import { branchChoiceOpen, leaderAbilityParams } from "../leader";
 import { nextInt, type RngState, shuffleInPlace } from "../rng";
 import type { PlanningDraft } from "../round";
 import { getCard, getPlayer, PLAYER_INDICES, type CardInstanceId, type GameState, type PlayerIndex, type Unit, type UnitLocation } from "../state";
@@ -132,7 +132,7 @@ function playCandidates(draft: PlanningDraft, data: GameData, rng: RngState): Pl
     if (u.wounded) result.push({ type: "heal", unitId: u.id });
   }
   const leader = data.leaders.get(p.leader.leaderId);
-  if (leader && p.leader.level >= 2 && p.leader.branchId === null) {
+  if (leader && branchChoiceOpen(p.leader)) {
     for (const b of leader.active.branches) result.push({ type: "chooseBranch", branchId: b.id });
   }
   return result;

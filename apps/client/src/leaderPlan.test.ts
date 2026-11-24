@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type ActionTarget, getPlayer, type LeaderState, loadGameData, type UnitId } from "@game/engine";
+import { type ActionTarget, branchChoiceOpen, chooseBranch, getPlayer, type LeaderState, loadGameData, type UnitId } from "@game/engine";
 import { arenaHexToViewer } from "./fieldNames";
 import { abilityState, addAbility, branchChoice, combinePicks, movesTarget, setBranch } from "./leaderPlan";
 import { describeAction, PlanBuilder } from "./planner";
@@ -160,5 +160,23 @@ describe("C3d1: Anführer-Fähigkeit und Astwahl in der Planung", () => {
     expect(combinePicks([])).toBeNull();
     expect(movesTarget([])).toBeNull();
     expect(combinePicks([{ kind: "player", player: 1 }])).toEqual({ kind: "player", player: 1 });
+  });
+
+  it("R-7.7: Client und Engine liefern für dieselben Anführer-Zustände dieselbe Antwort zur Astwahl", () => {
+    const cases: Partial<LeaderState>[] = [];
+    for (const level of [1, 2, 3, 4] as const) for (const branchId of [null, "might"]) cases.push({ level, branchId });
+    for (const leader of cases) {
+      const builder = setup("brann", leader);
+      const leaders = ["brann", ...OTHERS.filter((l) => l !== "brann")];
+      const state = structuredClone(new GameSession(data, { seed: 3, leaders }).state);
+      Object.assign(getPlayer(state, HUMAN).leader, leader);
+      const open = branchChoiceOpen(getPlayer(state, HUMAN).leader);
+      const engineAccepts = chooseBranch(state, data, HUMAN, "steadfast") === null;
+      const label = `Stufe ${leader.level}, Ast ${leader.branchId ?? "keiner"}`;
+      expect(open, label).toBe((leader.level ?? 1) >= 2 && leader.branchId === null);
+      expect(engineAccepts, label).toBe(open);
+      expect(branchChoice(builder) !== null, label).toBe(open);
+      expect(setBranch(builder, "steadfast") === null, label).toBe(open);
+    }
   });
 });
