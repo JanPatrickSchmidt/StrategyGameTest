@@ -95,6 +95,27 @@ describe("C3d1: Anführer-Fähigkeit und Astwahl in der Planung", () => {
     expect(branchChoice(builder)?.chosen).toBe("steadfast");
   });
 
+  it("R-7.7: lehnt die Engine eine neue Astwahl ab, bleibt die alte Wahl bestehen", () => {
+    const builder = setup("brann", { level: 2, xp: 4 });
+    expect(setBranch(builder, "might")).toBeNull();
+    // Wucht: eine Zone; die Fähigkeit dieser Planung baut auf dem gewählten Ast auf.
+    expect(addAbility(builder, { kind: "zone", arenas: ["center"] })).toBeNull();
+    const before = JSON.stringify(builder.planning());
+    builder.setStep("buy");
+    expect(setBranch(builder, "nonsense")).toBe("unknownBranch");
+    expect(setBranch(builder, 42 as unknown as string)).toBe("malformed");
+    // Alte Wahl samt abhängiger Fähigkeit unverändert, nichts wurde abgelehnt oder verdoppelt.
+    expect(branchChoice(builder)?.chosen).toBe("might");
+    expect(builder.draftBranch()).toBe("might");
+    expect(builder.entries().filter((e) => e.action.type === "chooseBranch")).toEqual([
+      expect.objectContaining({ action: { type: "chooseBranch", branchId: "might" }, rejection: null }),
+    ]);
+    expect(builder.entries().every((e) => e.rejection === null)).toBe(true);
+    expect(JSON.stringify(builder.planning())).toBe(before);
+    expect(abilityState(data, builder)).toMatchObject({ levelText: "Stufe 2, Ast Wucht", choice: { kind: "pick", max: 1 } });
+    expect(builder.plannedAbility()).toEqual({ kind: "zone", arenas: ["center"] });
+  });
+
   it("R-16.2, R-14.2: Ilyra „Kette“ wählt bis zu 3 Felder an teilnehmenden Arenen, mehr lehnt die Engine ab", () => {
     const builder = setup("ilyra", { level: 2, xp: 4, branchId: "chain" });
     const choice = abilityState(data, builder).choice;

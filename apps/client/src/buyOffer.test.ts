@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { type GameState, getPlayer, loadGameData } from "@game/engine";
 import { addBuy, boughtCounts, buyOptions, buyOptionText, buySpending, depositText, pileGroupName } from "./buyOffer";
-import { describeAction, ownEntry, PlanBuilder } from "./planner";
+import { describeAction, ownEntry, PlanBuilder, reasonText } from "./planner";
 import { GameSession, HUMAN } from "./session";
 
 const data = loadGameData();
@@ -169,6 +169,68 @@ describe("C5a: Kaufangebot", () => {
     const inDeck = new Set([...p.deck, ...p.discard, ...p.hand, ...p.played]);
     for (const c of owned.filter((x) => x.cardId === "silver" || x.cardId === "rune_shield")) expect(inDeck.has(c.id)).toBe(true);
     expect(session.state.supply["silver"]).toBe(19 - countBotBuys(session.state, "silver"));
+  });
+});
+
+describe("P18: Kaufen in Randfällen", () => {
+  it("R-11.3: Kauflimit gilt auch für Karten aus dem Klassen-Pool", () => {
+    const { builder: probe } = setup();
+    const classCard = buyOptions(data, probe).find((o) => o.group === "class");
+    if (!classCard) throw new Error("kein Klassen-Pool");
+    const cardId = classCard.cardId;
+    const { builder } = setup({ roundGold: 100, edit: (s) => (getPlayer(s, HUMAN).classPool[cardId] = 2) });
+    expect(addBuy(builder, cardId)).toBeNull();
+    expect(addBuy(builder, cardId)).toBeNull();
+    // Gold reicht noch, aber der Stapel enthielt zu Rundenbeginn nur 2 Kopien.
+    expect(ownEntry(builder.preview()).roundGold).toBeGreaterThanOrEqual(classCard.cost);
+    expect(addBuy(builder, cardId)).toBe("pileLimitReached");
+    const option = buyOptions(data, builder).find((o) => o.cardId === cardId);
+    expect(option).toMatchObject({ group: "class", pileAtStart: 2, bought: 2, blocked: "pileLimitReached" });
+    expect(boughtCounts(builder).get(cardId)).toBe(2);
+    expect(builder.planning().buy.filter((a) => a.type === "buy" && a.cardId === cardId)).toHaveLength(2);
+    // Andere Karten des Klassen-Pools sind davon nicht betroffen.
+    const other = buyOptions(data, builder).find((o) => o.group === "class" && o.cardId !== cardId);
+    expect(other?.blocked).toBeNull();
+  });
+
+  it("R-11.1: geplanter Kauf wird als abgelehnt angezeigt, wenn eine spätere Ausspiel-Aktion das Gold verbraucht", () => {
+    // Söldner (2 Gold) auf der Hand, genau 2 Gold im Rundenvorrat, Kauf: Läutern (2 Gold).
+    const unitId = "mercenary";
+    const buyId = "purify";
+    let unitCard = -1;
+    const { builder } = setup({
+      roundGold: 2,
+      treasury: 0,
+      edit: (s) => {
+        unitCard = s.nextCardInstanceId++;
+        s.cards[unitCard] = { id: unitCard, cardId: unitId, owner: HUMAN };
+        getPlayer(s, HUMAN).hand.push(unitCard);
+      },
+    });
+    const unitCost = data.cards.get(unitId)?.cost ?? 0;
+    const buyCost = data.cards.get(buyId)?.cost ?? 0;
+    expect(unitCost).toBe(2);
+    expect(buyCost).toBe(2);
+    // Zuerst der Kauf: das Gold reicht.
+    expect(addBuy(builder, buyId)).toBeNull();
+    expect(buySpending(builder)).toBe(buyCost);
+    // Dann im Schritt Ausspielen (läuft vor dem Kaufen, R-5) eine Einheit, die das ganze Gold braucht.
+    builder.setStep("play");
+    expect(builder.add({ type: "playUnit", cardInstanceId: unitCard, to: { zone: "reserve", slot: 0 } })).toBeNull();
+    const buyEntry = builder.entries().find((e) => e.section === "buy");
+    expect(buyEntry).toMatchObject({ action: { type: "buy", cardId: buyId }, rejection: "notEnoughGold" });
+    // Die Planungsliste zeigt den Kauf weiter, mit „wird abgelehnt: Gold reicht nicht“.
+    expect(reasonText("notEnoughGold")).toBe("Gold reicht nicht");
+    expect(boughtCounts(builder).get(buyId)).toBeUndefined();
+    expect(buySpending(builder)).toBe(0);
+    expect(builder.planning().buy).toEqual([]);
+    expect(buyOptions(data, builder).find((o) => o.cardId === buyId)).toMatchObject({ bought: 0, blocked: "notEnoughGold" });
+    // Wird die Einheit wieder entfernt, gilt der Kauf wieder.
+    const play = builder.entries().find((e) => e.section === "play");
+    if (!play) throw new Error("Ausspiel-Aktion fehlt");
+    builder.remove(play.section, play.index);
+    expect(builder.entries().find((e) => e.section === "buy")?.rejection).toBeNull();
+    expect(buySpending(builder)).toBe(buyCost);
   });
 });
 
