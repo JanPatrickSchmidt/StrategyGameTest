@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { type GameState, getPlayer, loadGameData } from "@game/engine";
-import { addBuy, boughtCounts, buyOptions, buyOptionText, buySpending, depositText, pileGroupName } from "./buyOffer";
+import { addBuy, blockedText, boughtCounts, buyOptions, buyOptionText, buySpending, depositText, pileGroupName } from "./buyOffer";
 import { describeAction, ownEntry, PlanBuilder, reasonText } from "./planner";
+import { boughtInRound, cardZoneOf } from "./cardOverview";
 import { GameSession, HUMAN } from "./session";
 
 const data = loadGameData();
@@ -231,6 +232,69 @@ describe("P18: Kaufen in Randfällen", () => {
     builder.remove(play.section, play.index);
     expect(builder.entries().find((e) => e.section === "buy")?.rejection).toBeNull();
     expect(buySpending(builder)).toBe(buyCost);
+  });
+});
+
+describe("C5b3: Befunde der Bildschirmfoto-Prüfung und Abnahme C5", () => {
+  it("R-11.1, R-11.3, R-11.4: gesperrte Karten nennen ihren Grund sichtbar, kaufbare keinen", () => {
+    const { builder } = setup({ roundGold: 2, edit: (s) => (s.supply["silver"] = 0) });
+    const byId = (id: string) => {
+      const option = buyOptions(data, builder).find((o) => o.cardId === id);
+      if (!option) throw new Error(`${id} fehlt im Angebot`);
+      return option;
+    };
+    expect(blockedText(byId("purify"))).toBeNull();
+    expect(blockedText(byId("gold_bar"))).toBe("Nicht möglich: Gold reicht nicht");
+    expect(blockedText(byId("silver"))).toBe(`Nicht möglich: ${reasonText("pileEmpty")}`);
+    expect(blockedText(byId("silver"))).toContain("R-11.4");
+    const { builder: limited } = setup({ roundGold: 100, edit: (s) => (s.supply["gold_bar"] = 1) });
+    expect(addBuy(limited, "gold_bar")).toBeNull();
+    const bar = buyOptions(data, limited).find((o) => o.cardId === "gold_bar");
+    if (!bar) throw new Error("Goldbarren fehlt");
+    expect(blockedText(bar)).toBe(`Nicht möglich: ${reasonText("pileLimitReached")}`);
+  });
+
+  it("R-11.2: Abnahme C5 – Käufe aus Basis, Königreich und Klassen-Pool über mehrere Runden landen im Deck", () => {
+    const session = new GameSession(data, { seed: 3 });
+    const kingdom = buyOptions(data, session.planner()).find((o) => o.group === "kingdom" && o.cardId === "rune_shield");
+    const classCard = buyOptions(data, session.planner()).find((o) => o.group === "class");
+    if (!kingdom || !classCard) throw new Error("Angebot unvollständig");
+    const plan: { group: string; cardId: string }[] = [
+      { group: "basic", cardId: "silver" },
+      { group: "kingdom", cardId: kingdom.cardId },
+      { group: "class", cardId: classCard.cardId },
+    ];
+    const boughtIds: number[] = [];
+    for (const { group, cardId } of plan) {
+      expect(session.status).toBe("waitingForHuman");
+      const round = session.state.round;
+      getPlayer(session.state, HUMAN).roundGold = 10;
+      const builder = session.planner();
+      expect(buyOptions(data, builder).find((o) => o.cardId === cardId)?.group).toBe(group);
+      // Wie in der Prüfung: kaufen, wieder entfernen, erneut kaufen, zwischen den Schritten wechseln.
+      expect(addBuy(builder, cardId)).toBeNull();
+      const entry = builder.entries().find((e) => e.section === "buy");
+      if (!entry) throw new Error("Kauf fehlt in der Liste");
+      builder.remove(entry.section, entry.index);
+      expect(boughtCounts(builder).size).toBe(0);
+      expect(addBuy(builder, cardId)).toBeNull();
+      builder.setStep("play");
+      builder.setStep("position");
+      builder.setStep("buy");
+      expect(boughtCounts(builder).get(cardId)).toBe(1);
+      expect(session.submitHuman(builder.planning())).toEqual({ ok: true });
+      const bought = boughtInRound(session.view().log, round, HUMAN);
+      expect(bought.map((b) => b.cardId)).toEqual([cardId]);
+      const first = bought[0];
+      if (!first) throw new Error("Kauf fehlt im Protokoll");
+      boughtIds.push(first.cardInstanceId);
+    }
+    // Alle gekauften Karten gehören dem Menschen und liegen bei seinen Karten (Hand, Ausgespielt, Deck, Ablage).
+    const view = session.view();
+    for (const id of boughtIds) {
+      expect(session.state.cards[id]?.owner).toBe(HUMAN);
+      expect(cardZoneOf(view, id)).not.toBeNull();
+    }
   });
 });
 

@@ -12,7 +12,7 @@
  *   (R-12.5, F12).
  */
 import type { CardData, GameData, PlanningAction, PlayerView, RejectionReason } from "@game/engine";
-import { ownEntry, type PlanBuilder } from "./planner";
+import { ownEntry, type PlanBuilder, reasonText } from "./planner";
 
 export type PileGroup = "basic" | "kingdom" | "class";
 
@@ -96,6 +96,14 @@ export function buyOptionText(option: BuyOption): string {
   const parts = [option.card.name, `${option.cost} Gold`, `Stapel ${option.pileAtStart}`];
   if (option.bought > 0) parts.push(`gekauft ${option.bought}`);
   return parts.join(" · ");
+}
+
+/**
+ * C5b3: Sperrgrund sichtbar auf der Karte (nicht nur als Tooltip, den gesperrte Knöpfe auf Touch-Geräten nie
+ * zeigen), z. B. „Nicht möglich: Gold reicht nicht“; `null`, wenn der Kauf jetzt möglich ist.
+ */
+export function blockedText(option: BuyOption): string | null {
+  return option.blocked ? `Nicht möglich: ${reasonText(option.blocked)}` : null;
 }
 
 /** R-11.2: Kauf planen (wechselt in den Schritt Kaufen). Liefert den Ablehnungsgrund oder `null`. */

@@ -8,7 +8,7 @@
  * Die Logik liegt in `planner.ts`; hier wird nur gezeichnet und weitergereicht.
  */
 import { type ActionTarget, type GameData, PLANNING_SECTIONS, type PlanningAction, type PlayerView, type RejectionReason, type UnitId, type UnitLocation } from "@game/engine";
-import { addBuy, buyOptions, buyOptionText, buySpending, depositText, pileGroupName } from "./buyOffer";
+import { addBuy, blockedText, buyOptions, buyOptionText, buySpending, depositText, pileGroupName } from "./buyOffer";
 import { cardRulesLines, cardRulesText } from "./cardRules";
 import { applyTarget, type BoardSelection, isRelocatable, targetLocations, validSelection } from "./boardInput";
 import { locationName } from "./fieldNames";
@@ -272,14 +272,17 @@ export class PlanningPanel {
       const row = el("div", { className: "row shop" }, el("span", { className: "hint", textContent: `${pileGroupName(this.data, group, options)}:` }));
       for (const option of inGroup) {
         // C5b2: Kartentext steht sichtbar unter dem Namen; der Tooltip nennt nur noch den Sperrgrund.
+        // C5b3: Sperrgrund zusätzlich sichtbar in der Karte (Tooltips gesperrter Knöpfe fehlen auf Touch-Geräten).
+        const blocked = blockedText(option);
         const button = el(
           "button",
           {
             className: "card-button",
             disabled: option.blocked !== null,
-            title: option.blocked ? `Nicht möglich: ${reasonText(option.blocked)}` : `${option.card.name} kaufen`,
+            title: blocked ?? `${option.card.name} kaufen`,
           },
           el("span", { className: "card-name", textContent: buyOptionText(option) }),
+          ...(blocked ? [el("span", { className: "card-blocked", textContent: blocked })] : []),
           ...cardRulesLines(this.data, option.card).map((line) => el("span", { className: "card-rules", textContent: line })),
         );
         button.dataset["cardId"] = option.cardId;
