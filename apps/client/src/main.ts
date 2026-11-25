@@ -5,6 +5,7 @@
  * Kämpfe dieser Runde aus dem Ereignisprotokoll ab (C4c1, R-19.2), seit C4c2b mit den Anführer-Fähigkeiten und
  * Zaubern davor und dem Durchbruch-Schaden und den Zaubern danach. Unter der Planung stehen die eigenen Karten
  * (C5b1); in der letzten Runde gekaufte Karten sind als „neu“ markiert und werden in der Meldung genannt.
+ * Über dem Brett steht die Übersichtstafel aller Spieler (C6a).
  */
 import { loadGameData } from "@game/engine";
 import { cardRulesText } from "./cardRules";
@@ -16,6 +17,16 @@ import { roundStatusText } from "./roundAnimation";
 import { createBoardScene, type BoardScene } from "./scene";
 import { PlanningPanel } from "./planningPanel";
 import { GameSession, HUMAN } from "./session";
+import {
+  centerText,
+  leaderText,
+  lifeText,
+  opponentsText,
+  powerText,
+  scoreboard,
+  statusText,
+  streakText,
+} from "./scoreboard";
 import { formatState } from "./stateText";
 
 const data = loadGameData();
@@ -27,6 +38,9 @@ function element<T extends HTMLElement>(id: string): T {
 }
 
 const stateText = element<HTMLPreElement>("state");
+const scoreHeader = element<HTMLParagraphElement>("score-header");
+const scoreTable = element<HTMLTableElement>("scoreboard");
+element<HTMLSpanElement>("power-goal").textContent = String(data.config.powerToWin);
 const cardsList = element<HTMLUListElement>("cards");
 const seedInput = element<HTMLInputElement>("seed");
 const message = element<HTMLParagraphElement>("message");
@@ -119,12 +133,53 @@ function renderCards(): void {
   }
 }
 
+const SCORE_COLUMNS = ["Spieler", "Leben", "Macht", "Schatz\u00adkammer", "Serie", "Mitte", "Fronten", "Anführer", "Karten", "Status"];
+
+/** C6a: Übersichtstafel aller Spieler über dem Brett. */
+function renderScoreboard(): void {
+  const view = session.view();
+  const board = scoreboard(data, view);
+  scoreHeader.textContent = board.header;
+  const head = document.createElement("tr");
+  for (const name of SCORE_COLUMNS) {
+    const th = document.createElement("th");
+    th.textContent = name;
+    head.append(th);
+  }
+  const rows = board.rows.map((row) => {
+    const tr = document.createElement("tr");
+    tr.className = [row.isViewer ? "viewer" : "", row.eliminated ? "out" : ""].join(" ").trim();
+    // Klasse je Zelle: "nowrap" für kurze Zahlen, "small" für längere Erklärtexte.
+    const cells: [string, string][] = [
+      [row.name, "nowrap"],
+      [lifeText(row), "nowrap"],
+      [powerText(row, board.powerToWin), "nowrap"],
+      [`${row.treasury} Gold`, "nowrap"],
+      [streakText(data, row), ""],
+      [centerText(data, row), "small"],
+      [opponentsText(row, view.viewer), ""],
+      [leaderText(row), "small"],
+      [`${row.deckSize} · ${row.handSize} · ${row.discardSize}`, "nowrap"],
+      [statusText(row, view.result !== null), ""],
+    ];
+    for (const [text, kind] of cells) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      if (kind) td.className = kind;
+      tr.append(td);
+    }
+    return tr;
+  });
+  scoreTable.replaceChildren(head, ...rows);
+}
+
 /** Partie und Runde der offenen Planung; ein neuer Entwurf entsteht nur, wenn sich das ändert. */
 let planningFor: { session: GameSession; round: number } | null = null;
 
 function render(note = ""): void {
   const view = session.view();
   stateText.textContent = formatState(data, view);
+  renderScoreboard();
   renderCards();
   const waiting = session.status === "waitingForHuman";
   // Neue Planung nach jeder Runde (bzw. neuer Partie); das Brett zeigt die Vorschau des Entwurfs.
