@@ -147,7 +147,7 @@ export function formatState(data: GameData, view: PlayerView): string {
   const lines: string[] = [`Runde ${view.round} von höchstens ${data.config.maxRounds} · Phase: ${PHASE_NAMES[view.phase]}`];
   if (view.result) {
     const winners = view.result.winners.map((p) => playerName(p, view.viewer)).join(", ");
-    lines.push(`Partie beendet in Runde ${view.result.round}: Sieg ${winners} (${VICTORY_NAMES[view.result.reason]})`);
+    lines.push(`Partie beendet in Runde ${view.result.round}: Sieger: ${winners} (${VICTORY_NAMES[view.result.reason]})`);
   }
   lines.push("", "Spieler");
   for (const entry of view.players) lines.push(...playerLines(data, view, entry));

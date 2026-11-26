@@ -6,7 +6,8 @@
  * Zaubern davor und dem Durchbruch-Schaden und den Zaubern danach. Unter der Planung stehen die eigenen Karten
  * (C5b1); in der letzten Runde gekaufte Karten sind als „neu“ markiert und werden in der Meldung genannt.
  * Über dem Brett steht die Übersichtstafel aller Spieler (C6a), am Spielende darüber das Ergebnis mit Sieger,
- * Siegart und Platzierung (C6b).
+ * Siegart und Platzierung (C6b). Endet die Partie, rückt das Ergebnis nach der Wiedergabe der letzten Runde in den
+ * Sichtbereich (C6c).
  */
 import { loadGameData } from "@game/engine";
 import { cardRulesText } from "./cardRules";
@@ -28,7 +29,7 @@ import {
   statusText,
   streakText,
 } from "./scoreboard";
-import { gameEndMessage, gameEndSummary, outcomeText, placementText } from "./gameEnd";
+import { gameEndMessage, gameEndSummary, outcomeText, placementText, resultReveal } from "./gameEnd";
 import { formatState } from "./stateText";
 
 const data = loadGameData();
@@ -208,6 +209,15 @@ function renderResult(): string | null {
   return gameEndMessage(summary);
 }
 
+/** C6c: Partie, deren Ergebnis schon angezeigt wird, und ob es nach der laufenden Wiedergabe gezeigt werden soll. */
+let resultShownFor: GameSession | null = null;
+let revealAfterReplay = false;
+
+function revealResult(): void {
+  revealAfterReplay = false;
+  if (!resultPanel.hidden) resultPanel.scrollIntoView({ block: "start", behavior: "smooth" });
+}
+
 /** Partie und Runde der offenen Planung; ein neuer Entwurf entsteht nur, wenn sich das ändert. */
 let planningFor: { session: GameSession; round: number } | null = null;
 
@@ -216,6 +226,11 @@ function render(note = ""): void {
   stateText.textContent = formatState(data, view);
   renderScoreboard();
   const endMessage = renderResult();
+  const reveal = resultReveal(resultShownFor === session, endMessage !== null, replayPlayer !== null);
+  resultShownFor = endMessage !== null ? session : null;
+  if (endMessage === null) revealAfterReplay = false;
+  else if (reveal === "afterReplay") revealAfterReplay = true;
+  else if (reveal === "now") revealResult();
   renderCards();
   const waiting = session.status === "waitingForHuman";
   // Neue Planung nach jeder Runde (bzw. neuer Partie); das Brett zeigt die Vorschau des Entwurfs.
@@ -260,6 +275,7 @@ function startReplay(round: number): void {
       if (replayPlayer === player) {
         replayPlayer = null;
         replayControls.panel.hidden = true;
+        if (revealAfterReplay) revealResult();
       }
       return;
     }
@@ -294,6 +310,8 @@ function guarded(action: () => string | void): void {
 
 buttons.newGame.addEventListener("click", () =>
   guarded(() => {
+    // Die abgebrochene Wiedergabe der alten Partie soll nicht mehr zu deren Ergebnis scrollen.
+    revealAfterReplay = false;
     scene?.stopReplay();
     const seed = Number.parseInt(seedInput.value, 10);
     session = new GameSession(data, { seed: Number.isFinite(seed) && seed >= 0 ? seed : 1 });

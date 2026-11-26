@@ -65,6 +65,11 @@
   #result-table th, #result-table td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
   #result-table th { color: var(--muted); font-weight: 500; }
   #result-table tr.viewer td { color: var(--accent); font-weight: 600; }
+  /* C6c: auf Handy-Breite passt die Ergebnis-Tafel ohne seitliches Scrollen („Verlauf“ war abgeschnitten). */
+  @media (max-width: 520px) {
+    #result-table { font-size: 0.78rem; }
+    #result-table th, #result-table td { padding: 3px 3px; }
+  }
   #state { margin: 0; font: 0.85rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>
 </head>

@@ -125,3 +125,16 @@ export function gameEndMessage(summary: GameEndSummary): string {
   }
   return `Die Partie ist beendet: ${summary.headline} Du belegst ${placementText(own)}.`;
 }
+
+/** C6c: Wann die Ergebnis-Tafel in den Sichtbereich gerückt wird. */
+export type ResultReveal = "none" | "now" | "afterReplay";
+
+/**
+ * C6c: Die Ergebnis-Tafel steht oben über dem Brett; wer unten „Planung bestätigen“ klickt, sähe sie sonst nicht.
+ * Nur beim Übergang zum Spielende wird gescrollt, und erst nach der Wiedergabe der letzten Runde (R-19.2), damit
+ * der letzte Kampf noch zu sehen ist.
+ */
+export function resultReveal(wasShown: boolean, isShown: boolean, replayRunning: boolean): ResultReveal {
+  if (!isShown || wasShown) return "none";
+  return replayRunning ? "afterReplay" : "now";
+}

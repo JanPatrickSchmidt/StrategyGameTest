@@ -52,7 +52,7 @@ describe("C1: Zustand als Text", () => {
     const view = session.view();
     const text = formatState(data, view);
     expect(text).toContain("Phase: Spielende");
-    expect(text).toMatch(/Partie beendet in Runde \d+: Sieg /);
+    expect(text).toMatch(/Partie beendet in Runde \d+: Sieger: (Du|Bot \d)/);
     const eliminated = view.players.filter((p) => p.eliminated);
     expect(text.match(/– ausgeschieden, Platz \d/g)?.length ?? 0).toBe(eliminated.filter((p) => p.placement !== null).length);
   });

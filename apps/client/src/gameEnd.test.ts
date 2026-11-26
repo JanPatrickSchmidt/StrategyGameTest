@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { advance, createGame, defaultLeaders, loadGameData, playerView, submitPlanning, type PlayerView } from "@game/engine";
 import { GameSession, HUMAN } from "./session";
-import { eliminationRounds, gameEndMessage, gameEndSummary, headlineText, outcomeText, placementText } from "./gameEnd";
+import { eliminationRounds, gameEndMessage, gameEndSummary, headlineText, outcomeText, placementText, resultReveal } from "./gameEnd";
 
 const data = loadGameData();
 
@@ -162,5 +162,33 @@ describe("C6b: Spielende", () => {
     expect(headlineText([2, 0], 0)).toBe("Du und Bot 3 teilen sich Platz 1.");
     expect(headlineText([1, 2, 3], 0)).toBe("Bot 2, Bot 3 und Bot 4 teilen sich Platz 1.");
     expect(headlineText([], 0)).toBe("Kein Sieger.");
+  });
+});
+
+describe("C6c: Ergebnis in den Sichtbereich rücken", () => {
+  it("R-13.1, R-19.2: beim Übergang zum Spielende erst nach der Wiedergabe der letzten Runde, ohne Wiedergabe sofort", () => {
+    expect(resultReveal(false, true, true)).toBe("afterReplay");
+    expect(resultReveal(false, true, false)).toBe("now");
+  });
+
+  it("C6c: während der Partie und bei schon angezeigtem Ergebnis wird nicht gescrollt", () => {
+    expect(resultReveal(false, false, true)).toBe("none");
+    expect(resultReveal(false, false, false)).toBe("none");
+    expect(resultReveal(true, true, false)).toBe("none");
+    expect(resultReveal(true, true, true)).toBe("none");
+  });
+
+  it("R-13.4: Abnahme C6 – jede Partie lässt sich bis zum Ende spielen und hat ein vollständiges Ergebnis (Seeds 1–20)", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const session = finished(seed);
+      expect(session.status).toBe("gameOver");
+      const summary = gameEndSummary(data, session.view());
+      expect(summary).not.toBeNull();
+      if (!summary) continue;
+      expect(summary.rows.map((r) => r.player).sort()).toEqual([0, 1, 2, 3]);
+      expect(summary.winners.length).toBeGreaterThan(0);
+      for (const winner of summary.winners) expect(summary.rows.find((r) => r.player === winner)?.placement).toBe(1);
+      expect(gameEndMessage(summary)).toContain(summary.headline);
+    }
   });
 });
