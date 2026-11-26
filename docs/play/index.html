@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Partie gegen Bots – StrategyGameTest</title>
+<style>:root{--bg:#24221f;--panel:#2f2c28;--ink:#ece6dc;--muted:#a39a8c;--line:#4a453e;--accent:#b08a3a}*{box-sizing:border-box}html,body{background:var(--bg);color:var(--ink);margin:0;font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}main{max-width:900px;margin:0 auto;padding:12px 16px}h1{margin:4px 0 2px;font-size:1.25rem}.hint{color:var(--muted);margin:0 0 10px;font-size:.85rem}.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:10px;padding:10px}.row{flex-wrap:wrap;align-items:center;gap:6px;display:flex}[hidden]{display:none!important}button,input{font:inherit;border:1px solid var(--line);color:var(--ink);background:#3a3631;border-radius:8px;min-height:40px;padding:8px 10px}button{cursor:pointer}button:disabled{opacity:.4;cursor:default}button.primary{background:var(--accent);border-color:var(--accent);color:#1d1b18;font-weight:600}input#seed{width:6em}label.inline{color:var(--muted);align-items:center;gap:6px;display:inline-flex}#board{touch-action:none;border-radius:8px;outline:none;width:100%;height:min(70vh,560px);display:block}#message{color:var(--accent);margin:8px 0 0;font-weight:600}select{font:inherit;border:1px solid var(--line);color:var(--ink);background:#3a3631;border-radius:8px;max-width:100%;min-height:40px;padding:8px}#planning .gold{margin:8px 0 2px;font-weight:600}#planning .row{margin-top:6px}.plan-list{margin:4px 0;padding-left:1.4em}.plan-list li{margin:2px 0}.plan-list button.small{min-height:28px;padding:2px 8px}.rejected{color:#e08a6a}.card-zones{margin:0;padding-left:1.2em}.card-zones li{margin:2px 0}.card-zones .new{color:var(--accent);font-weight:600}.card-button,.card-text{text-align:left;flex-direction:column;align-items:flex-start;gap:2px;display:flex}.card-button{justify-content:flex-start;padding:6px 10px}#planning .row.shop{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-items:stretch;display:grid}#planning .row.shop>.hint{grid-column:1/-1;margin:6px 0 0}.card-button:disabled{opacity:.7}.card-blocked{color:#e08a6a;font-size:.78rem}.card-text{border:1px solid var(--line);background:#3a3631;border-radius:8px;max-width:520px;margin-top:6px;padding:6px 10px}.card-name{font-weight:600}.card-rules{color:var(--muted);font-size:.78rem;line-height:1.3}.card-zones span[title]{cursor:help;-webkit-text-decoration:underline dotted var(--line);text-decoration:underline dotted var(--line)}.score-wrap{overflow-x:auto}#score-header{margin:0 0 6px;font-weight:600}#scoreboard{border-collapse:collapse;width:100%;font-size:.85rem}#scoreboard th,#scoreboard td{text-align:left;border-bottom:1px solid var(--line);vertical-align:top;padding:4px 5px}#scoreboard td.nowrap{white-space:nowrap}#scoreboard th{color:var(--muted);font-weight:500}#scoreboard tr.viewer td{color:var(--accent)}#scoreboard tr.out td{opacity:.55}#scoreboard td.small{color:var(--muted);min-width:8em;font-size:.78rem}#result{border-color:var(--accent)}#result-headline{color:var(--accent);margin:0 0 4px;font-size:1.15rem;font-weight:700}#result-reason{color:var(--muted);margin:0 0 8px;font-size:.9rem}#result-table{border-collapse:collapse;width:100%;font-size:.9rem}#result-table th,#result-table td{text-align:left;border-bottom:1px solid var(--line);padding:4px 6px}#result-table th{color:var(--muted);font-weight:500}#result-table tr.viewer td{color:var(--accent);font-weight:600}@media (width<=520px){#result-table{font-size:.78rem}#result-table th,#result-table td{padding:3px}}#state{white-space:pre-wrap;overflow-wrap:anywhere;margin:0;font:.85rem/1.45 ui-monospace,SFMono-Regular,Menlo,monospace}</style>
+  <script type="module" crossorigin src="./assets/index-B8ph8vHs.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/babylon-DCUNmcP-.js">
+</head>
+<body>
+<main>
+  <h1>Partie gegen 3 Bots</h1>
+  <p class="hint">Die echte Engine läuft im Browser, die Gegner sind GreedyBots. Das 3D-Brett (C2) zeigt die Mitte und die Frontarenen zwischen den Sitzen, die Zonen in der Farbe ihres Besitzers; ziehen dreht die Kamera, Mausrad oder zwei Finger zoomen. Einheiten stehen als Formen in Spielerfarbe auf ihren Feldern (hohe Figur mit Kopf = Anführer, Block = Nahkampf, Kegel = Fernkampf, Kugel = Token, grau und schräg = verwundet), die Reserve an deiner Sitz-Ecke. Unten planst du deinen Zug (C3a): Schritte Ausspielen, Kaufen, Aufstellen, frei wechselbar bis zum Bestätigen; das Brett zeigt dabei die Vorschau. Direkt auf dem Brett (C3b): Einheitenkarte wählen und ein hervorgehobenes Feld anklicken; eigene Einheiten anklicken und dann ein Feld wählen oder direkt dorthin ziehen. Felder heißen wie beim Schach aus deiner Sicht (Spalte a–e, Reihe 1 = hinten, 3 = an der Front). Alternativ: Runde auslassen oder den Autopiloten planen lassen. Nach jeder Runde (C4c1) spielt das Brett die Kämpfe nacheinander ab: die Kamera fährt zur laufenden Arena, die Figuren laufen über die Felder, über jeder stehen Leben und Schild, besiegte blenden aus; Nahkämpfer machen beim Schlag einen Ausfallschritt, Fernkämpfer schießen Geschosse, Fähigkeiten blitzen golden (mit Strahl zum Ziel), aufsteigende Zahlen zeigen Schaden (rot, Schild-Anteil blau), Heilung (grün), Buffs (gelb) und Betäubung (C4c2a); Vor den Kämpfen zeigt das Brett die Anführer-Fähigkeiten und Zauber (goldener Ring am Anführer bzw. an der Säule, Strahl zu den Zielen, Zahlen), danach Durchbruch-Schaden als Geschoss zur Säule des Verlierers mit „−N Leben“ (C4c2b); Tempo wählbar, einzelne Abschnitte oder alle überspringbar.</p>
+  <div class="panel">
+    <div class="row">
+      <label class="inline">Seed <input id="seed" type="number" min="0" step="1"></label>
+      <button id="new-game">Neue Partie</button>
+    </div>
+    <div class="row" style="margin-top: 8px">
+      <button id="pass">Runde auslassen</button>
+      <button id="autopilot" class="primary">Autopilot: eine Runde</button>
+      <button id="to-end">Autopilot bis zum Ende</button>
+    </div>
+    <p id="message"></p>
+  </div>
+  <div id="result" class="panel" hidden>
+    <p id="result-headline"></p>
+    <p id="result-reason"></p>
+    <div class="score-wrap"><table id="result-table"></table></div>
+  </div>
+  <div class="panel">
+    <p id="score-header"></p>
+    <div class="score-wrap"><table id="scoreboard"></table></div>
+    <p class="hint" style="margin:6px 0 0">Leben und Macht mit der Änderung der letzten Runde in Klammern; Machtsieg bei <span id="power-goal"></span> Machtpunkten. Serie = gewonnene bzw. verlorene Runden in Folge mit dem Bonusgold je Runde; Mitte = Halteserie und was das nächste Halten bringt. Fronten = Gegner an der linken und rechten Front in dieser Runde; Karten = Deck · Hand · Ablage.</p>
+  </div>
+  <div class="panel">
+    <canvas id="board"></canvas>
+    <div id="replay" class="row" style="margin-top: 8px" hidden>
+      <span id="replay-status" style="flex: 1 1 100%; color: var(--muted)"></span>
+      <label class="inline">Tempo <select id="replay-speed"><option value="0.5">0,5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
+      <button id="replay-skip">Kampf überspringen</button>
+      <button id="replay-skip-all">Alle überspringen</button>
+    </div>
+    <p id="no-3d" class="hint" hidden>3D-Anzeige in diesem Browser nicht verfügbar (WebGL fehlt); der Text unten funktioniert trotzdem.</p>
+  </div>
+  <div class="panel">
+    <h2 style="font-size:1.05rem;margin:0">Deine Planung</h2>
+    <div id="planning"></div>
+  </div>
+  <div class="panel">
+    <h2 style="font-size:1.05rem;margin:0">Deine Karten</h2>
+    <p class="hint">Hand, ausgespielte Karten, Deck (ohne Reihenfolge) und Ablagestapel. Karten, die du in der letzten Runde gekauft hast, sind als „neu“ markiert.</p>
+    <ul id="cards" class="card-zones"></ul>
+  </div>
+  <div class="panel">
+    <pre id="state"></pre>
+  </div>
+</main>
+</body>
+</html>
