@@ -57,6 +57,14 @@
   #scoreboard tr.viewer td { color: var(--accent); }
   #scoreboard tr.out td { opacity: 0.55; }
   #scoreboard td.small { font-size: 0.78rem; color: var(--muted); min-width: 8em; }
+  /* C6b: Ergebnis am Spielende. */
+  #result { border-color: var(--accent); }
+  #result-headline { font-size: 1.15rem; font-weight: 700; margin: 0 0 4px; color: var(--accent); }
+  #result-reason { margin: 0 0 8px; color: var(--muted); font-size: 0.9rem; }
+  #result-table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+  #result-table th, #result-table td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  #result-table th { color: var(--muted); font-weight: 500; }
+  #result-table tr.viewer td { color: var(--accent); font-weight: 600; }
   #state { margin: 0; font: 0.85rem/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 </style>
 </head>
@@ -75,6 +83,11 @@
       <button id="to-end">Autopilot bis zum Ende</button>
     </div>
     <p id="message"></p>
+  </div>
+  <div id="result" class="panel" hidden>
+    <p id="result-headline"></p>
+    <p id="result-reason"></p>
+    <div class="score-wrap"><table id="result-table"></table></div>
   </div>
   <div class="panel">
     <p id="score-header"></p>

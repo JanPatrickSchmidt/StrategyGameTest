@@ -5,7 +5,8 @@
  * Kämpfe dieser Runde aus dem Ereignisprotokoll ab (C4c1, R-19.2), seit C4c2b mit den Anführer-Fähigkeiten und
  * Zaubern davor und dem Durchbruch-Schaden und den Zaubern danach. Unter der Planung stehen die eigenen Karten
  * (C5b1); in der letzten Runde gekaufte Karten sind als „neu“ markiert und werden in der Meldung genannt.
- * Über dem Brett steht die Übersichtstafel aller Spieler (C6a).
+ * Über dem Brett steht die Übersichtstafel aller Spieler (C6a), am Spielende darüber das Ergebnis mit Sieger,
+ * Siegart und Platzierung (C6b).
  */
 import { loadGameData } from "@game/engine";
 import { cardRulesText } from "./cardRules";
@@ -27,6 +28,7 @@ import {
   statusText,
   streakText,
 } from "./scoreboard";
+import { gameEndMessage, gameEndSummary, outcomeText, placementText } from "./gameEnd";
 import { formatState } from "./stateText";
 
 const data = loadGameData();
@@ -41,6 +43,10 @@ const stateText = element<HTMLPreElement>("state");
 const scoreHeader = element<HTMLParagraphElement>("score-header");
 const scoreTable = element<HTMLTableElement>("scoreboard");
 element<HTMLSpanElement>("power-goal").textContent = String(data.config.powerToWin);
+const resultPanel = element<HTMLDivElement>("result");
+const resultHeadline = element<HTMLParagraphElement>("result-headline");
+const resultReason = element<HTMLParagraphElement>("result-reason");
+const resultTable = element<HTMLTableElement>("result-table");
 const cardsList = element<HTMLUListElement>("cards");
 const seedInput = element<HTMLInputElement>("seed");
 const message = element<HTMLParagraphElement>("message");
@@ -173,6 +179,35 @@ function renderScoreboard(): void {
   scoreTable.replaceChildren(head, ...rows);
 }
 
+const RESULT_COLUMNS = ["Platz", "Spieler", "Anführer", "Leben", "Macht", "Verlauf"];
+
+/** C6b: Ergebnis-Anzeige am Spielende (Sieger, Siegart, Platzierung aller Spieler); sonst ausgeblendet. */
+function renderResult(): string | null {
+  const summary = gameEndSummary(data, session.view());
+  resultPanel.hidden = summary === null;
+  if (!summary) return null;
+  resultHeadline.textContent = summary.headline;
+  resultReason.textContent = summary.reasonText;
+  const head = document.createElement("tr");
+  for (const name of RESULT_COLUMNS) {
+    const th = document.createElement("th");
+    th.textContent = name;
+    head.append(th);
+  }
+  const rows = summary.rows.map((row) => {
+    const tr = document.createElement("tr");
+    if (row.isViewer) tr.className = "viewer";
+    for (const text of [placementText(row), row.name, row.leader, `${row.life}♥`, `${row.power}/${data.config.powerToWin}`, outcomeText(row)]) {
+      const td = document.createElement("td");
+      td.textContent = text;
+      tr.append(td);
+    }
+    return tr;
+  });
+  resultTable.replaceChildren(head, ...rows);
+  return gameEndMessage(summary);
+}
+
 /** Partie und Runde der offenen Planung; ein neuer Entwurf entsteht nur, wenn sich das ändert. */
 let planningFor: { session: GameSession; round: number } | null = null;
 
@@ -180,6 +215,7 @@ function render(note = ""): void {
   const view = session.view();
   stateText.textContent = formatState(data, view);
   renderScoreboard();
+  const endMessage = renderResult();
   renderCards();
   const waiting = session.status === "waitingForHuman";
   // Neue Planung nach jeder Runde (bzw. neuer Partie); das Brett zeigt die Vorschau des Entwurfs.
@@ -193,7 +229,12 @@ function render(note = ""): void {
   buttons.pass.disabled = !waiting;
   buttons.autopilot.disabled = !waiting;
   buttons.toEnd.disabled = !waiting;
-  message.textContent = note || (waiting ? `Runde ${view.round}: plane deinen Zug und bestätige ihn.` : "Die Partie ist beendet.");
+  // C6b: Am Spielende ist „Neue Partie“ der Hauptknopf, statt des gesperrten Autopiloten.
+  buttons.newGame.classList.toggle("primary", !waiting);
+  buttons.autopilot.classList.toggle("primary", waiting);
+  const fallback = waiting ? `Runde ${view.round}: plane deinen Zug und bestätige ihn.` : "Die Partie ist beendet.";
+  // Die Ergebnis-Meldung geht vor; eine Notiz der letzten Aktion (z. B. Käufe) wird angehängt.
+  message.textContent = endMessage ? [endMessage, note].filter(Boolean).join(" ") : note || fallback;
 }
 
 /** C4c1/C4c2b: laufende Wiedergabe der Runde (nur mit 3D-Brett). */
