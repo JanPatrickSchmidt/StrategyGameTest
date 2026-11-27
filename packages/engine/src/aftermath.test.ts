@@ -165,8 +165,8 @@ describe("Vorgemerkte Kampf-Effekte (E10b, R-10.3)", () => {
     const state = emptyBoard();
     const id = placeUnit(state, 0, front("right", 0, 0), "arena_champion", { stars: 2, permanentBuffs: { attack: 3, hp: 2 } });
     const init = fighterForUnit(state, data, state.units[id] as Unit, { col: 0, row: 0 });
-    expect(init.stats.attack).toBe(Math.floor(6 * 1.8) + 3);
-    expect(init.stats.hp).toBe(Math.floor(12 * 1.8) + 2);
+    expect(init.stats.attack).toBe(12 + 3); // 6 × 2,0 = 12 (B0c1)
+    expect(init.stats.hp).toBe(24 + 2); // 12 × 2,0 = 24 (B0c1)
   });
 
   it("R-15.1: beim Verschmelzen addieren sich die dauerhaften Buffs der drei Einheiten (F31)", () => {

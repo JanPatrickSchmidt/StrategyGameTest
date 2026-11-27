@@ -51,7 +51,7 @@ function abilityDamage(sim: CombatSim, source: number): Extract<CombatEvent, { t
 describe("Sternfaktor für Fähigkeitszahlen (R-15.2)", () => {
   it.each([
     [1, 2],
-    [2, 3],
+    [2, 4], // 2 × 2,0 (B0c1)
     [3, 6],
   ] as const)("R-15.2: Lehrling ★%i fügt %i Fähigkeitsschaden zu", (stars, expected) => {
     const sim = run([card(1, 0, "apprentice", stars, at(2, 0), { startMana: 100 }), dummy(2, 1, at(2, 5))]);
@@ -61,7 +61,7 @@ describe("Sternfaktor für Fähigkeitszahlen (R-15.2)", () => {
 
   it.each([
     [1, 6],
-    [2, 10],
+    [2, 12], // 6 × 2,0 (B0c1)
     [3, 19],
   ] as const)("R-15.2: Mondpriesterin ★%i gibt %i Schild", (stars, expected) => {
     const sim = run([

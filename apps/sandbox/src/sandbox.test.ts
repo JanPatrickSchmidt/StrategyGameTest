@@ -83,8 +83,8 @@ describe("D1 Kampf-Sandbox: Katalog und Aufstellung", () => {
       [1, 0, "mercenary"],
       [2, 1, "recruit"],
     ]);
-    // Söldner ★2: attack 2 → 3, hp 4 → 7, breakthrough 1 → 1.
-    expect(fighters[0]?.stats).toMatchObject({ attack: 3, hp: 7, breakthrough: 1 });
+    // Söldner ★2 (Faktor 2,0, B0c1): attack 2 → 4, hp 4 → 8, breakthrough 1 → 2.
+    expect(fighters[0]?.stats).toMatchObject({ attack: 4, hp: 8, breakthrough: 2 });
   });
 });
 
@@ -149,9 +149,9 @@ describe("D1 Kampf-Sandbox: Kampf und Ergebnis", () => {
     expect(outcome.winner).toBe(1);
     expect(outcome.ticks).toBe(0);
     expect(outcome.survivors).toEqual([1, 2]);
-    // Taschendieb 2 + Funkenreiter ★2 (3 × 1,8 = 5) = 7, Grundschaden Runde 12 = 3.
-    expect(outcome.breakthrough).toBe(7);
-    expect(outcome.damage).toBe(10);
+    // Taschendieb 2 + Funkenreiter ★2 (3 × 2,0 = 6) = 8, Grundschaden Runde 12 = 3 (B0c1).
+    expect(outcome.breakthrough).toBe(8);
+    expect(outcome.damage).toBe(11);
     expect(outcome.loot).toBe(data.config.emptyFrontLoot);
   });
 

@@ -165,3 +165,75 @@ Alle Änderungen liegen innerhalb von ±50 % und betreffen nur Angriff, Leben, D
 
 - **F62:** Welche Messung gilt für das Ziel 45–55 %? Standard: gleiche Einheitenzahl (`--same-count`).
 - **F63:** Wie wird B-1 für ★2-Karten ab 3 Gold geprüft? Standard: Zweikampf nur für 1 und 2 Gold (Durchschnitt über alle Gegner der Kostenstufe); ab 3 Gold gilt das Ziel 45–55 % der ★2-Einheit bei gleicher Einheitenzahl.
+
+## B0c1: Sternfaktor ★2 = 2,0 (umgesetzt am 2026-11-27)
+
+Änderung V1: `starMultiplier["2"]` in `packages/engine/data/config.json` von 1,8 auf 2,0 ([TUNING], +11 %). Sonst keine Datenänderung.
+
+Messung: `npm run calibrate -- --battles 3000 --budget 6,10,15 --seed S --same-count` für S = 1–5, zusammengefasst (Unentschieden halb gezählt). „Vorher“ ist dieselbe Messung mit Faktor 1,8.
+
+| Kennzahl | Vorher (1,8) | Nachher (2,0) | Ziel |
+| --- | ---: | ---: | --- |
+| alle ★1-Einheiten | 52.1 % | 49.5 % | 45–55 % |
+| alle ★2-Einheiten | 43.7 % | 51.6 % | 45–55 % |
+| Zweikampf ★2 (1 Gold) gegen ★1 mit 3 Gold | 38.5 % | 62.5 % | 50–65 % |
+| Zweikampf ★2 (2 Gold) gegen ★1 mit 6 Gold | 1.2 % | 24.2 % | 50–65 % |
+
+| Karte | Kosten | ★ | Kämpfe (nachher) | Vorher | Nachher | Bewertung nachher |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Lehrling | 1 | 1 | 10806 | 48.0 % | 47.9 % | ok |
+| Lehrling | 1 | 2 | 4490 | 39.3 % | 53.5 % | ok |
+| Totengräber | 1 | 1 | 10760 | 47.5 % | 46.9 % | ok |
+| Totengräber | 1 | 2 | 4576 | 36.9 % | 50.8 % | ok |
+| Taschendieb | 1 | 1 | 10868 | 42.5 % | 41.6 % | zu schwach |
+| Taschendieb | 1 | 2 | 4470 | 40.6 % | 51.8 % | ok |
+| Rekrut | 1 | 1 | 10714 | 50.9 % | 51.1 % | ok |
+| Rekrut | 1 | 2 | 4408 | 56.5 % | 64.2 % | zu stark |
+| Schildknappe | 1 | 1 | 10746 | 54.8 % | 54.3 % | ok |
+| Schildknappe | 1 | 2 | 4282 | 52.7 % | 65.5 % | zu stark |
+| Goblin-Plänkler | 2 | 1 | 7476 | 50.4 % | 48.4 % | ok |
+| Goblin-Plänkler | 2 | 2 | 3164 | 43.4 % | 48.5 % | ok |
+| Söldner | 2 | 1 | 7362 | 51.0 % | 49.2 % | ok |
+| Söldner | 2 | 2 | 3188 | 45.8 % | 49.8 % | ok |
+| Funkenreiter | 2 | 1 | 7442 | 42.7 % | 40.0 % | zu schwach |
+| Funkenreiter | 2 | 2 | 3168 | 28.9 % | 35.3 % | zu schwach |
+| Bannerträger | 3 | 1 | 4448 | 78.6 % | 75.4 % | zu stark |
+| Bannerträger | 3 | 2 | 1644 | 63.8 % | 69.0 % | zu stark |
+| Hehler | 3 | 1 | 4390 | 28.7 % | 27.8 % | zu schwach |
+| Hehler | 3 | 2 | 1538 | 11.4 % | 11.1 % | zu schwach |
+| Waldläuferin | 3 | 1 | 4354 | 57.1 % | 54.3 % | ok |
+| Waldläuferin | 3 | 2 | 1622 | 53.9 % | 58.6 % | zu stark |
+| Schildwall-Veteran | 3 | 1 | 4488 | 71.9 % | 69.8 % | zu stark |
+| Schildwall-Veteran | 3 | 2 | 1430 | 72.2 % | 79.2 % | zu stark |
+| Kesselflicker | 3 | 1 | 4496 | 49.0 % | 46.0 % | ok |
+| Kesselflicker | 3 | 2 | 1470 | 24.8 % | 29.5 % | zu schwach |
+| Ahnenpfahl | 4 | 1 | 3940 | 46.2 % | 43.4 % | zu schwach |
+| Ahnenpfahl | 4 | 2 | 578 | 13.5 % | 8.1 % | zu schwach |
+| Klingentänzerin | 4 | 1 | 3812 | 61.9 % | 55.8 % | zu stark |
+| Klingentänzerin | 4 | 2 | 576 | 65.3 % | 64.1 % | zu stark |
+| Fluchweber | 4 | 1 | 3940 | 44.7 % | 40.5 % | zu schwach |
+| Fluchweber | 4 | 2 | 552 | 32.4 % | 34.2 % | zu schwach |
+| Runenschmied | 4 | 1 | 4018 | 48.9 % | 44.6 % | zu schwach |
+| Runenschmied | 4 | 2 | 668 | 29.0 % | 33.7 % | zu schwach |
+| Donnerbüchse | 4 | 1 | 4034 | 63.8 % | 58.7 % | zu stark |
+| Donnerbüchse | 4 | 2 | 582 | 61.3 % | 59.8 % | zu stark |
+| Kopfgeldjäger | 5 | 1 | 3394 | 60.3 % | 53.7 % | ok |
+| Kopfgeldjäger | 5 | 2 | 404 | 77.0 % | 77.0 % | zu stark |
+| Meisterdieb | 5 | 1 | 3416 | 49.5 % | 42.8 % | zu schwach |
+| Meisterdieb | 5 | 2 | 388 | 50.5 % | 50.5 % | ok |
+| Mondpriesterin | 5 | 1 | 3518 | 38.9 % | 33.4 % | zu schwach |
+| Mondpriesterin | 5 | 2 | 468 | 15.0 % | 15.0 % | zu schwach |
+| Seelenhirte | 5 | 1 | 3562 | 60.9 % | 53.2 % | ok |
+| Seelenhirte | 5 | 2 | 388 | 63.7 % | 63.7 % | zu stark |
+| Erzmagier | 6 | 1 | 2974 | 62.7 % | 49.7 % | ok |
+| Champion der Arena | 6 | 1 | 3048 | 85.4 % | 82.2 % | zu stark |
+
+Beobachtungen:
+
+- Das Ziel von V1 ist erreicht: ★2-Einheiten liegen im Mittel im Zielbereich, der Zweikampf bei 1 Gold ebenfalls (B-1). Lehrling, Totengräber, Taschendieb, Goblin-Plänkler und Söldner sind als ★2 jetzt im Zielbereich.
+- **Neu zu stark als ★2:** Rekrut (64 %), Schildknappe (66 %), Waldläuferin (59 %); schon vorher zu stark und jetzt stärker: Schildwall-Veteran ★2 (79 %), Bannerträger ★2 (69 %). Kandidaten für B0c2/B0c3.
+- Mehrere ★1-Karten sanken, weil ihre ★2-Gegner stärker wurden: Erzmagier 63 → 50 % (jetzt im Ziel), Kopfgeldjäger und Seelenhirte ★1 jetzt im Ziel, Meisterdieb ★1 50 → 43 %, Runenschmied und Ahnenpfahl ★1 knapp unter 45 %.
+- Weiter klar zu stark: Champion der Arena (82 %), Bannerträger (75 %), Schildwall-Veteran (70 %) – nächster Schritt B0c2 (V2–V4).
+- Weiter klar zu schwach: Mondpriesterin (33 %), Funkenreiter (40 %), Taschendieb ★1 (42 %), Kesselflicker ★2 (30 %) – B0c4.
+- Zweikampf 2 Gold bleibt weit unter dem Ziel, weil die Gegner Champion und Erzmagier stark sind; nach B0c2 neu prüfen.
+- Werte von ★2-Karten mit 5 Gold sind bei beiden Faktoren gleich, weil sie nur im Budget 15 als einzelne Einheit gegeneinander antreten (gleiche Paarungen, ähnlicher Ausgang); diese Zeilen sind wenig aussagekräftig.

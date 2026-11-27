@@ -79,8 +79,8 @@ describe("Kämpfer aus den Spieldaten", () => {
     const init = fighterFromData(data, { id: 1, team: 0, kind: "card", sourceId: "recruit", stars: 2, pos: { col: 0, row: 0 } });
     const sim = createCombat(config, SIZE, [init]);
     const f = get(sim, 1);
-    expect(f.attack).toBe(3); // 2 × 1,8 = 3,6 → 3
-    expect(f.hp).toBe(5); // 3 × 1,8 = 5,4 → 5
+    expect(f.attack).toBe(4); // 2 × 2,0 = 4 (B0c1)
+    expect(f.hp).toBe(6); // 3 × 2,0 = 6 (B0c1)
     expect(f.range).toBe(1);
     expect(f.armor).toBe(0);
     expect(f.attackInterval).toBe(config.combat.defaultAttackInterval);

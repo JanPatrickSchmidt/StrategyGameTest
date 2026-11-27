@@ -37,7 +37,7 @@
     "warriorTargetingBonus": 1,
     "retargetDistanceGap": 2
   },
-  "starMultiplier": { "1": 1.0, "2": 1.8, "3": 3.2 },
+  "starMultiplier": { "1": 1.0, "2": 2.0, "3": 3.2 },
   "leader": {
     "xpPerRound": 2,
     "xpPerSurvivedFight": 1,

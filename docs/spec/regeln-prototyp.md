@@ -212,7 +212,7 @@ Ein Kampf läuft höchstens **300 Ticks** [TUNING]. In jedem Tick werden die leb
 ## R-15 Verschmelzen und Sterne
 
 - **R-15.1 Verschmelzen:** Besitzt ein Spieler drei Einheiten mit derselben Karten-ID und demselben Stern auf Brett und Reserve zusammen, werden sie sofort zu einer Einheit mit einem Stern mehr. Die neue Einheit steht auf dem Feld der Einheit mit der meisten XP (Gleichstand: kleinste ID). XP werden addiert. Verwundet ist sie nur, wenn alle drei verwundet waren. Die Karteninstanzen bleiben an der Einheit; wird sie vernichtet, gehen alle drei auf den Ablagestapel. Verschmelzen kann sich verketten (drei ★2 → ★3). Höchste Stufe ★3.
-- **R-15.2 Sternfaktor:** ★1 = 1, ★2 = 1,8, ★3 = 3,2 [TUNING] für `attack`, `hp`, `breakthrough` und Schadens-/Schildzahlen der Fähigkeiten; jeweils abgerundet, mindestens der ★1-Wert.
+- **R-15.2 Sternfaktor:** ★1 = 1, ★2 = 1,8, ★3 = 3,2 [TUNING] (Startwerte; seit 2026-11-27 ★2 = 2,0 in `config.json`, siehe `docs/ENTSCHEIDUNGEN.md`) für `attack`, `hp`, `breakthrough` und Schadens-/Schildzahlen der Fähigkeiten; jeweils abgerundet, mindestens der ★1-Wert.
 - **R-15.3** Anführer und Tokens verschmelzen nicht.
 
 ## R-16 Anführer

@@ -245,20 +245,30 @@ describe("R-7.8: Verschmelzen nach jeder Aktion", () => {
 });
 
 describe("R-15.2: Sternfaktor", () => {
+  // Startwerte der Spec (R-15.2: ★2 = 1,8, ★3 = 3,2); die Daten dürfen davon abweichen ([TUNING], B0c1).
+  const specStart = { ...config, starMultiplier: { "1": 1, "2": 1.8, "3": 3.2 } };
+
   it("R-15.2: ★1 = Grundwert, ★2 = ×1,8, ★3 = ×3,2, abgerundet", () => {
-    expect(scaleByStars(config, 5, 1)).toBe(5);
-    expect(scaleByStars(config, 5, 2)).toBe(9);
+    expect(scaleByStars(specStart, 5, 1)).toBe(5);
+    expect(scaleByStars(specStart, 5, 2)).toBe(9);
+    expect(scaleByStars(specStart, 5, 3)).toBe(16);
+    expect(scaleByStars(specStart, 3, 2)).toBe(5);
+    expect(scaleByStars(specStart, 3, 3)).toBe(9);
+  });
+
+  it("R-15.2: der Sternfaktor kommt aus config.json (B0c1: ★2 = 2,0)", () => {
+    expect(config.starMultiplier["2"]).toBe(2);
+    expect(scaleByStars(config, 5, 2)).toBe(10);
+    expect(scaleByStars(config, 3, 2)).toBe(6);
     expect(scaleByStars(config, 5, 3)).toBe(16);
-    expect(scaleByStars(config, 3, 2)).toBe(5);
-    expect(scaleByStars(config, 3, 3)).toBe(9);
   });
 
   it("R-15.2: mindestens der ★1-Wert, auch bei kleinem Faktor", () => {
     const weak = { ...config, starMultiplier: { "1": 1, "2": 0.5, "3": 1.2 } };
     expect(scaleByStars(weak, 1, 2)).toBe(1);
     expect(scaleByStars(weak, 4, 3)).toBe(4);
-    expect(scaleByStars(config, 1, 2)).toBe(1);
-    expect(scaleByStars(config, 0, 3)).toBe(0);
+    expect(scaleByStars(specStart, 1, 2)).toBe(1);
+    expect(scaleByStars(specStart, 0, 3)).toBe(0);
   });
 
   it("R-15.2: Gleitkomma-Reste runden nicht falsch ab", () => {
@@ -274,11 +284,12 @@ describe("R-15.2: Sternfaktor", () => {
     const base = card.stats;
     expect(unitStats(data, { kind: "card", sourceId: "recruit", stars: 1 })).toEqual(base);
     const two = unitStats(data, { kind: "card", sourceId: "recruit", stars: 2 });
+    const f2 = config.starMultiplier["2"];
     expect(two).toEqual({
       ...base,
-      attack: Math.max(base.attack, Math.floor(base.attack * 1.8)),
-      hp: Math.max(base.hp, Math.floor(base.hp * 1.8)),
-      breakthrough: Math.max(base.breakthrough, Math.floor(base.breakthrough * 1.8)),
+      attack: Math.max(base.attack, Math.floor(base.attack * f2)),
+      hp: Math.max(base.hp, Math.floor(base.hp * f2)),
+      breakthrough: Math.max(base.breakthrough, Math.floor(base.breakthrough * f2)),
     });
     const three = unitStats(data, { kind: "card", sourceId: "recruit", stars: 3 });
     expect(three.attack).toBe(Math.floor(base.attack * 3.2));
