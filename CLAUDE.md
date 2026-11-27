@@ -64,6 +64,7 @@ Lieber eine Aufgabe sauber abschließen als drei anfangen.
 | `npm run build:sandbox` | Kampf-Sandbox nach `docs/play/sandbox.html` bauen (nach Änderungen an Engine, Daten oder `apps/sandbox` neu bauen und mit committen) |
 | `npm run build:play` | Partie gegen 3 Bots nach `docs/play/index.html` und `docs/play/assets/` bauen (GitHub Pages; nach Änderungen an Engine, Daten oder `apps/client` neu bauen und mit committen) |
 | `npm run sim -- --games 100` | Simulation mit Bots (`tools/sim`), CSV nach `sim-output/`; Optionen siehe `docs/STATUS.md` „Zum Ausprobieren“ |
+| `npm run calibrate -- --battles 2000 --budget 6,10,15` | Kampf-Kalibrierung (B0, `tools/sim/src/calibration.ts`): Siegquote je Karte und Sternstufe, ★2 gegen dreifache Kosten; CSVs nach `sim-output/` |
 
 ## Commits
 
