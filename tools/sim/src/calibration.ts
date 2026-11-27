@@ -56,6 +56,11 @@ export interface CalibrationOptions {
   allowStar2: boolean;
   /** Wiederholungen je Paarung im Zweikampf ★2 gegen dreifache Kosten (je Gegner, je Seite). */
   duelRepeats: number;
+  /**
+   * Beide Armeen einer Paarung haben gleich viele Einheiten (B0b): Armee B wird mit genau der Einheitenzahl
+   * von Armee A gezogen. Ohne diese Option entscheidet die Einheitenzahl einen Großteil der Kämpfe.
+   */
+  sameUnitCount: boolean;
 }
 
 export const DEFAULT_CALIBRATION_OPTIONS: Omit<CalibrationOptions, "maxUnits"> = {
@@ -64,6 +69,7 @@ export const DEFAULT_CALIBRATION_OPTIONS: Omit<CalibrationOptions, "maxUnits"> =
   budgets: [10],
   allowStar2: true,
   duelRepeats: 40,
+  sameUnitCount: false,
 };
 
 /** Kartenwahl: alle Einheitenkarten außer Tokens (Startkarten, Königreich, Klassen-Pools). */
@@ -96,26 +102,31 @@ export function randomArmy(
   budget: number,
   maxUnits: number,
   allowStar2: boolean,
+  exactUnits?: number,
 ): ArmyUnit[] {
   const entries: Entry[] = [];
   for (const card of cards) {
     entries.push({ cardId: card.id, stars: 1, value: card.cost });
     if (allowStar2) entries.push({ cardId: card.id, stars: 2, value: card.cost * 3 });
   }
-  // reachable[n][v]: Lässt sich der Goldwert v mit höchstens n Einheiten genau erreichen?
+  // reachable[n][v]: Lässt sich der Goldwert v mit höchstens n Einheiten (bzw. genau n bei `exactUnits`) erreichen?
+  const exact = exactUnits !== undefined;
+  const slots = exactUnits ?? maxUnits;
+  if (exact && (slots > maxUnits || slots < 0)) throw new RangeError(`${slots} Einheiten liegen über ${maxUnits}`);
   const values = [...new Set(entries.map((e) => e.value))];
   const reachable: boolean[][] = [Array.from({ length: budget + 1 }, (_, v) => v === 0)];
-  for (let n = 1; n <= maxUnits; n++) {
+  for (let n = 1; n <= slots; n++) {
     const prev = reachable[n - 1] as boolean[];
-    reachable.push(prev.map((ok, v) => ok || values.some((x) => x <= v && prev[v - x] === true)));
+    reachable.push(prev.map((ok, v) => (!exact && ok) || values.some((x) => x <= v && prev[v - x] === true)));
   }
-  if (reachable[maxUnits]?.[budget] !== true) {
-    throw new RangeError(`Budget ${budget} ist mit höchstens ${maxUnits} Einheiten nicht erreichbar`);
+  if (reachable[slots]?.[budget] !== true) {
+    const how = exact ? `genau ${slots}` : `höchstens ${slots}`;
+    throw new RangeError(`Budget ${budget} ist mit ${how} Einheiten nicht erreichbar`);
   }
   const army: ArmyUnit[] = [];
   let remaining = budget;
-  while (remaining > 0) {
-    const slotsAfter = maxUnits - army.length - 1;
+  while (remaining > 0 || (exact && army.length < slots)) {
+    const slotsAfter = slots - army.length - 1;
     const feasible = entries.filter((e) => e.value <= remaining && reachable[slotsAfter]?.[remaining - e.value] === true);
     if (feasible.length === 0) throw new RangeError(`Keine Armee mit ${budget} Gold möglich`);
     const pick = feasible[nextInt(rng, feasible.length)] as Entry;
@@ -237,6 +248,13 @@ export interface CalibrationResult {
   /** Anteil Unentschieden aller Armee-Kämpfe. */
   drawShare: number;
   armyFights: number;
+  /** Siegquote nach Einheiten-Differenz (eigene minus gegnerische Einheiten), aus Sicht beider Armeen. */
+  unitDiff: UnitDiffRow[];
+}
+
+export interface UnitDiffRow {
+  diff: number;
+  tally: Tally;
 }
 
 const key = (cardId: string, stars: Stars): string => `${cardId}#${stars}`;
@@ -258,10 +276,21 @@ export function runCalibration(data: GameData, options: CalibrationOptions): Cal
   };
   let draws = 0;
   let fights = 0;
+  const diffTallies = new Map<number, Tally>();
+  const addDiff = (diff: number, score: Score): void => {
+    let t = diffTallies.get(diff);
+    if (!t) {
+      t = emptyTally();
+      diffTallies.set(diff, t);
+    }
+    addScore(t, score);
+  };
   for (let i = 0; i < options.battles; i++) {
     const budget = options.budgets[i % options.budgets.length] as number;
     const unitsA = randomArmy(rng, cards, budget, options.maxUnits, options.allowStar2);
-    const unitsB = randomArmy(rng, cards, budget, options.maxUnits, options.allowStar2);
+    const unitsB = options.sameUnitCount
+      ? randomArmy(rng, cards, budget, options.maxUnits, options.allowStar2, unitsA.length)
+      : randomArmy(rng, cards, budget, options.maxUnits, options.allowStar2);
     const a: PlacedArmy = { units: unitsA, cells: randomPlacement(rng, zone, unitsA.length) };
     const b: PlacedArmy = { units: unitsB, cells: randomPlacement(rng, zone, unitsB.length) };
     for (const aSide of ["first", "second"] as const) {
@@ -269,6 +298,8 @@ export function runCalibration(data: GameData, options: CalibrationOptions): Cal
       fights += 1;
       if (score === 0.5) draws += 1;
       const scoreB: Score = score === 1 ? 0 : score === 0 ? 1 : 0.5;
+      addDiff(unitsA.length - unitsB.length, score);
+      addDiff(unitsB.length - unitsA.length, scoreB);
       // Je Armee zählt eine Karte (mit Stern) einmal pro Kampf, auch bei mehreren Kopien.
       for (const k of new Set(unitsA.map((u) => key(u.cardId, u.stars)))) addTally(k, score);
       for (const k of new Set(unitsB.map((u) => key(u.cardId, u.stars)))) addTally(k, scoreB);
@@ -300,6 +331,7 @@ export function runCalibration(data: GameData, options: CalibrationOptions): Cal
     duels: runDuels(data, cards, options),
     drawShare: fights === 0 ? 0 : draws / fights,
     armyFights: fights,
+    unitDiff: [...diffTallies.entries()].sort(([a], [b]) => a - b).map(([diff, tally]) => ({ diff, tally })),
   };
 }
 
@@ -417,7 +449,8 @@ export function summarizeCalibration(result: CalibrationResult): string {
   const out: string[] = [];
   out.push(
     `Kampf-Kalibrierung: ${o.battles} Paarungen × 2 Seiten = ${result.armyFights} Kämpfe, Budget ${o.budgets.join("/")} Gold, ` +
-      `höchstens ${o.maxUnits} Einheiten, ★2 ${o.allowStar2 ? "erlaubt" : "aus"}, Seed ${o.seed}. ` +
+      `höchstens ${o.maxUnits} Einheiten${o.sameUnitCount ? " (beide Armeen gleich viele)" : ""}, ` +
+      `★2 ${o.allowStar2 ? "erlaubt" : "aus"}, Seed ${o.seed}. ` +
       `Unentschieden: ${(result.drawShare * 100).toFixed(1)} %.`,
   );
   out.push("");
@@ -430,6 +463,12 @@ export function summarizeCalibration(result: CalibrationResult): string {
     );
   }
   out.push("");
+  out.push("| Einheiten-Differenz | Kämpfe | Siegquote |");
+  out.push("| ---: | ---: | ---: |");
+  for (const r of result.unitDiff) {
+    out.push(`| ${r.diff > 0 ? "+" : ""}${r.diff} | ${r.tally.fights} | ${pct(winRate(r.tally))} % |`);
+  }
+  out.push("");
   out.push("| ★2-Einheit | Kosten ×3 | Gegner | Kämpfe | Siegquote ★2 | Bewertung (50–65 %) |");
   out.push("| --- | ---: | --- | ---: | ---: | --- |");
   for (const r of result.duels) {
@@ -440,7 +479,10 @@ export function summarizeCalibration(result: CalibrationResult): string {
   return out.join("\n");
 }
 
-/** Befehlszeilen-Optionen: `--battles`, `--seed`, `--budget`, `--max-units`, `--no-star2`, `--duel-repeats`, `--out`. */
+/**
+ * Befehlszeilen-Optionen: `--battles`, `--seed`, `--budget`, `--max-units`, `--no-star2`, `--same-count`,
+ * `--duel-repeats`, `--out`.
+ */
 export interface CalibrationCliOptions extends CalibrationOptions {
   /** Ordner für die CSVs. */
   out: string | undefined;
@@ -477,6 +519,9 @@ export function parseCalibrationArgs(argv: readonly string[], boardCapacity: num
         break;
       case "--no-star2":
         options.allowStar2 = false;
+        break;
+      case "--same-count":
+        options.sameUnitCount = true;
         break;
       case "--out":
         options.out = argv[++i];

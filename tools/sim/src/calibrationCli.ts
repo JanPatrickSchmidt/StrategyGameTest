@@ -16,14 +16,15 @@ function main(argv: readonly string[]): number {
   } catch (error) {
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     process.stderr.write(
-      "Aufruf: npm run calibrate -- [--battles 2000] [--seed 1] [--budget 10 | 6,10,15] [--max-units 5] [--no-star2] [--duel-repeats 40] [--out ordner]\n",
+      "Aufruf: npm run calibrate -- [--battles 2000] [--seed 1] [--budget 10 | 6,10,15] [--max-units 5] [--no-star2] [--same-count] [--duel-repeats 40] [--out ordner]\n",
     );
     return 2;
   }
   const started = performance.now();
   const result = runCalibration(data, options);
   const seconds = (performance.now() - started) / 1000;
-  const dir = resolve(options.out ?? `sim-output/kalibrierung-${options.seed}-${options.budgets.join("-")}`);
+  const suffix = options.sameUnitCount ? "-gleichzahl" : "";
+  const dir = resolve(options.out ?? `sim-output/kalibrierung-${options.seed}-${options.budgets.join("-")}${suffix}`);
   mkdirSync(dir, { recursive: true });
   writeFileSync(resolve(dir, "karten.csv"), cardsCsv(result));
   writeFileSync(resolve(dir, "zweikampf.csv"), duelsCsv(result));

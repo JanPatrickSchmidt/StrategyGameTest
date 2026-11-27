@@ -165,5 +165,45 @@ describe("Kampf-Kalibrierung (B0a)", () => {
     expect(() => parseCalibrationArgs(["--battles", "0"], 5)).toThrow();
     expect(() => parseCalibrationArgs(["--budget", "6,x"], 5)).toThrow();
     expect(() => parseCalibrationArgs(["--frobnicate"], 5)).toThrow();
+    expect(parseCalibrationArgs([], 5).sameUnitCount).toBe(false);
+    expect(parseCalibrationArgs(["--same-count"], 5).sameUnitCount).toBe(true);
+  });
+});
+
+describe("Kampf-Kalibrierung: Messaufbau (B0b)", () => {
+  it("B-1/B-3: Armeen mit genau vorgegebener Einheitenzahl haben genau den Goldwert", () => {
+    const cards = calibrationCards(data);
+    const rng = createRngState(9);
+    for (const [budget, count] of [[6, 1], [6, 3], [10, 5], [15, 2], [15, 5]] as const) {
+      for (let i = 0; i < 100; i++) {
+        const army = randomArmy(rng, cards, budget, 5, true, count);
+        expect(army).toHaveLength(count);
+        expect(army.reduce((s, u) => s + u.value, 0)).toBe(budget);
+      }
+    }
+    // Ohne ★2 lassen sich 15 Gold nicht mit einer einzigen Einheit erreichen (teuerste Karte: 6 Gold).
+    expect(() => randomArmy(rng, cards, 15, 5, false, 1)).toThrow(RangeError);
+    expect(() => randomArmy(rng, cards, 10, 5, true, 6)).toThrow(RangeError);
+  });
+
+  it("B-3: mit gleicher Einheitenzahl kämpfen nur gleich große Armeen gegeneinander", () => {
+    const result = runCalibration(data, options({ battles: 30, budgets: [6, 10, 15], sameUnitCount: true }));
+    expect(result.unitDiff.map((r) => r.diff)).toEqual([0]);
+    expect(result.unitDiff[0]?.tally.fights).toBe(2 * result.armyFights);
+    expect(summarizeCalibration(result)).toContain("beide Armeen gleich viele");
+  });
+
+  it("B-3: Siegquote nach Einheiten-Differenz ist symmetrisch (jeder Kampf zählt aus beiden Sichten)", () => {
+    const result = runCalibration(data, options({ battles: 60, budgets: [6, 10, 15] }));
+    const total = result.unitDiff.reduce((s, r) => s + r.tally.fights, 0);
+    expect(total).toBe(2 * result.armyFights);
+    expect(result.unitDiff.length).toBeGreaterThan(1);
+    for (const r of result.unitDiff) {
+      const mirror = result.unitDiff.find((m) => m.diff === -r.diff);
+      expect(mirror?.tally.fights).toBe(r.tally.fights);
+      expect(mirror?.tally.wins).toBe(r.tally.losses);
+      expect(mirror?.tally.draws).toBe(r.tally.draws);
+    }
+    expect(summarizeCalibration(result)).toContain("| Einheiten-Differenz | Kämpfe | Siegquote |");
   });
 });
