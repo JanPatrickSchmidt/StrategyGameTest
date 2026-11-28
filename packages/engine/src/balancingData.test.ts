@@ -11,6 +11,8 @@ const startValues: Record<string, { attack: number; hp: number; breakthrough: nu
   arena_champion: { attack: 6, hp: 12, breakthrough: 3 },
   banner_bearer: { attack: 2, hp: 6, breakthrough: 1 },
   shieldwall_veteran: { attack: 2, hp: 8, breakthrough: 0 },
+  recruit: { attack: 2, hp: 3, breakthrough: 1 },
+  squire: { attack: 1, hp: 5, breakthrough: 0 },
 };
 
 function statsOf(id: string): { attack: number; hp: number; breakthrough: number } {
@@ -34,5 +36,10 @@ describe("B-3: Kartenwerte nach der Kampf-Kalibrierung", () => {
     expect(statsOf("arena_champion")).toEqual({ attack: 5, hp: 9, breakthrough: 3 });
     expect(statsOf("banner_bearer")).toEqual({ attack: 2, hp: 4, breakthrough: 1 });
     expect(statsOf("shieldwall_veteran")).toEqual({ attack: 2, hp: 6, breakthrough: 0 });
+  });
+
+  it("B-3: B0c3a – Rekrut Leben 2, Schildknappe Leben 3 (V5, ★2 zu stark)", () => {
+    expect(statsOf("recruit")).toEqual({ attack: 2, hp: 2, breakthrough: 1 });
+    expect(statsOf("squire")).toEqual({ attack: 1, hp: 3, breakthrough: 0 });
   });
 });

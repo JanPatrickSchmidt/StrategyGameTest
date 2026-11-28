@@ -12,9 +12,9 @@
     { "id": "curse", "name": "Fluch", "type": "curse", "cost": 0, "pool": "basic", "pileSize": 16, "buyable": false },
 
     { "id": "recruit", "name": "Rekrut", "type": "unit", "cost": 1, "race": null, "class": "warrior", "pool": "starter",
-      "stats": { "attack": 2, "hp": 3, "breakthrough": 1, "range": 1 } },
+      "stats": { "attack": 2, "hp": 2, "breakthrough": 1, "range": 1 } },
     { "id": "squire", "name": "Schildknappe", "type": "unit", "cost": 1, "race": null, "class": "warrior", "pool": "starter", "starterFor": "warrior",
-      "stats": { "attack": 1, "hp": 5, "breakthrough": 0, "range": 1 } },
+      "stats": { "attack": 1, "hp": 3, "breakthrough": 0, "range": 1 } },
     { "id": "apprentice", "name": "Lehrling", "type": "unit", "cost": 1, "race": null, "class": "mage", "pool": "starter", "starterFor": "mage",
       "stats": { "attack": 1, "hp": 3, "breakthrough": 0, "range": 3 },
       "abilities": [{ "trigger": "onManaFull", "effects": [{ "op": "damage", "amount": 2, "target": "currentTarget" }] }] },

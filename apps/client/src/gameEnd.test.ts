@@ -16,8 +16,8 @@ describe("C6b: Spielende", () => {
     expect(gameEndSummary(data, new GameSession(data, { seed: 1 }).view())).toBeNull();
   });
 
-  it("R-13.3: Machtsieg – Sieger, Siegart und Platzierung aller vier Spieler (Seed 1)", () => {
-    const session = finished(1);
+  it("R-13.3: Machtsieg – Sieger, Siegart und Platzierung aller vier Spieler (Seed 6)", () => {
+    const session = finished(6);
     const view = session.view();
     const summary = gameEndSummary(data, view);
     expect(summary).not.toBeNull();
@@ -53,8 +53,8 @@ describe("C6b: Spielende", () => {
     for (const o of out) for (const i of inGame) expect(o.placement).toBeGreaterThan(i.placement);
   });
 
-  it("R-13.4: letzter Spieler gewinnt; der Mensch ist vorher ausgeschieden, die Bots spielen zu Ende (Seed 3)", () => {
-    const session = finished(3);
+  it("R-13.4: letzter Spieler gewinnt; der Mensch ist vorher ausgeschieden, die Bots spielen zu Ende (Seed 4)", () => {
+    const session = finished(4);
     expect(session.status).toBe("gameOver");
     const summary = gameEndSummary(data, session.view());
     if (!summary) throw new Error("kein Ergebnis");
@@ -84,8 +84,8 @@ describe("C6b: Spielende", () => {
     expect(summary?.rows.find((r) => r.isViewer)?.eliminatedRound).not.toBeNull();
   });
 
-  it("R-13.2: geteilte Plätze bei gleichzeitigem Ausscheiden werden als geteilt angezeigt (Seed 34)", () => {
-    const summary = gameEndSummary(data, finished(34).view());
+  it("R-13.2: geteilte Plätze bei gleichzeitigem Ausscheiden werden als geteilt angezeigt (Seed 45)", () => {
+    const summary = gameEndSummary(data, finished(45).view());
     if (!summary) throw new Error("kein Ergebnis");
     const shared = summary.rows.filter((r) => r.shared);
     expect(shared.length).toBe(2);
@@ -124,7 +124,7 @@ describe("C6b: Spielende", () => {
   });
 
   it("C6b: scheidet der Mensch in der letzten Runde aus, entfällt der Hinweis aufs Zu-Ende-Spielen", () => {
-    const view = finished(21).view(); // Mensch und Bot 2 scheiden in Runde 8 aus, Ende in Runde 9
+    const view = finished(13).view(); // Mensch scheidet in Runde 8 aus, Ende in Runde 9
     const summary = gameEndSummary(data, view);
     if (!summary) throw new Error("kein Ergebnis");
     const lastRound = { ...summary, round: summary.rows.find((r) => r.isViewer)?.eliminatedRound ?? 0 };

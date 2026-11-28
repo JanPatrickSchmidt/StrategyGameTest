@@ -313,3 +313,89 @@ Beobachtungen:
 - Leicht gestiegen sind die Karten, die vorher gegen die drei Ausreißer verloren: Klingentänzerin (★1 56 → 59 %, ★2 64 → 71 %), Donnerbüchse (59 → 61 %), Seelenhirte und Kopfgeldjäger ★1 (jetzt knapp über 55 %), Erzmagier 50 → 55 %. Runenschmied ★1 ist jetzt im Ziel (47 %).
 - Unverändert zu schwach: Mondpriesterin, Funkenreiter, Taschendieb ★1, Kesselflicker ★2, Fluchweber, Hehler, Ahnenpfahl (B0c4/B0c5).
 - Zweikampf 2 Gold bleibt bei 24 %: Gegner mit 6 Gold sind Champion und Erzmagier, der Champion ist trotz Abschwächung weiter stark.
+
+## B0c3a: Rekrut und Schildknappe (umgesetzt am 2026-11-28)
+
+Änderungen in `packages/engine/data/cards.json` (Kartenwerte nach B-3, beide innerhalb ±50 %). Beide sind Startkarten (Basis-Deck bzw. Krieger-Start), die Änderung wirkt deshalb in jeder Partie.
+
+| Karte | Vorher | Nachher | Änderung | ★2 nachher |
+| --- | --- | --- | --- | --- |
+| Rekrut | Angriff 2, Leben 3, Durchbruch 1 | Leben 2 | −33 % | 4/4 |
+| Schildknappe | Angriff 1, Leben 5, Durchbruch 0 | Leben 3 | −40 % | 2/6 |
+
+Geprüfte Varianten (je 5 Seeds × 3000 Paarungen, `--same-count`):
+
+| Variante | Rekrut ★1 / ★2 | Schildknappe ★1 / ★2 | Zweikampf 1 Gold |
+| --- | ---: | ---: | ---: |
+| Stand B0c2 | 51.0 / 66.3 % | 54.7 / 67.8 % | 77.3 % |
+| nur Schildknappe Leben 4 | 51.9 / 67.4 % | 50.5 / 60.5 % | 75.1 % |
+| nur Rekrut Leben 2 | 45.5 / 50.7 % | 55.8 / 69.0 % | 75.2 % |
+| Rekrut 2, Schildknappe 4 | 46.4 / 51.9 % | 51.8 / 62.1 % | 73.1 % |
+| **Rekrut 2, Schildknappe 3 (gewählt)** | **47.1 / 51.8 %** | **48.4 / 54.0 %** | **69.3 %** |
+
+Angriff wurde nicht gesenkt: Bei Werten von 1–2 wäre jeder Schritt −50 % oder mehr.
+
+| Kennzahl | Vorher (B0c2) | Nachher (B0c3a) | Ziel |
+| --- | ---: | ---: | --- |
+| alle ★1-Einheiten | 49.2 % | 49.9 % | 45–55 % |
+| alle ★2-Einheiten | 52.5 % | 50.4 % | 45–55 % |
+| Zweikampf ★2 (1 Gold) gegen ★1 mit 3 Gold | 77.3 % | 69.3 % | 50–65 % |
+| Zweikampf ★2 (2 Gold) gegen ★1 mit 6 Gold | 24.2 % | 24.2 % | 50–65 % |
+
+Zweikampf 1 Gold je Karte nachher: Lehrling 65.5 %, Totengräber 61.0 %, Taschendieb 90.5 %, Rekrut 79.0 % (vorher 89.2 %), Schildknappe 50.5 % (vorher 80.0 %).
+
+| Karte | Kosten | ★ | Kämpfe | Vorher | Nachher | Bewertung nachher |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Lehrling | 1 | 1 | 10806 | 47.9 % | 50.3 % | ok |
+| Lehrling | 1 | 2 | 4490 | 55.2 % | 58.5 % | zu stark |
+| Totengräber | 1 | 1 | 10760 | 46.4 % | 49.1 % | ok |
+| Totengräber | 1 | 2 | 4576 | 52.1 % | 55.1 % | zu stark |
+| Taschendieb | 1 | 1 | 10868 | 41.0 % | 43.8 % | zu schwach |
+| Taschendieb | 1 | 2 | 4470 | 53.0 % | 55.0 % | ok |
+| Rekrut | 1 | 1 | 10714 | 51.0 % | 47.1 % | ok |
+| Rekrut | 1 | 2 | 4408 | 66.3 % | 51.8 % | ok |
+| Schildknappe | 1 | 1 | 10746 | 54.7 % | 48.4 % | ok |
+| Schildknappe | 1 | 2 | 4282 | 67.8 % | 54.0 % | ok |
+| Goblin-Plänkler | 2 | 1 | 7476 | 48.6 % | 52.0 % | ok |
+| Goblin-Plänkler | 2 | 2 | 3164 | 51.5 % | 51.7 % | ok |
+| Söldner | 2 | 1 | 7362 | 49.8 % | 51.9 % | ok |
+| Söldner | 2 | 2 | 3188 | 52.7 % | 52.6 % | ok |
+| Funkenreiter | 2 | 1 | 7442 | 39.4 % | 41.1 % | zu schwach |
+| Funkenreiter | 2 | 2 | 3168 | 36.3 % | 36.0 % | zu schwach |
+| Bannerträger | 3 | 1 | 4448 | 65.7 % | 67.2 % | zu stark |
+| Bannerträger | 3 | 2 | 1644 | 55.0 % | 52.8 % | ok |
+| Hehler | 3 | 1 | 4390 | 25.8 % | 25.4 % | zu schwach |
+| Hehler | 3 | 2 | 1538 | 10.4 % | 11.0 % | zu schwach |
+| Waldläuferin | 3 | 1 | 4354 | 55.6 % | 57.4 % | zu stark |
+| Waldläuferin | 3 | 2 | 1622 | 61.9 % | 60.8 % | zu stark |
+| Schildwall-Veteran | 3 | 1 | 4488 | 63.3 % | 66.2 % | zu stark |
+| Schildwall-Veteran | 3 | 2 | 1430 | 72.7 % | 72.4 % | zu stark |
+| Kesselflicker | 3 | 1 | 4496 | 45.9 % | 47.3 % | ok |
+| Kesselflicker | 3 | 2 | 1470 | 29.8 % | 30.1 % | zu schwach |
+| Ahnenpfahl | 4 | 1 | 3940 | 44.3 % | 45.0 % | ok |
+| Ahnenpfahl | 4 | 2 | 578 | 8.1 % | 8.3 % | zu schwach |
+| Klingentänzerin | 4 | 1 | 3812 | 59.3 % | 62.0 % | zu stark |
+| Klingentänzerin | 4 | 2 | 576 | 71.0 % | 68.4 % | zu stark |
+| Fluchweber | 4 | 1 | 3940 | 41.4 % | 43.0 % | zu schwach |
+| Fluchweber | 4 | 2 | 552 | 36.6 % | 36.2 % | zu schwach |
+| Runenschmied | 4 | 1 | 4018 | 46.9 % | 47.9 % | ok |
+| Runenschmied | 4 | 2 | 668 | 34.9 % | 34.3 % | zu schwach |
+| Donnerbüchse | 4 | 1 | 4034 | 60.9 % | 62.3 % | zu stark |
+| Donnerbüchse | 4 | 2 | 582 | 62.0 % | 60.8 % | zu stark |
+| Kopfgeldjäger | 5 | 1 | 3394 | 55.8 % | 55.6 % | zu stark |
+| Kopfgeldjäger | 5 | 2 | 404 | 77.0 % | 77.0 % | zu stark |
+| Meisterdieb | 5 | 1 | 3416 | 44.2 % | 45.8 % | ok |
+| Meisterdieb | 5 | 2 | 388 | 50.5 % | 50.5 % | ok |
+| Mondpriesterin | 5 | 1 | 3518 | 34.3 % | 33.4 % | zu schwach |
+| Mondpriesterin | 5 | 2 | 468 | 15.0 % | 15.0 % | zu schwach |
+| Seelenhirte | 5 | 1 | 3562 | 56.0 % | 56.1 % | zu stark |
+| Seelenhirte | 5 | 2 | 388 | 63.7 % | 63.7 % | zu stark |
+| Erzmagier | 6 | 1 | 2974 | 54.8 % | 55.0 % | ok |
+| Champion der Arena | 6 | 1 | 3048 | 68.6 % | 69.9 % | zu stark |
+
+Beobachtungen:
+
+- Rekrut und Schildknappe sind in beiden Sternstufen im Ziel (47–54 %).
+- Der Zweikampf 1 Gold sank von 77 auf 69 %, liegt aber noch über 65 %. Treiber sind jetzt Taschendieb ★2 (90 %) und Rekrut ★2 (79 %). Gegen Hehler, Kesselflicker und Bannerträger gewinnen alle fünf 1-Gold-Karten als ★2 zu 98–100 %: Der Hehler ist als Kampfeinheit sehr schwach (25 %, Ausnahme-Kandidat für B0c5), Kesselflicker und Bannerträger wirken vor allem über Verbündete, die im Zweikampf fehlen. Entschieden wird der Zweikampf deshalb gegen Veteran und Waldläuferin (Rekrut 49/46 %, Taschendieb 53/100 %, Schildknappe 0/3 %). Da Taschendieb ★1 zu schwach ist (44 %), wird er nicht abgeschwächt; der Zweikampf wird nach B0c3c und B0c4 neu geprüft.
+- Leicht gestiegen sind die übrigen 1-Gold-Karten (Lehrling ★2 jetzt 58.5 %, Totengräber ★2 55.1 %) sowie Klingentänzerin ★1, Donnerbüchse ★1, Veteran ★1 und Bannerträger ★1, die vorher öfter gegen Rekrut und Schildknappe verloren. Lehrling ★2 kommt in B0c3b dazu.
+- Unverändert: Kopfgeldjäger ★2 77 %, Champion 70 %; zu schwach weiter Mondpriesterin, Funkenreiter, Hehler, Fluchweber, Kesselflicker ★2, Runenschmied ★2, Ahnenpfahl ★2 (B0c4/B0c5).

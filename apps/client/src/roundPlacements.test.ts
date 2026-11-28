@@ -27,7 +27,7 @@ function handLog(): GameEvent[] {
     ev("reveal", { type: "unit_played", player: 2, unitId: 50, cardInstanceId: 7, sourceId: "recruit", location: PLAYED, paidFromRoundGold: 1, paidFromTreasury: 0, altCost: false }),
     ev("reveal", { type: "unit_moved", player: 2, unitId: 50, from: PLAYED, to: MOVED }),
     ev("leaderAbilities", { type: "leader_ability_resolved", player: 1, leaderId: "ilyra", category: "damage", level: 2, branchId: null }),
-    ev("leaderAbilities", { type: "unit_damaged", player: 2, unitId: 50, amount: 3, absorbed: 0, hpLoss: 3, hp: 0, cardId: "ilyra" }),
+    ev("leaderAbilities", { type: "unit_damaged", player: 2, unitId: 50, amount: 2, absorbed: 0, hpLoss: 2, hp: 0, cardId: "ilyra" }),
     ev("leaderAbilities", { type: "unit_defeated", player: 2, unitId: 50, cardId: "ilyra" }),
     ev("postCombatSpells", { type: "unit_moved", player: 2, unitId: 50, from: MOVED, to: PLAYED }),
   ];
@@ -41,7 +41,7 @@ describe("P16: Figuren ohne Kampf aus Ereignissen", () => {
     ];
     const placements = roundPlacements(data, log, R);
     expect([...placements.keys()]).toEqual([50, 60]);
-    expect(placements.get(50)).toEqual({ unit: 50, owner: 2, sourceId: "recruit", kind: "card", shape: "melee", hp: 3, location: MOVED });
+    expect(placements.get(50)).toEqual({ unit: 50, owner: 2, sourceId: "recruit", kind: "card", shape: "melee", hp: 2, location: MOVED });
     expect(placements.get(60)).toMatchObject({ owner: 1, kind: "token", shape: "token", hp: 5, location: { zone: "reserve", slot: 0 } });
     expect(roundPlacements(data, log, R - 1).get(49)?.location).toEqual(PLAYED);
   });
@@ -55,7 +55,7 @@ describe("P16: Figuren ohne Kampf aus Ereignissen", () => {
     expect(where).not.toBeNull();
     const before = roundFrame(layout, s, at(0, HIT_AT - 0.01), nowhere, player.placements);
     expect(before.boardUnits).toEqual([]);
-    expect(before.newUnits).toEqual([{ unit: 50, owner: 2, shape: "melee", position: where, hp: 3, shield: 0, opacity: 1 }]);
+    expect(before.newUnits).toEqual([{ unit: 50, owner: 2, shape: "melee", position: where, hp: 2, shield: 0, opacity: 1 }]);
     // Der Strahl von Ilyras Säule geht zur neuen Figur, der Schaden steigt dort auf.
     expect(before.effects.lines.map((l) => l.to)).toEqual([where]);
     const hit = roundFrame(layout, s, at(0, HIT_AT + 0.2), nowhere, player.placements);

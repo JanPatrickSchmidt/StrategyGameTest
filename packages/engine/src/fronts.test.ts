@@ -181,8 +181,8 @@ describe("Frontkampf (R-3.2, R-9)", () => {
     expect(started).toHaveLength(1);
     expect(started[0]).toMatchObject({ arena: "front:0-1", players: [0, 1], phase: "planning" });
     expect(started[0]?.fighters).toEqual([
-      { unitId: a, player: 0, sourceId: "recruit", cell: { col: 1, row: 2 }, hp: 3, maxHp: 3, shield: 0 },
-      { unitId: b, player: 1, sourceId: "recruit", cell: { col: 3, row: 3 }, hp: 3, maxHp: 3, shield: 0 },
+      { unitId: a, player: 0, sourceId: "recruit", cell: { col: 1, row: 2 }, hp: 2, maxHp: 2, shield: 0 },
+      { unitId: b, player: 1, sourceId: "recruit", cell: { col: 3, row: 3 }, hp: 2, maxHp: 2, shield: 0 },
     ]);
   });
 

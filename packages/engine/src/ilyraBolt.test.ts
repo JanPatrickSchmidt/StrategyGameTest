@@ -241,8 +241,8 @@ describe("E11c2: Ilyras Blitzschlag – Kategorie damage (R-8.2, R-14.2)", () =>
     resolveLeaderAbilities(state, data);
     expect(eventsOf(state, "leader_ability_resolved", from).map((e) => e.player)).toEqual([1, 2]);
     expect(eventsOf(state, "unit_damaged", from).map((e) => [e.unitId, e.amount, e.hp])).toEqual([
-      [recruit, 4, -1],
-      [recruit, 8, -9],
+      [recruit, 4, -2],
+      [recruit, 8, -10],
     ]);
     expect(eventsOf(state, "unit_defeated", from)).toHaveLength(1);
     expect(unit(state, recruit).wounded).toBe(true);
@@ -265,14 +265,14 @@ describe("E11c2: Ilyras Blitzschlag – Kategorie damage (R-8.2, R-14.2)", () =>
 
   it("R-8.2: Kategorie damage nach buff – Branns Standhaft-Leben schützt vor Ilyras Blitzschlag", () => {
     const state = emptyBoard();
-    // Ilyras linke Frontarena = rechte Zone von Brann (Spieler 0). Rekrut 3 LP, +4 Leben durch Standhaft.
+    // Ilyras linke Frontarena = rechte Zone von Brann (Spieler 0). Rekrut 2 LP, +4 Leben durch Standhaft.
     const recruit = placeUnit(state, 0, front("right", 1, 1), "recruit");
     setLeader(state, 0, 2, "steadfast", { kind: "zone", arenas: ["right"] });
     setLeader(state, ILYRA, 1, null, hexes(hexOf(state, recruit, "left")));
     const from = state.log.length;
     resolveLeaderAbilities(state, data);
     expect(eventsOf(state, "leader_ability_resolved", from).map((e) => e.category)).toEqual(["buff", "damage"]);
-    expect(eventsOf(state, "unit_damaged", from)).toEqual([expect.objectContaining({ unitId: recruit, amount: 4, hpLoss: 4, hp: 3 })]);
+    expect(eventsOf(state, "unit_damaged", from)).toEqual([expect.objectContaining({ unitId: recruit, amount: 4, hpLoss: 4, hp: 2 })]);
     expect(eventsOf(state, "unit_defeated", from)).toEqual([]);
   });
 

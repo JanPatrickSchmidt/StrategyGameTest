@@ -80,7 +80,7 @@ describe("Kämpfer aus den Spieldaten", () => {
     const sim = createCombat(config, SIZE, [init]);
     const f = get(sim, 1);
     expect(f.attack).toBe(4); // 2 × 2,0 = 4 (B0c1)
-    expect(f.hp).toBe(6); // 3 × 2,0 = 6 (B0c1)
+    expect(f.hp).toBe(4); // 2 × 2,0 = 4 (B0c1, Leben 2 seit B0c3a)
     expect(f.range).toBe(1);
     expect(f.armor).toBe(0);
     expect(f.attackInterval).toBe(config.combat.defaultAttackInterval);

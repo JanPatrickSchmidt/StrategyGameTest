@@ -177,7 +177,7 @@ describe("E11b3: Feuerball – Schaden vor dem Kampf (R-14.2)", () => {
     // Volle Runde: Der Veteran startet mit 2 LP in den Frontkampf; nach dem Aufräumen wieder mit 6.
     const round = emptyBoard();
     const veteran = placeUnit(round, 1, front("left", 1, 1), "shieldwall_veteran");
-    placeUnit(round, 0, front("right", 1, 1), "recruit");
+    placeUnit(round, 0, front("right", 1, 1), "shieldwall_veteran");
     setPre(round, 0, "fireball", hexOfUnit(round, veteran, "right"));
     const from = runRound(round);
     const started = round.log.slice(from).findIndex((e) => e.type === "combat_started");
@@ -197,7 +197,7 @@ describe("E11b3: Feuerball – Schaden vor dem Kampf (R-14.2)", () => {
     const attacker = placeUnit(state, 0, front("right", 1, 1), "recruit");
     setPre(state, 0, "fireball", hexOfUnit(state, enemy, "right"));
     const from = runRound(state);
-    expect(eventsOf(state, "unit_damaged", from)).toEqual([expect.objectContaining({ unitId: enemy, hpLoss: 5, hp: 0 })]);
+    expect(eventsOf(state, "unit_damaged", from)).toEqual([expect.objectContaining({ unitId: enemy, hpLoss: 5, hp: -2 })]);
     expect(eventsOf(state, "unit_defeated", from)).toEqual([
       expect.objectContaining({ type: "unit_defeated", player: 1, unitId: enemy, cardId: "fireball", phase: "preCombatSpells" }),
     ]);
@@ -223,7 +223,7 @@ describe("E11b3: Feuerball – Schaden vor dem Kampf (R-14.2)", () => {
     setPre(state, 0, "fireball", hexOfUnit(state, target, "right"));
     resolvePreCombatSpells(state, data);
     expect(eventsOf(state, "unit_damaged").map((e) => [e.unitId, e.hp])).toEqual([
-      [target, 0],
+      [target, -2],
       [veteran, 5],
       [veteran, 4],
     ]);
@@ -251,7 +251,7 @@ describe("E11b3: Feuerball – Schaden vor dem Kampf (R-14.2)", () => {
     setPre(second, 0, "fireball", hex("right", empty.col, empty.row));
     resolvePreCombatSpells(second, data);
     expect(eventsOf(second, "spell_resolved")).toHaveLength(1);
-    expect(eventsOf(second, "unit_damaged")).toEqual([expect.objectContaining({ unitId: neighbor, amount: 2, hp: 3 })]);
+    expect(eventsOf(second, "unit_damaged")).toEqual([expect.objectContaining({ unitId: neighbor, amount: 2, hp: 1 })]);
   });
 
   it("R-14.4: besiegt Schaden vor dem Kampf mit `wound: true`, ist die Einheit verwundet (außer `unwoundable`)", () => {
