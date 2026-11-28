@@ -89,9 +89,9 @@ describe("E11c2: Ilyras Blitzschlag – Kategorie damage (R-8.2, R-14.2)", () =>
     expect(eventsOf(state, "leader_ability_resolved", from)).toMatchObject([
       { type: "leader_ability_resolved", player: ILYRA, leaderId: "ilyra", category: "damage", level: 1, branchId: null },
     ]);
-    // Schildwall-Veteran: 8 LP, Panzer 1 → 3 LP Verlust.
+    // Schildwall-Veteran: 6 LP (seit B0c2), Panzer 1 → 3 LP Verlust.
     expect(eventsOf(state, "unit_damaged", from)).toMatchObject([
-      { type: "unit_damaged", player: RIGHT_FOE, unitId: a, amount: 4, absorbed: 0, hpLoss: 3, hp: 5, cardId: "ilyra" },
+      { type: "unit_damaged", player: RIGHT_FOE, unitId: a, amount: 4, absorbed: 0, hpLoss: 3, hp: 3, cardId: "ilyra" },
     ]);
     expect(unit(state, b).roundEffects).toBeUndefined();
   });

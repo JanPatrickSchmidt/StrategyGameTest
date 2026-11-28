@@ -33,11 +33,11 @@ describe("C5b2 Kartentexte aus den Effekt-Bausteinen", () => {
     const veteran = card(idOf("Schildwall-Veteran"));
     expect(cardRulesLines(data, veteran).slice(0, 2)).toEqual([
       "Einheit · Zwerge · Krieger",
-      "Angriff 2 · Leben 8 · Durchbruch 0 · Reichweite 1 · Panzer 1",
+      "Angriff 2 · Leben 6 · Durchbruch 0 · Reichweite 1 · Panzer 1", // Leben 6 seit B0c2
     ]);
     if (veteran.type !== "unit") throw new Error("Einheit erwartet");
     expect(statsText({ ...veteran, stats: { ...veteran.stats, attackInterval: 8, moveInterval: 5, manaMax: 80 } })).toBe(
-      "Angriff 2 · Leben 8 · Durchbruch 0 · Reichweite 1 · Panzer 1 · Angriffstakt 8 · Lauftakt 5 · Mana 80",
+      "Angriff 2 · Leben 6 · Durchbruch 0 · Reichweite 1 · Panzer 1 · Angriffstakt 8 · Lauftakt 5 · Mana 80",
     );
     expect(lines("Rekrut")[0]).toBe("Einheit · Krieger");
   });

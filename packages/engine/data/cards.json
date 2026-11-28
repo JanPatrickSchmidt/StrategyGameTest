@@ -42,7 +42,7 @@
       "stats": { "attack": 5, "hp": 5, "breakthrough": 4, "range": 1 },
       "altCost": { "gold": 2, "sacrifice": 1 } },
     { "id": "shieldwall_veteran", "name": "Schildwall-Veteran", "type": "unit", "cost": 3, "race": "dwarf", "class": "warrior", "pool": "kingdom",
-      "stats": { "attack": 2, "hp": 8, "breakthrough": 0, "range": 1, "armor": 1 } },
+      "stats": { "attack": 2, "hp": 6, "breakthrough": 0, "range": 1, "armor": 1 } },
     { "id": "runesmith", "name": "Runenschmied", "type": "unit", "cost": 4, "race": "dwarf", "class": "shaman", "pool": "kingdom",
       "stats": { "attack": 2, "hp": 6, "breakthrough": 0, "range": 1 },
       "abilities": [{ "trigger": "onCombatStart", "effects": [{ "op": "buff", "stat": "armor", "amount": 1, "duration": "combat", "target": "adjacentAllies" }] }] },
@@ -84,7 +84,7 @@
     },
 
     { "id": "banner_bearer", "name": "Bannerträger", "type": "unit", "cost": 3, "race": null, "class": "warrior", "pool": "class:warrior",
-      "stats": { "attack": 2, "hp": 6, "breakthrough": 1, "range": 1 },
+      "stats": { "attack": 2, "hp": 4, "breakthrough": 1, "range": 1 },
       "abilities": [{ "trigger": "onCombatStart", "effects": [{ "op": "buff", "stat": "attack", "amount": 1, "duration": "combat", "target": "alliesInArena" }] }] },
     {
       "id": "war_cry", "name": "Kriegsruf", "type": "spell", "slot": "pre", "tempo": 1, "cost": 2, "pool": "class:warrior",
@@ -92,7 +92,7 @@
       "effects": [{ "op": "buff", "stat": "hp", "amount": 2, "duration": "combat", "target": "zoneAllies" }]
     },
     { "id": "arena_champion", "name": "Champion der Arena", "type": "unit", "cost": 6, "race": null, "class": "warrior", "pool": "class:warrior",
-      "stats": { "attack": 6, "hp": 12, "breakthrough": 3, "range": 1 },
+      "stats": { "attack": 5, "hp": 9, "breakthrough": 3, "range": 1 },
       "abilities": [{ "trigger": "onKill", "effects": [{ "op": "buff", "stat": "attack", "amount": 1, "duration": "permanent", "target": "self" }] }] },
 
     {

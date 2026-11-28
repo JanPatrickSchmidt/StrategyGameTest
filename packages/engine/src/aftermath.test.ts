@@ -158,15 +158,15 @@ describe("Vorgemerkte Kampf-Effekte (E10b, R-10.3)", () => {
       expect.objectContaining({ player: 0, unitId: champion, stat: "attack", amount: 1, total: 2 }),
     ]);
     const init = fighterForUnit(state, data, state.units[champion] as Unit, { col: 0, row: 0 });
-    expect(init.stats.attack).toBe(8);
+    expect(init.stats.attack).toBe(7); // 5 + 2 (Angriff 5 seit B0c2)
   });
 
   it("E10b: dauerhafte Buffs kommen nach dem Sternfaktor als fester Zuschlag hinzu (F31)", () => {
     const state = emptyBoard();
     const id = placeUnit(state, 0, front("right", 0, 0), "arena_champion", { stars: 2, permanentBuffs: { attack: 3, hp: 2 } });
     const init = fighterForUnit(state, data, state.units[id] as Unit, { col: 0, row: 0 });
-    expect(init.stats.attack).toBe(12 + 3); // 6 × 2,0 = 12 (B0c1)
-    expect(init.stats.hp).toBe(24 + 2); // 12 × 2,0 = 24 (B0c1)
+    expect(init.stats.attack).toBe(10 + 3); // 5 × 2,0 = 10 (B0c1, B0c2)
+    expect(init.stats.hp).toBe(18 + 2); // 9 × 2,0 = 18 (B0c1, B0c2)
   });
 
   it("R-15.1: beim Verschmelzen addieren sich die dauerhaften Buffs der drei Einheiten (F31)", () => {

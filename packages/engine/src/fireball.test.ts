@@ -108,10 +108,10 @@ describe("E11b3: Feuerball – Schaden vor dem Kampf (R-14.2)", () => {
     const ball = setPre(state, 0, "fireball", hexOfUnit(state, center, "right"));
     resolvePreCombatSpells(state, data);
     expect(eventsOf(state, "spell_resolved")).toEqual([expect.objectContaining({ cardId: "fireball", player: 0, tempo: 2 })]);
-    // Schildwall-Veteran: 8 LP, Panzer 1 → 5 Schaden = 4 LP Verlust, 2 Schaden = 1 LP Verlust.
+    // Schildwall-Veteran: 6 LP (seit B0c2), Panzer 1 → 5 Schaden = 4 LP Verlust, 2 Schaden = 1 LP Verlust.
     expect(eventsOf(state, "unit_damaged")).toEqual([
-      expect.objectContaining({ type: "unit_damaged", player: 1, unitId: center, amount: 5, absorbed: 0, hpLoss: 4, hp: 4, cardId: "fireball" }),
-      expect.objectContaining({ type: "unit_damaged", player: 1, unitId: neighbor, amount: 2, absorbed: 0, hpLoss: 1, hp: 7, cardId: "fireball" }),
+      expect.objectContaining({ type: "unit_damaged", player: 1, unitId: center, amount: 5, absorbed: 0, hpLoss: 4, hp: 2, cardId: "fireball" }),
+      expect.objectContaining({ type: "unit_damaged", player: 1, unitId: neighbor, amount: 2, absorbed: 0, hpLoss: 1, hp: 5, cardId: "fireball" }),
     ]);
     expect(unit(state, far).roundEffects).toBeUndefined();
     expect(getPlayer(state, 0).discard).toContain(ball);
@@ -152,7 +152,7 @@ describe("E11b3: Feuerball – Schaden vor dem Kampf (R-14.2)", () => {
     setPre(state, 0, "fireball", hexOfUnit(state, enemy, "right"));
     resolvePreCombatSpells(state, data);
     expect(eventsOf(state, "spell_resolved").map((e) => e.cardId)).toEqual(["rune_shield", "fireball"]);
-    expect(eventsOf(state, "unit_damaged")).toEqual([expect.objectContaining({ unitId: enemy, amount: 5, absorbed: 5, hpLoss: 0, hp: 8 })]);
+    expect(eventsOf(state, "unit_damaged")).toEqual([expect.objectContaining({ unitId: enemy, amount: 5, absorbed: 5, hpLoss: 0, hp: 6 })]);
     expect(unit(state, enemy).roundEffects?.shield).toBe(0);
     // Ohne Schild: Panzer 1 plus 2 aus einem dauerhaften Buff → max(1, 5 − 3) = 2; Mindestschaden 1 bei 2 Schaden.
     const second = emptyBoard();
@@ -163,8 +163,8 @@ describe("E11b3: Feuerball – Schaden vor dem Kampf (R-14.2)", () => {
     setPre(second, 0, "fireball", hexOfUnit(second, armored, "right"));
     resolvePreCombatSpells(second, data);
     expect(eventsOf(second, "unit_damaged").map((e) => [e.unitId, e.hpLoss, e.hp])).toEqual([
-      [armored, 2, 6],
-      [next, 1, 7],
+      [armored, 2, 4],
+      [next, 1, 5],
     ]);
   });
 
@@ -173,8 +173,8 @@ describe("E11b3: Feuerball – Schaden vor dem Kampf (R-14.2)", () => {
     const enemy = placeUnit(state, 1, front("left", 1, 1), "shieldwall_veteran");
     setPre(state, 0, "fireball", hexOfUnit(state, enemy, "right"));
     resolvePreCombatSpells(state, data);
-    expect(startHp(state, enemy)).toBe(4);
-    // Volle Runde: Der Veteran startet mit 4 LP in den Frontkampf; nach dem Aufräumen wieder mit 8.
+    expect(startHp(state, enemy)).toBe(2);
+    // Volle Runde: Der Veteran startet mit 2 LP in den Frontkampf; nach dem Aufräumen wieder mit 6.
     const round = emptyBoard();
     const veteran = placeUnit(round, 1, front("left", 1, 1), "shieldwall_veteran");
     placeUnit(round, 0, front("right", 1, 1), "recruit");
@@ -185,10 +185,10 @@ describe("E11b3: Feuerball – Schaden vor dem Kampf (R-14.2)", () => {
     expect(damaged).toBeGreaterThanOrEqual(0);
     expect(damaged).toBeLessThan(started);
     const hits = eventsOf(round, "combat_damage", from).filter((e) => e.target === veteran);
-    expect(hits[0]?.hp).toBe(4 - (hits[0]?.hpLoss ?? 0));
+    expect(hits[0]?.hp).toBe(2 - (hits[0]?.hpLoss ?? 0));
     expect(eventsOf(round, "unit_round_effects_cleared", from).map((e) => e.unitId)).toContain(veteran);
     expect(unit(round, veteran).roundEffects).toBeUndefined();
-    expect(startHp(round, veteran)).toBe(8);
+    expect(startHp(round, veteran)).toBe(6);
   });
 
   it("R-14.2: tödlicher Schaden – die Einheit nimmt in dieser Runde an keinem Kampf teil, bleibt aber auf dem Brett", () => {
@@ -224,11 +224,11 @@ describe("E11b3: Feuerball – Schaden vor dem Kampf (R-14.2)", () => {
     resolvePreCombatSpells(state, data);
     expect(eventsOf(state, "unit_damaged").map((e) => [e.unitId, e.hp])).toEqual([
       [target, 0],
-      [veteran, 7],
-      [veteran, 6],
+      [veteran, 5],
+      [veteran, 4],
     ]);
     expect(eventsOf(state, "spell_resolved")).toHaveLength(2);
-    expect(startHp(state, veteran)).toBe(6);
+    expect(startHp(state, veteran)).toBe(4);
     // Eine eigene Schutzrune des Gegners auf den besiegten Knappen verpufft (R-8.5).
     setPre(state, 1, "rune_shield", hexOfUnit(state, target, "left"));
     resolvePreCombatSpells(state, data);

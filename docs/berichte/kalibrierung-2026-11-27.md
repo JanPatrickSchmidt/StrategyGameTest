@@ -237,3 +237,79 @@ Beobachtungen:
 - Weiter klar zu schwach: Mondpriesterin (33 %), Funkenreiter (40 %), Taschendieb ★1 (42 %), Kesselflicker ★2 (30 %) – B0c4.
 - Zweikampf 2 Gold bleibt weit unter dem Ziel, weil die Gegner Champion und Erzmagier stark sind; nach B0c2 neu prüfen.
 - Werte von ★2-Karten mit 5 Gold sind bei beiden Faktoren gleich, weil sie nur im Budget 15 als einzelne Einheit gegeneinander antreten (gleiche Paarungen, ähnlicher Ausgang); diese Zeilen sind wenig aussagekräftig.
+
+## B0c2: Champion der Arena, Bannerträger, Schildwall-Veteran (umgesetzt am 2026-11-28)
+
+Änderungen V2–V4 in `packages/engine/data/cards.json` (Kartenwerte nach B-3, alle innerhalb ±50 %):
+
+| Karte | Vorher | Nachher | Änderung |
+| --- | --- | --- | --- |
+| Champion der Arena | Angriff 6, Leben 12 | Angriff 5, Leben 9 | −17 % / −25 % |
+| Bannerträger | Leben 6 | Leben 4 | −33 % |
+| Schildwall-Veteran | Leben 8 | Leben 6 | −25 % |
+
+Messung wie bei B0c1: `npm run calibrate -- --battles 3000 --budget 6,10,15 --seed S --same-count` für S = 1–5, zusammengefasst (Unentschieden halb gezählt). „Vorher“ ist der Stand nach B0c1.
+
+| Kennzahl | Vorher (B0c1) | Nachher (B0c2) | Ziel |
+| --- | ---: | ---: | --- |
+| alle ★1-Einheiten | 49.5 % | 49.2 % | 45–55 % |
+| alle ★2-Einheiten | 51.6 % | 52.5 % | 45–55 % |
+| Zweikampf ★2 (1 Gold) gegen ★1 mit 3 Gold | 62.5 % | 77.3 % | 50–65 % |
+| Zweikampf ★2 (2 Gold) gegen ★1 mit 6 Gold | 24.2 % | 24.2 % | 50–65 % |
+
+| Karte | Kosten | ★ | Kämpfe | Vorher | Nachher | Bewertung nachher |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Lehrling | 1 | 1 | 10806 | 47.9 % | 47.9 % | ok |
+| Lehrling | 1 | 2 | 4490 | 53.5 % | 55.2 % | zu stark |
+| Totengräber | 1 | 1 | 10760 | 46.9 % | 46.4 % | ok |
+| Totengräber | 1 | 2 | 4576 | 50.8 % | 52.1 % | ok |
+| Taschendieb | 1 | 1 | 10868 | 41.6 % | 41.0 % | zu schwach |
+| Taschendieb | 1 | 2 | 4470 | 51.8 % | 53.0 % | ok |
+| Rekrut | 1 | 1 | 10714 | 51.1 % | 51.0 % | ok |
+| Rekrut | 1 | 2 | 4408 | 64.2 % | 66.3 % | zu stark |
+| Schildknappe | 1 | 1 | 10746 | 54.3 % | 54.7 % | ok |
+| Schildknappe | 1 | 2 | 4282 | 65.5 % | 67.8 % | zu stark |
+| Goblin-Plänkler | 2 | 1 | 7476 | 48.4 % | 48.6 % | ok |
+| Goblin-Plänkler | 2 | 2 | 3164 | 48.5 % | 51.5 % | ok |
+| Söldner | 2 | 1 | 7362 | 49.2 % | 49.8 % | ok |
+| Söldner | 2 | 2 | 3188 | 49.8 % | 52.7 % | ok |
+| Funkenreiter | 2 | 1 | 7442 | 40.0 % | 39.4 % | zu schwach |
+| Funkenreiter | 2 | 2 | 3168 | 35.3 % | 36.3 % | zu schwach |
+| Bannerträger | 3 | 1 | 4448 | 75.4 % | 65.7 % | zu stark |
+| Bannerträger | 3 | 2 | 1644 | 69.0 % | 55.0 % | ok |
+| Hehler | 3 | 1 | 4390 | 27.8 % | 25.8 % | zu schwach |
+| Hehler | 3 | 2 | 1538 | 11.1 % | 10.4 % | zu schwach |
+| Waldläuferin | 3 | 1 | 4354 | 54.3 % | 55.6 % | zu stark |
+| Waldläuferin | 3 | 2 | 1622 | 58.6 % | 61.9 % | zu stark |
+| Schildwall-Veteran | 3 | 1 | 4488 | 69.8 % | 63.3 % | zu stark |
+| Schildwall-Veteran | 3 | 2 | 1430 | 79.2 % | 72.7 % | zu stark |
+| Kesselflicker | 3 | 1 | 4496 | 46.0 % | 45.9 % | ok |
+| Kesselflicker | 3 | 2 | 1470 | 29.5 % | 29.8 % | zu schwach |
+| Ahnenpfahl | 4 | 1 | 3940 | 43.4 % | 44.3 % | zu schwach |
+| Ahnenpfahl | 4 | 2 | 578 | 8.1 % | 8.1 % | zu schwach |
+| Klingentänzerin | 4 | 1 | 3812 | 55.8 % | 59.3 % | zu stark |
+| Klingentänzerin | 4 | 2 | 576 | 64.1 % | 71.0 % | zu stark |
+| Fluchweber | 4 | 1 | 3940 | 40.5 % | 41.4 % | zu schwach |
+| Fluchweber | 4 | 2 | 552 | 34.2 % | 36.6 % | zu schwach |
+| Runenschmied | 4 | 1 | 4018 | 44.6 % | 46.9 % | ok |
+| Runenschmied | 4 | 2 | 668 | 33.7 % | 34.9 % | zu schwach |
+| Donnerbüchse | 4 | 1 | 4034 | 58.7 % | 60.9 % | zu stark |
+| Donnerbüchse | 4 | 2 | 582 | 59.8 % | 62.0 % | zu stark |
+| Kopfgeldjäger | 5 | 1 | 3394 | 53.7 % | 55.8 % | zu stark |
+| Kopfgeldjäger | 5 | 2 | 404 | 77.0 % | 77.0 % | zu stark |
+| Meisterdieb | 5 | 1 | 3416 | 42.8 % | 44.2 % | zu schwach |
+| Meisterdieb | 5 | 2 | 388 | 50.5 % | 50.5 % | ok |
+| Mondpriesterin | 5 | 1 | 3518 | 33.4 % | 34.3 % | zu schwach |
+| Mondpriesterin | 5 | 2 | 468 | 15.0 % | 15.0 % | zu schwach |
+| Seelenhirte | 5 | 1 | 3562 | 53.2 % | 56.0 % | zu stark |
+| Seelenhirte | 5 | 2 | 388 | 63.7 % | 63.7 % | zu stark |
+| Erzmagier | 6 | 1 | 2974 | 49.7 % | 54.8 % | ok |
+| Champion der Arena | 6 | 1 | 3048 | 82.2 % | 68.6 % | zu stark |
+
+Beobachtungen:
+
+- Alle drei Ausreißer sind deutlich schwächer, aber noch über dem Ziel: Champion 82 → 69 %, Bannerträger 75 → 66 % (★2 69 → 55 %, jetzt ok), Schildwall-Veteran 70 → 63 % (★2 79 → 73 %). Für einen weiteren Schritt ist noch Spielraum innerhalb ±50 % (z. B. Champion Leben 9 → 8, Veteran Leben 6 → 5, Bannerträger Leben 4 → 3); das geht in B0c3 ein, zusammen mit den übrigen zu starken Karten, damit nach jeder Messung alle Wechselwirkungen sichtbar sind.
+- Wie in der Gegenprobe vorhergesagt, stieg der **Zweikampf 1 Gold** von 62,5 auf **77,3 %** (über dem Ziel 50–65 %), weil seine Gegner (Bannerträger, Veteran, Waldläuferin, Kesselflicker, Hehler) mit 3 Gold schwächer wurden. Treiber sind vor allem Rekrut ★2 und Schildknappe ★2 (beide schon im Kartenvergleich zu stark, 66–68 %); B0c3 sollte zuerst diese beiden behandeln und dann den Zweikampf neu prüfen.
+- Leicht gestiegen sind die Karten, die vorher gegen die drei Ausreißer verloren: Klingentänzerin (★1 56 → 59 %, ★2 64 → 71 %), Donnerbüchse (59 → 61 %), Seelenhirte und Kopfgeldjäger ★1 (jetzt knapp über 55 %), Erzmagier 50 → 55 %. Runenschmied ★1 ist jetzt im Ziel (47 %).
+- Unverändert zu schwach: Mondpriesterin, Funkenreiter, Taschendieb ★1, Kesselflicker ★2, Fluchweber, Hehler, Ahnenpfahl (B0c4/B0c5).
+- Zweikampf 2 Gold bleibt bei 24 %: Gegner mit 6 Gold sind Champion und Erzmagier, der Champion ist trotz Abschwächung weiter stark.

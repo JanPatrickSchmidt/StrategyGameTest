@@ -309,7 +309,7 @@ describe("Tod, Bezwingen, Tod eines Verbündeten (R-9.6)", () => {
   it("R-9.6: Champion der Arena erhält beim Bezwingen eines Gegners sofort +1 Angriff (dauerhaft vorgemerkt)", () => {
     const { sim, fx } = setup([unit(1, 0, "arena_champion", at(2, 2)), dummy(2, 1, at(2, 3), { hp: 1 }), dummy(3, 1, at(4, 5))]);
     dealDamage(sim, get(sim, 1), get(sim, 2), 6, "attack");
-    expect(get(sim, 1).attack).toBe(7);
+    expect(get(sim, 1).attack).toBe(6); // 5 + 1 (Angriff 5 seit B0c2)
     expect(fx.deferred).toEqual([
       expect.objectContaining({ unit: 1, team: 0, sourceId: "arena_champion", trigger: "onKill", targets: [1] }),
     ]);
@@ -318,7 +318,7 @@ describe("Tod, Bezwingen, Tod eines Verbündeten (R-9.6)", () => {
   it("R-9.6: Bezwingen einer verbündeten Einheit zählt nicht als onKill", () => {
     const { sim } = setup([unit(1, 0, "arena_champion", at(2, 2)), dummy(2, 0, at(2, 1), { hp: 1 }), dummy(3, 1, at(4, 5))]);
     dealDamage(sim, get(sim, 1), get(sim, 2), 6, "ability");
-    expect(get(sim, 1).attack).toBe(6);
+    expect(get(sim, 1).attack).toBe(5);
   });
 
   it("R-9.6: Goblin-Plänkler merkt beim Tod 1 Gold für die Schatzkammer vor", () => {
